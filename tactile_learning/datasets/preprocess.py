@@ -30,3 +30,7 @@ def dump_video_to_images(root: str, video_type: str ='rgb', view_num: int=0) -> 
         frame_id += 1
 
     print(f'dumping finished in {root}')
+
+if __name__ == '__main__':
+    data_dir = '/home/irmak/Workspace/Holo-Bot/extracted_data/demonstration_18'
+    dump_video_to_images(root=data_dir)
