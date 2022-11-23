@@ -7,7 +7,7 @@ import pickle
 import torch
 import torchvision.transforms as T 
 from torchvision.datasets.folder import default_loader as loader 
-
+from torch.utils import data
 from tqdm import tqdm
 from omegaconf import DictConfig, OmegaConf
 
@@ -16,7 +16,7 @@ from tactile_learning.datasets.preprocess import dump_video_to_images
 
 # Class to traverse through the data saved and get the data according to the timestamps
 # all of them should be saved with 
-class TactileDataset():
+class TactileDataset(data.Dataset):
     def __init__(self,
         data_path,
         tactile_stats=None, # Tuple of mean and std of the tactile sensor information
@@ -31,20 +31,29 @@ class TactileDataset():
 
         self.roots = ['/home/irmak/Workspace/Holo-Bot/extracted_data/demonstration_17',
                       '/home/irmak/Workspace/Holo-Bot/extracted_data/demonstration_18']
-        self._allegro_kdl_solver = AllegroKDL()
+        # self._allegro_kdl_solver = AllegroKDL()
         
         # Load the tactile and allegro state data for all the roots
-        self.allegro_data = [] 
-        self.tactile_data = []
-        self.image_metadata = []
+        # self.allegro_data = [] 
+        # self.tactile_data = []
+        # self.image_metadata = []
+        self.allegro_timestamps = [] 
+        self.allegro_positions = []
+        self.allegro_actions = []
+        self.tactile_values = [] 
+        self.tactile_timestamps = []
+        self.image_timestamps = []
         self._load_state_data()
 
         # Get the indexing 
-        self._data_indexing = { # Dictionary will hold the indices for each general index in _get_item 
-            'tactile_indices': [], # each element will be (demo_id, frame_num)
-            'image_indices': [],
-            'robot_state_indices': []
-        }
+        # self._data_indexing = { # Dictionary will hold the indices for each general index in _get_item 
+        #     'tactile_indices': [], # each element will be (demo_id, frame_num)
+        #     'image_indices': [],
+        #     'robot_state_indices': []
+        # }
+        self.tactile_indices = []
+        self.image_indices = [] 
+        self.robot_state_indices = []
         self._get_dataset_info()
 
         self.transform = T.Compose([
@@ -65,9 +74,12 @@ class TactileDataset():
         else:
             self._allegro_mean, self._allegro_std = allegro_stats
 
+        # print('len(self._data_indexing[tactile_indices]): {}'.format(len(self._data_indexing['tactile_indices'])))
+        # print('----------- TACTILE DATASET INIT IS COMPLETED -------------------')
 
     def __len__(self):
-        return len(self._data_indexing['tactile_indices'])
+        # return len(self._data_indexing['tactile_indices'])
+        return len(self.tactile_indices)
 
     def _get_image(self, demo_id, image_id):
         image_root = self.roots[demo_id]
@@ -81,20 +93,30 @@ class TactileDataset():
         return self.__getitem__(id)
 
     def __getitem__(self, id):
-        tac_demo_id, tactile_id = self._data_indexing['tactile_indices'][id]
-        rs_demo_id, robot_state_id = self._data_indexing['robot_state_indices'][id]
-        img_demo_id, image_id = self._data_indexing['image_indices'][id]
+        print('inside getitem!')
+
+        # tac_demo_id, tactile_id = self._data_indexing['tactile_indices'][id]
+        # rs_demo_id, robot_state_id = self._data_indexing['robot_state_indices'][id]
+        # img_demo_id, image_id = self._data_indexing['image_indices'][id]
+        tac_demo_id, tactile_id = self.tactile_indices[id]
+        rs_demo_id, robot_state_id = self.robot_state_indices[id]
+        img_demo_id, image_id = self.image_indices[id]
+
+        # print('img_demo_id: {}, image_id: {}'.format(img_demo_id, image_id))
 
         # Get the tactile information
-        tactile_info = self.tactile_data[tac_demo_id]['sensor_values'][tactile_id]
+        # tactile_info = self.tactile_data[tac_demo_id]['sensor_values'][tactile_id]
+        tactile_info = self.tactile_values[tac_demo_id][tactile_id]
         tactile_info = (tactile_info - self._tactile_mean) / self._tactile_std
 
         # Get the joint positions
-        robot_state = self.allegro_data[rs_demo_id]['positions'][robot_state_id]
+        # robot_state = self.allegro_data[rs_demo_id]['positions'][robot_state_id]
+        robot_state = self.allegro_positions[rs_demo_id][robot_state_id]
         robot_state = (robot_state - self._allegro_mean) / self._allegro_std
 
         # Get the actions 
-        actions = self.allegro_data[rs_demo_id]['actions'][robot_state_id]
+        # actions = self.allegro_data[rs_demo_id]['actions'][robot_state_id]
+        actions = self.allegro_actions[rs_demo_id][robot_state_id]
         # TODO: Normalize it?
 
         # Get the image 
@@ -103,10 +125,15 @@ class TactileDataset():
         return image, tactile_info, robot_state, actions
 
     def _calculate_tactile_mean_std(self):
-        all_tactile_info = np.zeros((len(self._data_indexing['tactile_indices']), 15,16,3))
-        for id in range(len(self._data_indexing['tactile_indices'])):
-            demo_id, tactile_id = self._data_indexing['tactile_indices'][id]
-            all_tactile_info[id] = self.tactile_data[demo_id]['sensor_values'][tactile_id]
+        # all_tactile_info = np.zeros((len(self._data_indexing['tactile_indices']), 15,16,3))
+        # for id in range(len(self._data_indexing['tactile_indices'])):
+        #     demo_id, tactile_id = self._data_indexing['tactile_indices'][id]
+        #     all_tactile_info[id] = self.tactile_data[demo_id]['sensor_values'][tactile_id]
+
+        all_tactile_info = np.zeros((len(self.tactile_indices), 15,16,3))
+        for id in range(len(self.tactile_indices)):
+            demo_id, tactile_id = self.tactile_indices[id]
+            all_tactile_info[id] = self.tactile_values[demo_id][tactile_id]
 
         tactile_mean = all_tactile_info.mean(axis=0)
         tactile_std = all_tactile_info.std(axis=0)
@@ -120,10 +147,15 @@ class TactileDataset():
         # pass 
 
     def _calculate_allegro_mean_std(self):
-        all_joint_pos = np.zeros((len(self._data_indexing['robot_state_indices']), 16))
-        for id in range(len(self._data_indexing['robot_state_indices'])):
-            demo_id, allegro_id = self._data_indexing['robot_state_indices'][id]
-            all_joint_pos[id] = self.allegro_data[demo_id]['positions'][allegro_id]
+        # all_joint_pos = np.zeros((len(self._data_indexing['robot_state_indices']), 16))
+        # for id in range(len(self._data_indexing['robot_state_indices'])):
+        #     demo_id, allegro_id = self._data_indexing['robot_state_indices'][id]
+        #     all_joint_pos[id] = self.allegro_data[demo_id]['positions'][allegro_id]
+
+        all_joint_pos = np.zeros((len(self.robot_state_indices), 16))
+        for id in range(len(self.robot_state_indices)):
+            demo_id, allegro_id = self.robot_state_indices[id]
+            all_joint_pos[id] = self.allegro_positions[demo_id][allegro_id]
 
         allegro_mean = all_joint_pos.mean(axis=0)
         allegro_std = all_joint_pos.std(axis=0)
@@ -146,28 +178,37 @@ class TactileDataset():
 
             # Add the state
             with h5py.File(allegro_states_path, 'r') as f:
-                self.allegro_data.append({
-                    'timestamps': f['timestamps'][()],
-                    'positions': f['positions'][()]
-                })
+                # self.allegro_data.append({
+                #     'timestamps': np.asarray(f['timestamps'][()]),
+                #     'positions': np.asarray(f['positions'][()])
+                # })
+                self.allegro_positions.append(f['positions'][()]) # NOTE: Need to add np.asarray
+                self.allegro_timestamps.append(f['timestamps'][()])
 
             # Add the commands 
             with h5py.File(allegro_commands_path, 'r') as f:
                 # print('f.keys(): {} in {}'.format(
                 #     f.keys(), allegro_commands_path
                 # ))
-                self.allegro_data[-1]['actions'] = f['velocitys'][()]
+                # self.allegro_data[-1]['actions'] = np.asarray(f['velocitys'][()])
+                self.allegro_actions.append(f['velocitys'][()])
             
             with h5py.File(tactile_path, 'r') as f:
-                self.tactile_data.append({
-                    'timestamps': f['timestamps'][()],
-                    'sensor_values': f['sensor_values'][()]
-                })
+                # self.tactile_data.append({
+                #     'timestamps': np.asarray(f['timestamps'][()]),
+                #     'sensor_values': np.asarray(f['sensor_values'][()])
+                # })
+                self.tactile_timestamps.append(f['timestamps'][()])
+                self.tactile_values.append(f['sensor_values'][()])
+
             with open(image_metadata_path, 'rb') as f:
                 image_metadata = pickle.load(f)
-                self.image_metadata.append({
-                    'timestamps': self._traverse_image_timestamps(image_metadata['timestamps']) 
-                })
+                # self.image_metadata.append({
+                #     # 'timestamps': np.asarray(self._traverse_image_timestamps(image_metadata['timestamps']))
+                #     'timestamps': np.asarray(image_metadata['timestamps']) / 1000
+                # })
+                # self.image_timestamps.append(self._traverse_image_timestamps(image_metadata['timestamps']))
+                self.image_timestamps.append(np.asarray(image_metadata['timestamps'])/1000.)
                 
     # Method to traverse the number of frames in each demonstration
     def _get_dataset_info(self):
@@ -181,14 +222,20 @@ class TactileDataset():
             tactile_id = 0 
 
             # Get the earliest timestamp for tactile sensor and find curresponding allegro pos ids for that
-            tactile_timestamp = self.tactile_data[demo_id]['timestamps'][0]
-            allegro_pos_id = self._get_closest_id(allegro_id, tactile_timestamp, self.allegro_data[demo_id]['timestamps'])
-            image_id = self._get_closest_id(image_id, tactile_timestamp, self.image_metadata[demo_id]['timestamps'])
+            # tactile_timestamp = self.tactile_data[demo_id]['timestamps'][0]
+            # allegro_pos_id = self._get_closest_id(allegro_id, tactile_timestamp, self.allegro_data[demo_id]['timestamps'])
+            # image_id = self._get_closest_id(image_id, tactile_timestamp, self.image_metadata[demo_id]['timestamps'])
+            tactile_timestamp = self.tactile_timestamps[demo_id][0]
+            allegro_pos_id = self._get_closest_id(allegro_id, tactile_timestamp, self.allegro_timestamps[demo_id])
+            image_id = self._get_closest_id(image_id, tactile_timestamp, self.image_timestamps[demo_id])
 
             # Save the ids
-            self._data_indexing['tactile_indices'].append((demo_id, tactile_id))
-            self._data_indexing['robot_state_indices'].append((demo_id, allegro_pos_id))
-            self._data_indexing['image_indices'].append((demo_id, image_id))
+            # self._data_indexing['tactile_indices'].append((demo_id, tactile_id))
+            # self._data_indexing['robot_state_indices'].append((demo_id, allegro_pos_id))
+            # self._data_indexing['image_indices'].append((demo_id, image_id))
+            self.tactile_indices.append([demo_id, tactile_id])
+            self.robot_state_indices.append([demo_id, allegro_pos_id])
+            self.image_indices.append([demo_id, image_id])
 
             while(True):
                 # Find the next allegro pos id with a change
@@ -197,44 +244,63 @@ class TactileDataset():
                     break
                 
                 # Find the closest timestamps with the given allegro pos id
-                allegro_timestamp = self.allegro_data[demo_id]['timestamps'][allegro_pos_id]
-                tactile_id = self._get_closest_id(tactile_id, allegro_timestamp, self.tactile_data[demo_id]['timestamps'])
-                image_id = self._get_closest_id(image_id, allegro_timestamp, self.image_metadata[demo_id]['timestamps'])
+                # allegro_timestamp = self.allegro_data[demo_id]['timestamps'][allegro_pos_id]
+                # tactile_id = self._get_closest_id(tactile_id, allegro_timestamp, self.tactile_data[demo_id]['timestamps'])
+                # image_id = self._get_closest_id(image_id, allegro_timestamp, self.image_metadata[demo_id]['timestamps'])
+                allegro_timestamp = self.allegro_timestamps[demo_id][allegro_pos_id]
+                tactile_id = self._get_closest_id(tactile_id, allegro_timestamp, self.tactile_timestamps[demo_id])
+                image_id = self._get_closest_id(image_id, allegro_timestamp, self.image_timestamps[demo_id])
 
-                self._data_indexing['tactile_indices'].append((demo_id, tactile_id))
-                self._data_indexing['robot_state_indices'].append((demo_id, allegro_pos_id))
-                self._data_indexing['image_indices'].append((demo_id, image_id)) 
+                # self._data_indexing['tactile_indices'].append((demo_id, tactile_id))
+                # self._data_indexing['robot_state_indices'].append((demo_id, allegro_pos_id))
+                # self._data_indexing['image_indices'].append((demo_id, image_id)) 
+                self.tactile_indices.append([demo_id, tactile_id])
+                self.robot_state_indices.append([demo_id, allegro_pos_id])
+                self.image_indices.append([demo_id, image_id])
 
-                if image_id == len(self.image_metadata[demo_id]['timestamps']) or \
-                   tactile_id == len(self.tactile_data[demo_id]['timestamps']) or \
-                   allegro_id == len(self.allegro_data[demo_id]['timestamps']):
+                # if image_id == len(self.image_metadata[demo_id]['timestamps']) or \
+                #    tactile_id == len(self.tactile_data[demo_id]['timestamps']) or \
+                #    allegro_id == len(self.allegro_data[demo_id]['timestamps']):
+                if image_id == len(self.image_timestamps[demo_id])-1 or \
+                   tactile_id == len(self.tactile_timestamps[demo_id])-1 or \
+                   allegro_id == len(self.allegro_timestamps[demo_id])-1:
 
                     return
 
     def _get_closest_id(self, curr_id, desired_timestamp, all_timestamps):
         # Find the closest timestamp to desired timetamp in all_timestamps - starting from curr_id
+        # print('curr_id: {}, desired_timestamp: {}'.format(curr_id, desired_timestamp))
         for i in range(curr_id, len(all_timestamps)):
             if all_timestamps[i] > desired_timestamp:
                 return i # Find the first timestamp that is after that
+        return len(all_timestamps)-1
 
     # Traverse through the allegro data in the given demo and position and find the next hand reading
     # with a significant change
     def _find_next_allegro_id(self, demo_id, pos_id):
         # demo_id, pos_id: since the data is saved as demo, pos - these two indices give the indices of the current allegro state
         # returns the timestamp of the next good allegro hand pose
-        old_allegro_pos = self.allegro_data[demo_id]['positions'][pos_id]
-        old_allegro_fingertip_pos = self._get_fingertip_coords(old_allegro_pos)
-        for i in range(pos_id, len(self.allegro_data[demo_id]['positions'])):
-            curr_allegro_fingertip_pos = self._get_fingertip_coords(self.allegro_data[demo_id]['positions'][i])
-            step_size = np.linalg.norm(old_allegro_fingertip_pos - curr_allegro_fingertip_pos)
-            if step_size > 0.02: 
-                return i
+        # old_allegro_pos = self.allegro_data[demo_id]['positions'][pos_id]
+        # old_allegro_fingertip_pos = self._get_fingertip_coords(old_allegro_pos)
+        # for i in range(pos_id, len(self.allegro_data[demo_id]['positions'])):
+        #     curr_allegro_fingertip_pos = self._get_fingertip_coords(self.allegro_data[demo_id]['positions'][i])
+        #     step_size = np.linalg.norm(old_allegro_fingertip_pos - curr_allegro_fingertip_pos)
+        #     if step_size > 0.02: 
+        #         return i
+        # old_allegro_pos = self.allegro_positions[demo_id][pos_id]
+        # old_allegro_fingertip_pos = self._get_fingertip_coords(old_allegro_pos)
+        # for i in range(pos_id, len(self.allegro_positions[demo_id])):
+        #     curr_allegro_fingertip_pos = self._get_fingertip_coords(self.allegro_positions[demo_id][i])
+        #     step_size = np.linalg.norm(old_allegro_fingertip_pos - curr_allegro_fingertip_pos)
+        #     if step_size > 0.02: 
+        #         return i
+        return pos_id + 10
 
     # Realsense timestamps are given not in seconds + nano seconds
-    def _traverse_image_timestamps(self, timestamps):
-        for i in range(len(timestamps)):
-            timestamps[i] /= 1000
-        return timestamps
+    # def _traverse_image_timestamps(self, timestamps):
+    #     for i in range(len(timestamps)):
+    #         timestamps[i] /= 1000
+    #     return timestamps
 
     # Method to return the fingertip coordinates given joint angle positions
     def _get_fingertip_coords(self, joint_positions): # - NOTE: Taken from the allegro library
@@ -248,7 +314,7 @@ class TactileDataset():
 
 if __name__ == '__main__':
     dset = TactileDataset(data_path='/home/irmak/Workspace/Holo-Bot/extracted_data')
-    # image, tactile_info, robot_state, actions = dset.getitem(0)
+    image, tactile_info, robot_state, actions = dset.getitem(0)
 
     # image, tactile_info, robot_state = dset.getitem(1)
 

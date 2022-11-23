@@ -1,17 +1,6 @@
 defaults:
     # - _self_
-    # - agent: cpn # forward model will also be added in the future - TODO: maybe add a wrapper agent class?
-    # - encoder: resnet18
-    # - trans: mlp
-    # - optimizer: adam
-    # - agent: pli
-    # - optimizer: adam
-    # - agent: sbfd
-    # - optimizer: adam
-    # - trans: mlp
-    # - agent: bc
-    # - optimizer: adam
-    - agent: diffusion
+    - agent: behavior_cloning
     - optimizer: adam
 
 seed: 42
@@ -25,10 +14,9 @@ diff_n_steps: 200
 
 # Hyperparameters to be used everywhere
 batch_size: 64
-lr: 1e-3
-weight_decay: 1e-5
-# hidden_dim: 64 # Expand to 64 first then to z_dim
-# action_dim:  
+tactile_info_dim: 720 # 15*16*3
+joint_pos_dim: 16
+hidden_dim: 64
 distributed: true
 num_workers: 4
 world_size: 1
@@ -39,9 +27,8 @@ video_type: rgb # NOTE: you could remove this if you want to use both
 
 # this needs to be specified manually
 # experiment: ${agent_type}_ref_${pos_ref}_lf_${agent.loss_fn}_fi_${frame_interval}_pt_${pos_type}_bs_${batch_size}_hd_${hidden_dim}_lr_${lr}_zd_${z_dim}
-experiment: ${agent_type}_ref_${pos_ref}_fi_${frame_interval}_pt_${pos_type}_bs_${batch_size}_hd_${hidden_dim}_lr_${lr}_zd_${z_dim}
+experiment: ${agent_type}
 
-# data_dir: /home/irmak/Workspace/DAWGE/src/dawge_planner/data/box_orientation_1_demos/train_demos
 data_dir: /home/irmak/Workspace/Holo-Bot/extracted_data
 checkpoint_dir: ??? # Will be set to hydra dir inside the code
 

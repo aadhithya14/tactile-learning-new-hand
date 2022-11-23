@@ -31,6 +31,17 @@ def dump_video_to_images(root: str, video_type: str ='rgb', view_num: int=0) -> 
 
     print(f'dumping finished in {root}')
 
+def dump_data_indices(root):
+    # Matches the index -> demo_id, datapoint_id according to the timestamps saved
+    allegro_timestamps, image_timestamps, tactile_timestamps = [], [], []
+    # for root in roots:
+    allegro_states_path = os.path.join(root, 'allegro_joint_states.h5')
+    image_metadata_path = os.path.join(root, 'cam_0_rgb_video.metadata')
+    tactile_info_path = os.path.join(root, 'touch_sensor_values.h5')
+    with h5py.File(allegro_states_path, 'r') as f:
+
+
+
 if __name__ == '__main__':
     data_dir = '/home/irmak/Workspace/Holo-Bot/extracted_data/demonstration_18'
     dump_video_to_images(root=data_dir)

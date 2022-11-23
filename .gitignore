@@ -1,1 +1,5 @@
 tactile_learning.egg-info/*
+tactile_learning/out/*
+wandb/*
+
+*__pycache__*

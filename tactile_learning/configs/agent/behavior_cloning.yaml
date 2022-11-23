@@ -1,0 +1,4 @@
+_target_: tactile_learning.models.agents.behavior_cloning.TactileJointBC
+loss_fn: mse # When true this bc will predict the distribution rather than the action
+model: ???
+optimizer: ???

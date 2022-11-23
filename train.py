@@ -19,9 +19,9 @@ from tqdm import tqdm
 # Custom imports 
 from tactile_learning.utils.logger import Logger
 from tactile_learning.datasets.dataloaders import get_dataloaders
-# from tactile_learning.datasets.preprocess import smoothen_corners, dump_pos_corners, dump_rvec_tvec
 from tactile_learning.models.agents.agent_inits import init_agent
-
+from tactile_learning.utils.parsers import *
+from tactile_learning.datasets.preprocess import dump_video_to_images
 
 class Workspace:
     # TODO: clean this code - it should be cfg: DictConfig (there should be less space)
@@ -55,10 +55,11 @@ class Workspace:
         print(f"INSIDE train: rank: {rank} - device: {device}")
 
         # It looks at the datatype type and returns the train and test loader accordingly
-        train_loader, test_loader, dataset = get_dataloaders(self.cfg)
+        train_loader, test_loader, _ = get_dataloaders(self.cfg)
 
         # Initialize the agent - looks at the type of the agent to be initialized first
-        agent = init_agent(self.cfg, device, rank, dataset)
+        print('device: {}, rank: {}'.format(device, rank))
+        agent = init_agent(self.cfg, device, rank)
 
         best_loss = torch.inf 
 
@@ -120,14 +121,13 @@ def main(cfg : DictConfig) -> None:
 
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "29503"
-    
-    # Preprocess data
-    # roots = glob.glob(f'{cfg.data_dir}/box_marker_*') # TODO: change this in the future
-    # roots = sorted(roots)
-    # for root in roots:
-    #     smoothen_corners(root)
-    #     dump_pos_corners(root, cfg.frame_interval)
-    #     dump_rvec_tvec(root, cfg.frame_interval)
+
+    preprocess_opt = choose_preprocess()
+    if preprocess_opt.preprocess:
+        roots = glob.glob(f'{cfg.data_dir}/demonstration_*') 
+        roots = sorted(roots)
+        for root in roots:
+            dump_video_to_images(root)
     
     print("Distributed training enabled. Spawning {} processes.".format(workspace.cfg.world_size))
     mp.spawn(workspace.train, nprocs=workspace.cfg.world_size)

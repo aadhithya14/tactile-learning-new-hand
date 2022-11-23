@@ -49,7 +49,8 @@ class TactileJointBC:
         train_loss = 0.0
 
         # Training loop
-        for batch in train_loader: 
+        for batch in train_loader:
+            import ipdb; ipdb.set_trace() 
             self.optimizer.zero_grad()
             _, tactile_info, joint_pos, action = [b.to(self.device)for b in batch]
             bs = tactile_info.shape[0]
