@@ -23,9 +23,9 @@ class TactileJointBC:
         self.optimizer = optimizer 
 
         if loss_fn == 'mse':
-            self.loss_fn = mse 
+            self.loss_fn = mse
         elif loss_fn == 'l1':
-            self.loss_fn = l1 
+            self.loss_fn = l1
 
     def to(self, device):
         self.device = device
@@ -39,7 +39,7 @@ class TactileJointBC:
 
     def save(self, checkpoint_dir):
         torch.save(self.model.state_dict(),
-                   os.path.join(checkpoint_dir, 'bc_model_pd_{}.pt'.format(self.predict_dist)),
+                   os.path.join(checkpoint_dir, 'bc_model_best.pt'),
                    _use_new_zipfile_serialization=False)
 
     def train_epoch(self, train_loader):
@@ -50,13 +50,14 @@ class TactileJointBC:
 
         # Training loop
         for batch in train_loader:
-            import ipdb; ipdb.set_trace() 
             self.optimizer.zero_grad()
             _, tactile_info, joint_pos, action = [b.to(self.device)for b in batch]
             bs = tactile_info.shape[0]
             flattened_tactile = torch.reshape(tactile_info, (bs,-1))
             all_info = torch.cat((flattened_tactile, joint_pos), -1) # Concatenate at the last axis
-            
+
+            # import ipdb; ipdb.set_trace() 
+            # print(flattened_tactile.dtype, joint_pos.dtype, all_info.dtype)
             pred_action = self.model(all_info)
 
             # Get the supervised loss
@@ -79,6 +80,7 @@ class TactileJointBC:
         for batch in test_loader:
             _, tactile_info, joint_pos, action = [b.to(self.device) for b in batch]
             with torch.no_grad():
+                bs = tactile_info.shape[0]
                 flattened_tactile = torch.reshape(tactile_info, (bs,-1))
                 all_info = torch.cat((flattened_tactile, joint_pos), -1) # Concatenate at the last axis
                 pred_action = self.model(all_info)

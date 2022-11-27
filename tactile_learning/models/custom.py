@@ -27,9 +27,9 @@ class TactileJointLinear(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim, output_dim),
             nn.Sigmoid() # Should be mapped bw -1,1
-        )
+        ) # TODO: Check the activation functions! 
 
     def forward(self, x):
-        action = self.model(x)
+        action = self.model(x.float())
         return action
     

@@ -5,6 +5,8 @@ def choose_preprocess():
     Choose the detector that needs to be used
     '''
     parser = argparse.ArgumentParser()
+    parser.add_argument("overrides", nargs="*", default=[])
+
     # parser.add_argument(
     #     '-m',
     #     '--method',
@@ -17,7 +19,7 @@ def choose_preprocess():
     parser.add_argument(
         '-p',
         '--preprocess',
-        action='store_true'
+        action=argparse.BooleanOptionalAction
     )  
 
     return parser.parse_args()

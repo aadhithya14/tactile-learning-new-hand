@@ -21,7 +21,7 @@ from tactile_learning.utils.logger import Logger
 from tactile_learning.datasets.dataloaders import get_dataloaders
 from tactile_learning.models.agents.agent_inits import init_agent
 from tactile_learning.utils.parsers import *
-from tactile_learning.datasets.preprocess import dump_video_to_images
+from tactile_learning.datasets.preprocess import dump_video_to_images, dump_data_indices
 
 class Workspace:
     # TODO: clean this code - it should be cfg: DictConfig (there should be less space)
@@ -37,6 +37,7 @@ class Workspace:
         
         # Set the world size according to the number of gpus
         cfg.num_gpus = torch.cuda.device_count()
+        # cfg.num_gpus = 1
         print(f"cfg.num_gpus: {cfg.num_gpus}")
         print()
         cfg.world_size = cfg.world_size * cfg.num_gpus
@@ -67,8 +68,9 @@ class Workspace:
         if rank == 0:
             pbar = tqdm(total=self.cfg.train_epochs)
             # Initialize logger (wandb)
-            wandb_exp_name = '-'.join(self.hydra_dir.split('/')[-2:])
-            self.logger = Logger(self.cfg, wandb_exp_name, out_dir=self.hydra_dir)
+            if self.cfg.logger:
+                wandb_exp_name = '-'.join(self.hydra_dir.split('/')[-2:])
+                self.logger = Logger(self.cfg, wandb_exp_name, out_dir=self.hydra_dir)
 
         # Start the training
         for epoch in range(self.cfg.train_epochs):
@@ -88,7 +90,7 @@ class Workspace:
                 pbar.update(1) # Update for each batch
 
             # Logging
-            if rank == 0 and epoch % self.cfg.log_frequency == 0:
+            if self.cfg.logger and rank == 0 and epoch % self.cfg.log_frequency == 0:
                 self.logger.log({'epoch': epoch,
                                  'train loss': train_loss})
 
@@ -105,10 +107,11 @@ class Workspace:
                 # Logging
                 if rank == 0:
                     pbar.set_description(f'Epoch {epoch}, Test loss: {test_loss:.5f}')
-                    self.logger.log({'epoch': epoch,
-                                    'test loss': test_loss})
-                    self.logger.log({'epoch': epoch,
-                                    'best loss': best_loss})
+                    if self.cfg.logger:
+                        self.logger.log({'epoch': epoch,
+                                        'test loss': test_loss})
+                        self.logger.log({'epoch': epoch,
+                                        'best loss': best_loss})
 
         if rank == 0: 
             pbar.close()
@@ -116,18 +119,22 @@ class Workspace:
 @hydra.main(version_base=None,config_path='tactile_learning/configs', config_name = 'train')
 def main(cfg : DictConfig) -> None:
     # TODO: check this and make it work when it's not distributed as well
+    # preprocess_opt = choose_preprocess()
+    print('CFG.PREPROCESS: {}'.format(cfg.preprocess))
     assert cfg.distributed is True, "Use script only to train distributed"
     workspace = Workspace(cfg)
 
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "29503"
 
-    preprocess_opt = choose_preprocess()
-    if preprocess_opt.preprocess:
-        roots = glob.glob(f'{cfg.data_dir}/demonstration_*') 
+    if cfg.preprocess:
+        # roots = glob.glob(f'{cfg.data_dir}/demonstration_*') 
+        roots = ['/home/irmak/Workspace/Holo-Bot/extracted_data/demonstration_17',
+                 '/home/irmak/Workspace/Holo-Bot/extracted_data/demonstration_18']
         roots = sorted(roots)
-        for root in roots:
-            dump_video_to_images(root)
+        for demo_id, root in enumerate(roots):
+            # dump_video_to_images(root)
+            dump_data_indices(demo_id, root)
     
     print("Distributed training enabled. Spawning {} processes.".format(workspace.cfg.world_size))
     mp.spawn(workspace.train, nprocs=workspace.cfg.world_size)
