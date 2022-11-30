@@ -26,10 +26,37 @@ class TactileJointLinear(nn.Module):
             nn.Linear(hidden_dim*3, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, output_dim),
-            nn.Sigmoid() # Should be mapped bw -1,1
+            # nn.Sigmoid() # Should be mapped bw -1,1
         ) # TODO: Check the activation functions! 
 
     def forward(self, x):
         action = self.model(x.float())
         return action
-    
+
+class TactileImageEncoder(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        out_dim # Final dimension of the representation
+    ):
+        super().__init__()
+        self.out_dim = out_dim
+        self.model = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels=64, kernel_size=2),
+            nn.ReLU(),
+            # PrintSize(),
+            nn.Conv2d(in_channels=64, out_channels=32, kernel_size=2),
+            nn.ReLU(),
+            # PrintSize(),
+            nn.Conv2d(in_channels=32, out_channels=16, kernel_size=2),
+            nn.ReLU(),
+            # PrintSize()
+        )
+        self.linear = nn.Linear(in_features=16*5*5, out_features=out_dim)
+        self.relu = nn.ReLU()
+        
+    def forward(self, x):
+        x = self.model(x)
+        x = torch.flatten(x, 1) # Flatten all dimensions except batch
+        x = self.linear(x)
+        return self.relu(x)

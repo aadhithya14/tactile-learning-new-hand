@@ -1,0 +1,9 @@
+_target_: tactile_learning.datasets.tactile.TactileMinDataset
+data_path: ???
+sensor_grid: [1,2]
+sensor_indices: [3,7]
+allegro_finger_indices: [0,1]
+fingertip_stats:
+  - [0.0745204, 0.02438364, 0.10162595] # Mean
+  - [0.0214761, 0.02644624, 0.02051845] # Std
+

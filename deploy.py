@@ -12,7 +12,7 @@ from holobot.utils.timer import FrequencyTimer
 from omegaconf import DictConfig, OmegaConf
 
 class Deployer:
-    def __init__(self, deployed_module, data_path, frequency):
+    def __init__(self, cfg, deployed_module):
         self.module = deployed_module
         required_data = {
             'rgb_idxs': [0],
@@ -22,9 +22,10 @@ class Deployer:
             host_address = '172.24.71.240',
             required_data = required_data
         )
-        self.data_path = data_path
+        self.cfg = cfg
+        self.data_path = cfg.data_path
         self.device = torch.device('cuda:0')
-        self.frequency_timer = FrequencyTimer(frequency)
+        self.frequency_timer = FrequencyTimer(cfg.frequency)
 
         self._load_stats()
         
@@ -53,7 +54,8 @@ class Deployer:
 
         while True:
             
-            # self.frequency_timer.start_loop()
+            if self.cfg['loop']:
+                self.frequency_timer.start_loop()
 
             print('\n***************************************************************')
             print('\nGetting state information...') 
@@ -66,69 +68,28 @@ class Deployer:
             allegro_joint_pos = self._normalize_allegro_state(robot_state['allegro']['position'])
             tactile_info = self._normalize_tactile_state(sensor_state['xela']['sensor_values'])
 
-
-            # for image_type in self.robot_image_subscribers.keys():
-            #     for subscriber in self.robot_image_subscribers[image_type]:
-            #         if subscriber.get_image() is None:
-            #             skip_loop = True
-
-            # if self.robot.get_hand_position() is None:
-            #     skip_loop = True
- 
-            # if skip_loop:
-            #     continue
-
-
-            # if not self.configs['run_loop']:
-            register = input('\nPress a key to perform an action...')
+            if not self.cfg['loop']:
+                register = input('\nPress a key to perform an action...')
 
             pred_action = self.module.get_action(tactile_info, allegro_joint_pos)
-            print('\nPredicted velocity: {}'.format(pred_action))
+            print('\nPredicted action: {}'.format(pred_action))
 
             # Calculate the desired joint positions
-            desired_joint_pos = robot_state['allegro']['position'] + pred_action.cpu().detach().numpy()
+            # desired_joint_pos = robot_state['allegro']['position'] + pred_action.cpu().detach().numpy()
+            desired_joint_pos = pred_action.cpu().detach().numpy() 
 
             action_dict = dict() 
             action_dict['allegro'] = desired_joint_pos
             self.deploy_api.send_robot_action(action_dict)
 
-            # if register == 'h':
-            #     print('Reseting the Robot!')
-            #     self.robot.reset()
-            #     continue
-
-            # finger_tip_coords = self.robot.get_fingertip_coords(self.robot.get_hand_position())
-            # print('\nCurrent joint state: {}'.format(finger_tip_coords))
-
-            # transformed_images = self._get_transformed_images()
-
-            # input_dict = dict(
-            #     key_press = register if not self.configs['run_loop'] else None,
-            #     images = transformed_images,
-            #     joint_state = finger_tip_coords
-            # )
-
-            # action = self.model.get_action(input_dict)
-            # print('\nObtained action: {}'.format(action))
-
-            # if not self.configs['absolute_actions']:
-            #     desired_finger_tip_coords = np.array(finger_tip_coords) + np.array(action)
-            # else:
-            #     desired_finger_tip_coords = action
-
-            # print('\nApplied joint state coord: {}'.format(desired_finger_tip_coords))
-            # self.robot.move_to_coords(desired_finger_tip_coords)
-
-            
-            # self.deploy_api()
-
-            # self.frequency_timer.sleep()
+            if self.cfg['loop']: 
+                self.frequency_timer.end_loop()
 
 
 @hydra.main(version_base=None, config_path='tactile_learning/configs', config_name='deploy')
 def main(cfg : DictConfig) -> None:
     deploy_module = hydra.utils.instantiate(cfg.deploy_module)
-    deployer = Deployer(deploy_module, cfg.data_path, cfg.frequency)
+    deployer = Deployer(cfg, deploy_module)
     deployer.solve()
 
 if __name__ == '__main__':

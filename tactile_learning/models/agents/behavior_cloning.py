@@ -14,10 +14,12 @@ from tactile_learning.utils.losses import mse, l1
 # It will learn in supervised way
 # 
 class TactileJointBC:
-    def __init__(self,
-                 model,
-                 optimizer,
-                 loss_fn: str) -> None:
+    def __init__(
+        self,
+        model,
+        optimizer,
+        loss_fn: str
+    ):
         
         self.model = model # Model will be bcdist or bcregular according to what we want
         self.optimizer = optimizer 

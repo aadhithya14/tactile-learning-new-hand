@@ -21,10 +21,9 @@ from tactile_learning.utils.logger import Logger
 from tactile_learning.datasets.dataloaders import get_dataloaders
 from tactile_learning.models.agents.agent_inits import init_agent
 from tactile_learning.utils.parsers import *
-from tactile_learning.datasets.preprocess import dump_video_to_images, dump_data_indices
+from tactile_learning.datasets.preprocess import *
 
 class Workspace:
-    # TODO: clean this code - it should be cfg: DictConfig (there should be less space)
     def __init__(self, cfg : DictConfig) -> None:
         print(f'Workspace config: {OmegaConf.to_yaml(cfg)}')
 
@@ -37,7 +36,6 @@ class Workspace:
         
         # Set the world size according to the number of gpus
         cfg.num_gpus = torch.cuda.device_count()
-        # cfg.num_gpus = 1
         print(f"cfg.num_gpus: {cfg.num_gpus}")
         print()
         cfg.world_size = cfg.world_size * cfg.num_gpus
@@ -97,8 +95,11 @@ class Workspace:
             # Testing and saving the model
             if epoch % self.cfg.save_frequency == 0:
                 # Test for one epoch
-                test_loss = agent.test_epoch(test_loader)
-                
+                if not self.cfg.self_supervised:
+                    test_loss = agent.test_epoch(test_loader)
+                else:
+                    test_loss = train_loss # In BYOL (for ex) test loss is not important
+
                 # Get the best loss
                 if test_loss < best_loss:
                     best_loss = test_loss
@@ -128,13 +129,13 @@ def main(cfg : DictConfig) -> None:
     os.environ["MASTER_PORT"] = "29503"
 
     if cfg.preprocess:
-        # roots = glob.glob(f'{cfg.data_dir}/demonstration_*') 
-        roots = ['/home/irmak/Workspace/Holo-Bot/extracted_data/demonstration_17',
-                 '/home/irmak/Workspace/Holo-Bot/extracted_data/demonstration_18']
+        roots = glob.glob(f'{cfg.data_dir}/demonstration_*') 
         roots = sorted(roots)
         for demo_id, root in enumerate(roots):
             # dump_video_to_images(root)
+            dump_fingertips(root)
             dump_data_indices(demo_id, root)
+            print('----------------')
     
     print("Distributed training enabled. Spawning {} processes.".format(workspace.cfg.world_size))
     mp.spawn(workspace.train, nprocs=workspace.cfg.world_size)

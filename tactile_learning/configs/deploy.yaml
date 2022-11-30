@@ -1,6 +1,8 @@
 deploy_module: 
   _target_: tactile_learning.deployment.wrappers.deploy_bc.DeployBC
-  out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2022.11.25/18-02_bc
+  out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2022.11.28/00-34_bc
 
+loop: false
 frequency: 15
-data_path: /home/irmak/Workspace/Holo-Bot/extracted_data
+object: logitech_mouse
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}

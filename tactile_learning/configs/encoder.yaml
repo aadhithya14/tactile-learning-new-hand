@@ -1,0 +1,4 @@
+encoder:
+  _target_: tactile_learning.models.custom.TactileImageEncoder
+  in_channels: 3
+  out_dim: 64

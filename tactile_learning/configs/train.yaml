@@ -1,25 +1,28 @@
 defaults:
     # - _self_
-    - agent: behavior_cloning
+    - encoder 
+    # - agent: byol
+    - dataset: tactile_min_dataset
     - optimizer: adam
 
 seed: 42
 device: cuda
 
-agent_type: bc
-preprocess: False
+agent_type: byol # bc, byol
+self_supervised: true
+preprocess: true
 train_epochs: 1000
 save_frequency: 10 # Frequency to save the model - there will be a test in each step
-train_dset_split: 0.8
-diff_n_steps: 200
+train_dset_split: 0.9 # When self_supervised all data is used for encoder training
 
 # Hyperparameters to be used everywhere
 batch_size: 64
+tactile_image_size: 8
 tactile_info_dim: 720 # 15*16*3
 joint_pos_dim: 16
 hidden_dim: 64
 distributed: true
-num_workers: 1
+num_workers: 4
 world_size: 1
 num_gpus: 4
 
@@ -30,7 +33,7 @@ video_type: rgb # NOTE: you could remove this if you want to use both
 # experiment: ${agent_type}_ref_${pos_ref}_lf_${agent.loss_fn}_fi_${frame_interval}_pt_${pos_type}_bs_${batch_size}_hd_${hidden_dim}_lr_${lr}_zd_${z_dim}
 experiment: ${agent_type}
 
-data_dir: /home/irmak/Workspace/Holo-Bot/extracted_data
+data_dir: /home/irmak/Workspace/Holo-Bot/extracted_data/logitech_mouse
 checkpoint_dir: ??? # Will be set to hydra dir inside the code
 
 # logger

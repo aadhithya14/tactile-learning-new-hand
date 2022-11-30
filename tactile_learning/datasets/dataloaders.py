@@ -1,16 +1,19 @@
+import hydra
 import os
 import torch
 import torch.utils.data as data 
 from omegaconf import DictConfig, OmegaConf
 
-from tactile_learning.datasets.tactile import TactileDataset
+from tactile_learning.datasets.tactile import TactileFullDataset
 from tactile_learning.datasets.preprocess import dump_video_to_images
 
 # Script to return dataloaders
 def get_dataloaders(cfg : DictConfig):
     # Load dataset - splitting will be done with random splitter
     
-    dataset = TactileDataset(cfg.data_dir)
+    # dataset = TactileFullDataset(cfg.data_dir)
+    dataset = hydra.utils.instantiate(cfg.dataset,
+                                      data_path = cfg.data_dir)
 
     train_dset_size = int(len(dataset) * cfg.train_dset_split)
     test_dset_size = len(dataset) - train_dset_size
@@ -39,15 +42,16 @@ if __name__ == "__main__":
     
 
     cfg = OmegaConf.load('/home/irmak/Workspace/tactile-learning/tactile_learning/configs/train.yaml')
-    # cfg = OmegaConf.load('/home/irmak/Workspace/DAWGE/contrastive_learning/configs/train.yaml')
-    dset = TactileDataset(
-        data_path = cfg.data_dir
-    )
+    # # cfg = OmegaConf.load('/home/irmak/Workspace/DAWGE/contrastive_learning/configs/train.yaml')
+    # dset = TactileFullDataset(
+    #     data_path = cfg.data_dir
+    # )
+    print('cfg: {}'.format(cfg))
 
     train_loader, test_loader, _ = get_dataloaders(cfg)
     batch = next(iter(train_loader))
-    print('batch[0].shape: {}, batch[1].shape: {}, batch[2].shape: {}, batch[3].shape: {}'.format(
-        batch[0].shape, batch[1].shape, batch[2].shape, batch[3].shape
+    print('batch[0].shape: {}, batch[1].shape: {}, batch[2].shape: {}'.format(
+        batch[0].shape, batch[1].shape, batch[2].shape
     ))
 
     # action_min, action_max, corner_min, corner_max = dset.calculate_mins_maxs()
