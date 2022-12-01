@@ -34,12 +34,12 @@ class NearestNeighborBuffer(object):
 
     def choose(self, nn_idxs):
         for idx in range(len(nn_idxs)):
-            if nn_idxs[idx].item() not in self.exempted_queue:
-                self.put(nn_idxs[idx].item())
+            # print('chosen_actions[idx]: {}'.format(chosen_actions[idx]))
+            if nn_idxs[idx] not in self.exempted_queue:
+                self.put(nn_idxs[idx])
                 return idx
 
         return len(nn_idxs) - 1
-
 
 class DeployVINN:
     def __init__(
@@ -72,6 +72,7 @@ class DeployVINN:
 
         self.kdl_solver = AllegroKDL()
         self.last_action = None
+        self.buffer = NearestNeighborBuffer(20)
 
     def _load_data(self):
         roots = glob.glob(f'{self.data_path}/demonstration_*')
@@ -159,7 +160,10 @@ class DeployVINN:
                 tactile_value, 
                 allegro_tip_position
             )
-            self.all_representations[index, :] = representation[:]
+            # Add only tip positions as the representation
+            self.all_representations[index, -6:] = representation[-6:] # TODO: Fix this
+            # self.all_representations[index,  :] = representation[:]
+            # print(f'last repr: {self.all_representations[index]}')
             pbar.update(1)
 
         pbar.close()
@@ -186,24 +190,38 @@ class DeployVINN:
             curr_fingertip_position
         )
 
-        nn_id = self._get_knn_idxs(curr_representation, k=10)
-        print('nn_id: {}'.format(nn_id))
+        new_curr_representation = np.zeros_like(curr_representation)
+        new_curr_representation[-6:] = curr_representation[-6:]
+        # print('new_curr_repr: {}'.format(new_curr_representation))
+
+        k = 10
+        nn_idxs = self._get_knn_idxs(new_curr_representation, k=k) # TODO: Fix this
+        print('nn_idxs: {}'.format(nn_idxs))
+
+        # Choose the action with the buffer 
+        # nn_actions = self._get_actions_with_idxs(nn_idxs)
+        # print('nn_actions.shape: {}'.format(nn_actions.shape))
+        id_of_nn = self.buffer.choose(nn_idxs)
+        nn_id = nn_idxs[id_of_nn]
+        print('chosen nn_id: {}'.format(nn_id))
+        demo_id, action_id = self.allegro_action_indices[nn_id]
+        nn_action = self.allegro_actions[demo_id][action_id]
 
         # Get the applied action at that id
         # Traverse through actions and find the action that is somewhat distance
         # from the last action
-        for i in range(10):
-            demo_id, action_id = self.allegro_action_indices[nn_id[i]]
-            nn_action = self.allegro_actions[demo_id][action_id]
-            if self.last_action is None: 
-                self.last_action = nn_action 
-                break
-            else:
-                l2_distance = np.linalg.norm(self.last_action - nn_action)
-                print(f'i: {i} - l2 distance between commanded joint positions: {l2_distance}')
-                if l2_distance > 0.01:
-                    self.last_action = nn_action
-                    break
+        # for i in range(k):
+        #     demo_id, action_id = self.allegro_action_indices[nn_idxs[i]]
+        #     nn_action = self.allegro_actions[demo_id][action_id]
+        #     if self.last_action is None: 
+        #         self.last_action = nn_action 
+        #         break
+        #     else:
+        #         l2_distance = np.linalg.norm(self.last_action - nn_action)
+        #         print(f'i: {i} - l2 distance between commanded joint positions: {l2_distance}')
+        #         if l2_distance > 0.01:
+        #             self.last_action = nn_action
+        #             break
 
         print('nn_action: {}'.format(nn_action))
 
@@ -222,3 +240,17 @@ class DeployVINN:
         
         knn_idxs = sorted_idxs[:k+1]
         return knn_idxs
+
+    # Get all the actions with the given indices - will be used in the
+    # NN buffer
+    def _get_actions_with_idxs(self, nn_idxs):
+        actions = np.zeros((
+            len(nn_idxs),
+            len(self.allegro_actions[0][0]) # 16 is the action size
+        ))
+
+        for i in range(len(nn_idxs)):
+            demo_id, action_id = self.allegro_action_indices[nn_idxs[i]]
+            actions[i, :] = self.allegro_actions[demo_id][action_id]
+
+        return actions
