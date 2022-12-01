@@ -10,7 +10,7 @@ from tqdm import tqdm
 # Get the byol wrapper
 from tactile_learning.models.ssl_wrappers.byol import BYOL
 from tactile_learning.utils.augmentations import get_tactile_augmentations
-from tactile_learning.utils.constants import *
+# from tactile_learning.utils.constants import *
 
 # Agent to train an encoder with byol
 

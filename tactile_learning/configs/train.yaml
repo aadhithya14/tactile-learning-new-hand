@@ -16,7 +16,7 @@ save_frequency: 10 # Frequency to save the model - there will be a test in each 
 train_dset_split: 0.9 # When self_supervised all data is used for encoder training
 
 # Hyperparameters to be used everywhere
-batch_size: 64
+batch_size: 256
 tactile_image_size: 8
 tactile_info_dim: 720 # 15*16*3
 joint_pos_dim: 16
@@ -31,9 +31,9 @@ video_type: rgb # NOTE: you could remove this if you want to use both
 
 # this needs to be specified manually
 # experiment: ${agent_type}_ref_${pos_ref}_lf_${agent.loss_fn}_fi_${frame_interval}_pt_${pos_type}_bs_${batch_size}_hd_${hidden_dim}_lr_${lr}_zd_${z_dim}
-experiment: ${agent_type}
+experiment: ${agent_type}_bs_${batch_size}_joystick
 
-data_dir: /home/irmak/Workspace/Holo-Bot/extracted_data/logitech_mouse
+data_dir: /home/irmak/Workspace/Holo-Bot/extracted_data/joystick
 checkpoint_dir: ??? # Will be set to hydra dir inside the code
 
 # logger

@@ -24,8 +24,11 @@ class TactileImage:
         tactile_value, # (15,16,3) will be the shape
         sensor_indices = [3, 7], # Index and middle tip for now
         size = (4, 8)
-    ): 
-        desired_tactile_values = tactile_value[sensor_indices]
+    ):
+        if sensor_indices is None: # It means that desired_tactile_values is equal to the tactile image itself
+            desired_tactile_values = tactile_value
+        else: 
+            desired_tactile_values = tactile_value[sensor_indices]
         num_sensors = len(desired_tactile_values)
 
         # Reshape the tensor to an image according to the sensor_indices
@@ -76,7 +79,7 @@ class TactileMinDataset(data.Dataset):
         # Get the demo directories 
         self.roots = glob.glob(f'{data_path}/demonstration_*')
         self.roots = sorted(self.roots)
-        print(f'roots: {self.roots}')
+        # print(f'roots: {self.roots}')
 
         # Get the indices
         self.tactile_indices = []
@@ -314,13 +317,15 @@ class TactileFullDataset(data.Dataset):
 
 if __name__ == '__main__':
     dset = TactileMinDataset(
-        data_path = '/home/irmak/Workspace/Holo-Bot/extracted_data/logitech_mouse'
+        data_path = '/home/irmak/Workspace/Holo-Bot/extracted_data/joystick'
     )
-    data_loader = data.DataLoader(dset, batch_size=64)
-    batch = next(iter(data_loader))
-    # batch = dset.getitem(0)
-    tactile_img = batch[0]
-    print(tactile_img.shape)
+    dset._calculate_fingertip_mean_std()
+    dset._calculate_tactile_image_mean_std()
+    # data_loader = data.DataLoader(dset, batch_size=64)
+    # batch = next(iter(data_loader))
+    # # batch = dset.getitem(0)
+    # tactile_img = batch[0]
+    # print(tactile_img.shape)
     # tactile_img, tip_pos, action = dset.getitem(0)
     # print()
     # dset = TactileFullDataset(data_path='/home/irmak/Workspace/Holo-Bot/extracted_data/logitech_mouse')
