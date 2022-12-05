@@ -1,21 +1,19 @@
 # Helper script to load models
 import glob
 import h5py
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pickle 
 import torch
-import torch.utils.data as data 
 import torchvision.transforms as T
 
-from collections import OrderedDict
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 from tqdm import tqdm 
-from torch.nn.parallel import DistributedDataParallel as DDP
 
 from holobot.robot.allegro.allegro_kdl import AllegroKDL
 from tactile_learning.deployment.load_models import load_model
-from tactile_learning.models.custom import TactileJointLinear, TactileImageEncoder
+from tactile_learning.utils.visualization import dump_camera_image, dump_tactile_state, dump_knn_state
 
 class NearestNeighborBuffer(object):
     def __init__(self, buffer_size):
@@ -34,7 +32,6 @@ class NearestNeighborBuffer(object):
 
     def choose(self, nn_idxs):
         for idx in range(len(nn_idxs)):
-            # print('chosen_actions[idx]: {}'.format(chosen_actions[idx]))
             if nn_idxs[idx] not in self.exempted_queue:
                 self.put(nn_idxs[idx])
                 return idx
@@ -46,7 +43,9 @@ class DeployVINN:
         self,
         out_dir,
         sensor_indices = (3,7),
-        allegro_finger_indices = (0,1)
+        allegro_finger_indices = (0,1),
+        use_encoder = True,
+        only_fingertips = False
     ):
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = "29505"
@@ -56,8 +55,14 @@ class DeployVINN:
 
         self.sensor_indices = sensor_indices 
         self.allegro_finger_indices = [j for i in allegro_finger_indices for j in range(i*3,(i+1)*3)]
+        self.only_fingertips = only_fingertips # Check to add tactile info to the representation or not
+        self.use_encoder = use_encoder
+        print('self.only_fingertips: {}, self.use_encoder: {}'.format(
+            self.only_fingertips, self.use_encoder
+        ))
 
         self.device = torch.device('cuda:0')
+        self.out_dir = out_dir
         self.cfg = OmegaConf.load(os.path.join(out_dir, '.hydra/config.yaml'))
         self.data_path = self.cfg.data_dir
         model_path = os.path.join(out_dir, 'models/byol_encoder.pt')
@@ -67,12 +72,14 @@ class DeployVINN:
 
         self.resize_transform = T.Resize((8, 8))
 
-        tactile_values, allegro_tip_positions = self._load_data()
-        self._get_all_representations(tactile_values, allegro_tip_positions)
+        self._load_data()
+        self._get_all_representations()
+        self.state_id = 0 # Increase it with each get_action
+
 
         self.kdl_solver = AllegroKDL()
         self.last_action = None
-        self.buffer = NearestNeighborBuffer(20)
+        self.buffer = NearestNeighborBuffer(100)
 
     def _load_data(self):
         roots = glob.glob(f'{self.data_path}/demonstration_*')
@@ -82,8 +89,8 @@ class DeployVINN:
         self.allegro_indices = [] 
         self.allegro_action_indices = [] 
         self.allegro_actions = [] 
-        tactile_values = [] 
-        allegro_tip_positions = []
+        self.tactile_values = [] 
+        self.allegro_tip_positions = []
 
         for root in roots:
             # Load the indices
@@ -97,14 +104,14 @@ class DeployVINN:
             # Load the data
             with h5py.File(os.path.join(root, 'allegro_fingertip_states.h5'), 'r') as f:
                 # print(f['positions'][()].shape)
-                allegro_tip_positions.append(f['positions'][()][:, self.allegro_finger_indices])
+                self.allegro_tip_positions.append(f['positions'][()][:, self.allegro_finger_indices])
             with h5py.File(os.path.join(root, 'allegro_commanded_joint_states.h5'), 'r') as f:
                 self.allegro_actions.append(f['positions'][()]) # Positions are to be learned - since this is a position control
             with h5py.File(os.path.join(root, 'touch_sensor_values.h5'), 'r') as f:
-                tactile_values.append(f['sensor_values'][()][:,self.sensor_indices,:,:])
+                self.tactile_values.append(f['sensor_values'][()][:,self.sensor_indices,:,:])
 
         # print(self.allegro_tip_positions[0].shape, self.tactile_values[0].shape)
-        return tactile_values, allegro_tip_positions
+        # return tactile_values, allegro_tip_positions
 
     def _get_tactile_image(self, tactile_value):
         tactile_image = torch.FloatTensor(tactile_value)
@@ -124,53 +131,58 @@ class DeployVINN:
     # allegro_tip_positions: (6,) - 3 values for each finger
     def _get_one_representation(self, tactile_values, allegro_tip_positions):
         # For each tactile value get the tactile image
-        tactile_image = self._get_tactile_image(tactile_values).unsqueeze(dim=0)
-        # print('tactile_image.shape: {}'.format(tactile_image.shape))
-        tactile_repr = self.encoder(tactile_image)
-        tactile_repr = tactile_repr.detach().cpu().numpy().squeeze() # Remove the axes with dimension 1
-        # print('tactile_repr.shape: {}'.format(tactile_repr.shape))
-        # It should be (64,)
+        if self.only_fingertips:
+            return allegro_tip_positions
+
+        if self.use_encoder:
+            tactile_image = self._get_tactile_image(tactile_values).unsqueeze(dim=0)
+            tactile_repr = self.encoder(tactile_image)
+            tactile_repr = tactile_repr.detach().cpu().numpy().squeeze() # Remove the axes with dimension 1 - shape: (64,)
+        else:
+            tactile_repr = tactile_values.flatten() # This will have shape (96,)
         return np.concatenate((tactile_repr, allegro_tip_positions), axis=0)
 
 
     def _get_all_representations(
-        self,
-        tactile_values,
-        allegro_tip_positions
+        self
     ):  
         print('Getting all representations')
         pbar = tqdm(total=len(self.tactile_indices))
         # For each tactile value and allegro tip position 
         # get one representation and add it to all representations
-        repr_dim = self.cfg.encoder.out_dim + len(self.cfg.dataset.allegro_finger_indices) * 3 
-        # print('repr_dim: {}'.format(repr_dim))
+        if self.use_encoder:
+            repr_dim = self.cfg.encoder.out_dim + len(self.allegro_finger_indices)
+        else:
+            repr_dim = len(self.sensor_indices) * 16 * 3 + len(self.allegro_finger_indices)
+
+        if self.only_fingertips:
+            repr_dim = len(self.allegro_finger_indices)
+
         self.all_representations = np.zeros((
             len(self.tactile_indices), repr_dim
         ))
 
+        print('all_representations.shape: {}'.format(self.all_representations.shape))
+
         for index in range(len(self.tactile_indices)):
             demo_id, tactile_id = self.tactile_indices[index]
-            _, allegro_tip_id = self.allegro_action_indices[index]
+            _, allegro_tip_id = self.allegro_indices[index]
 
-            tactile_value = tactile_values[demo_id][tactile_id] # This should be (2,16,3)
-            # print('tactile_value.shape: {}'.format(tactile_value.shape))
-            allegro_tip_position = allegro_tip_positions[demo_id][tactile_id] # This should be (6,)
-            # print('allegro_tip_position.shape: {}'.format(allegro_tip_position.shape))
+            tactile_value = self.tactile_values[demo_id][tactile_id] # This should be (2,16,3)
+            allegro_tip_position = self.allegro_tip_positions[demo_id][allegro_tip_id] # This should be (6,)
             representation = self._get_one_representation(
                 tactile_value, 
                 allegro_tip_position
             )
             # Add only tip positions as the representation
-            self.all_representations[index, -6:] = representation[-6:] # TODO: Fix this
-            # self.all_representations[index,  :] = representation[:]
-            # print(f'last repr: {self.all_representations[index]}')
+            self.all_representations[index, :] = representation[:]
             pbar.update(1)
 
         pbar.close()
 
     # tactile_values.shape: (16,15,3)
     # joint_state.shape: (16)
-    def get_action(self, tactile_values, joint_state):
+    def get_action(self, tactile_values, joint_state, visualize=False):
         # Get the allegro tip positions with kdl solver 
         fingertip_positions = self.kdl_solver.get_fingertip_coords(joint_state) # - fingertip position.shape: (12)
 
@@ -190,42 +202,55 @@ class DeployVINN:
             curr_fingertip_position
         )
 
-        new_curr_representation = np.zeros_like(curr_representation)
-        new_curr_representation[-6:] = curr_representation[-6:]
-        # print('new_curr_repr: {}'.format(new_curr_representation))
-
         k = 10
-        nn_idxs = self._get_knn_idxs(new_curr_representation, k=k) # TODO: Fix this
+        if self.only_fingertips:
+            only_tip_representation = np.zeros_like(curr_representation)
+            only_tip_representation[-6:] = curr_representation[-6:]
+            nn_idxs = self._get_knn_idxs(only_tip_representation, k=k) # TODO: Fix this
+        else:
+            nn_idxs = self._get_knn_idxs(curr_representation, k=k)
+
         print('nn_idxs: {}'.format(nn_idxs))
 
         # Choose the action with the buffer 
-        # nn_actions = self._get_actions_with_idxs(nn_idxs)
-        # print('nn_actions.shape: {}'.format(nn_actions.shape))
         id_of_nn = self.buffer.choose(nn_idxs)
         nn_id = nn_idxs[id_of_nn]
         print('chosen nn_id: {}'.format(nn_id))
         demo_id, action_id = self.allegro_action_indices[nn_id]
         nn_action = self.allegro_actions[demo_id][action_id]
 
-        # Get the applied action at that id
-        # Traverse through actions and find the action that is somewhat distance
-        # from the last action
-        # for i in range(k):
-        #     demo_id, action_id = self.allegro_action_indices[nn_idxs[i]]
-        #     nn_action = self.allegro_actions[demo_id][action_id]
-        #     if self.last_action is None: 
-        #         self.last_action = nn_action 
-        #         break
-        #     else:
-        #         l2_distance = np.linalg.norm(self.last_action - nn_action)
-        #         print(f'i: {i} - l2 distance between commanded joint positions: {l2_distance}')
-        #         if l2_distance > 0.01:
-        #             self.last_action = nn_action
-        #             break
+        # Visualize if given 
+        if visualize:
+            self._visualize_state(
+                curr_tactile_values, 
+                curr_fingertip_position,
+                nn_id
+            )
 
         print('nn_action: {}'.format(nn_action))
+        self.state_id += 1
 
         return nn_action
+
+    def _visualize_state(self, curr_tactile_values, curr_fingertip_position, nn_id):
+        demo_id, tactile_id = self.tactile_indices[nn_id]
+        _, allegro_tip_id = self.allegro_indices[nn_id]
+
+        knn_tactile_values = self.tactile_values[demo_id][tactile_id]
+        knn_tip_pos = self.allegro_tip_positions[demo_id][allegro_tip_id]
+
+        assert knn_tactile_values.shape == (2,16,3) and knn_tip_pos.shape == (6,)
+
+        # Dump all the current state, nn state and curr image
+        dump_camera_image()
+        dump_tactile_state(curr_tactile_values, curr_fingertip_position, title='Current State')
+        dump_tactile_state(knn_tactile_values, knn_tip_pos, title='Nearest Neighbor')
+
+        # Plot from the dumped images
+        dump_knn_state(
+            dump_dir = os.path.join(self.out_dir, f'runs/run_ue_{self.use_encoder}_of_{self.only_fingertips}'),
+            img_name = 'state_{}.png'.format(str(self.state_id).zfill(2))
+        ) # It will read the written images
 
     def _get_sorted_idxs(self, representation):
         l1_distances = self.all_representations - representation

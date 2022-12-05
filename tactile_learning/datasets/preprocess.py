@@ -87,6 +87,7 @@ def dump_data_indices(demo_id, root):
 
     with h5py.File(allegro_states_path, 'r') as f:
         allegro_timestamps = f['timestamps'][()]
+        allegro_positions = f['positions'][()]
     with h5py.File(tactile_info_path, 'r') as f:
         tactile_timestamps = f['timestamps'][()]
     with h5py.File(allegro_commanded_joint_path, 'r') as f:
@@ -100,7 +101,7 @@ def dump_data_indices(demo_id, root):
         image_timestamps = np.asarray(image_metadata['timestamps']) / 1000.
     
     # Start the allegro kdl solver 
-    # allegro_kdl_solver = AllegroKDL()
+    allegro_kdl_solver = AllegroKDL()
 
     allegro_id, image_id, tactile_id, allegro_action_id = 0, 0, 0, 0
     # Get the first timestamps
@@ -116,29 +117,24 @@ def dump_data_indices(demo_id, root):
 
     while (True):
         # Get the proper next allegro id
-        # allegro_id = find_next_allegro_id(allegro_kdl_solver, allegro_positions, allegro_id)
+        allegro_id = find_next_allegro_id(allegro_kdl_solver, allegro_positions, allegro_id)
         # allegro_id += 5 # NOTE: You might want to change this? - But for now we don't know how it should work
-        # if allegro_id >= len(allegro_positions)-1:
-        #     break
-        tactile_id += 1 # NOTE: CAUTION HERE!!
-        if tactile_id >= len(tactile_timestamps) - 1:
+        if allegro_id >= len(allegro_positions)-1:
             break
+        # tactile_id += 1 # NOTE: CAUTION HERE!!
+        # if tactile_id >= len(tactile_timestamps) - 1:
+        #     break
 
         # Get the closest timestamps to that
-        tactile_timestamp = tactile_timestamps[tactile_id]
-        allegro_id = get_closest_id(allegro_id, tactile_timestamp, allegro_timestamps)
-        image_id = get_closest_id(image_id, tactile_timestamp, image_timestamps)
-        allegro_action_id = get_closest_id(allegro_action_id, tactile_timestamp, allegro_action_timestamps)
-        
-        # allegro_timestamp = allegro_timestamps[allegro_id]
-        # tactile_id = get_closest_id(tactile_id, allegro_timestamp, tactile_timestamps)
-        # image_id = get_closest_id(image_id, allegro_timestamp, image_timestamps)
-        # print('allegro_timestamps[{}/{}]: {}, tactile_timestamps[{}/{}]: {}, image_timestamps[{}/{}]: {}'.format(
-        #     allegro_id, len(allegro_timestamps), allegro_timestamps[allegro_id],
-        #     tactile_id, len(tactile_timestamps), tactile_timestamps[tactile_id],
-        #     image_id, len(image_timestamps), image_timestamps[image_id]
-        # ))
-        
+        # tactile_timestamp = tactile_timestamps[tactile_id]
+        # allegro_id = get_closest_id(allegro_id, tactile_timestamp, allegro_timestamps)
+        # image_id = get_closest_id(image_id, tactile_timestamp, image_timestamps)
+        # allegro_action_id = get_closest_id(allegro_action_id, tactile_timestamp, allegro_action_timestamps)
+        allegro_timestamp = allegro_timestamps[allegro_id]
+        tactile_id = get_closest_id(tactile_id, allegro_timestamp, tactile_timestamps)
+        allegro_action_id = get_closest_id(allegro_action_id, allegro_timestamp, allegro_action_timestamps)
+        image_id = get_closest_id(image_id, allegro_timestamp, image_timestamps)        
+
         # If some of the data has ended then return it
         if image_id >= len(image_timestamps)-1 or \
            tactile_id >= len(tactile_timestamps)-1 or \
@@ -151,20 +147,10 @@ def dump_data_indices(demo_id, root):
         image_indices.append([demo_id, image_id])
         allegro_action_indices.append([demo_id, allegro_action_id])
 
-    # import ipdb; ipdb.set_trace()
-    # print('final allegro_id: {}'.format(allegro_id))
-
     assert len(tactile_indices) == len(allegro_indices) and \
            len(tactile_indices) == len(image_indices) and \
            len(tactile_indices) == len(allegro_action_indices)
 
-    # print('len(allegro_timestmaps): {}'.format(len(allegro_timestamps)))
-    # print('max allegro index: {}'.format(max(allegro_indices)))
-    # print('len(allegro_actions): {}, len(allegro_action_timestamps): {}'.format(
-    #     len(allegro_actions), len(allegro_action_timestamps)
-    # ))
-
-    # print('len(image_indices): {}'.format(len(image_indices)))
     # Save the indices for that root 
     with open(os.path.join(root, 'tactile_indices.pkl'), 'wb') as f:
         pickle.dump(tactile_indices, f)
@@ -176,7 +162,7 @@ def dump_data_indices(demo_id, root):
         pickle.dump(allegro_action_indices, f)
 
     
-def find_next_allegro_id(kdl_solver, positions, pos_id, threshold_step_size=0.02):
+def find_next_allegro_id(kdl_solver, positions, pos_id, threshold_step_size=0.01):
     old_allegro_pos = positions[pos_id]
     old_allegro_fingertip_pos = kdl_solver.get_fingertip_coords(old_allegro_pos)
     for i in range(pos_id, len(positions)):
@@ -199,12 +185,9 @@ def get_closest_id(curr_id, desired_timestamp, all_timestamps):
     return i
 
 if __name__ == '__main__':
-    data_path = '/home/irmak/Workspace/Holo-Bot/extracted_data/logitech_mouse'
+    data_path = '/home/irmak/Workspace/Holo-Bot/extracted_data/joystick'
     roots = glob.glob(f'{data_path}/demonstration_*') # TODO: change this in the future
     roots = sorted(roots)
     for demo_id, root in enumerate(roots):
-        if demo_id == 3:
-            dump_data_indices(demo_id=demo_id, root=root)
-        # dump_fingertips(root=root)
-    # for demo_id, root in enumerate(roots): 
-    #     dump_video_to_images(root=root)
+        dump_fingertips(root=root)
+        dump_data_indices(demo_id=demo_id, root=root)

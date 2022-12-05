@@ -1,10 +1,12 @@
 # Script to use some of the deployment wrappers and apply the actions
 import hydra
+import matplotlib.pyplot as plt
 import numpy as np 
 import os
 import pickle
 import torch 
 import sys
+
 
 # from holobot.components.deploy.commander import DeployAPI
 from holobot_api.api import DeployAPI
@@ -29,7 +31,6 @@ class Deployer:
 
         # self._load_stats()
         
-    
     def _load_stats(self):
         # Load the mean and std of the allegro hand
         with open(os.path.join(self.data_path, 'allegro_stats.pkl'), 'rb') as f:
@@ -78,11 +79,16 @@ class Deployer:
 
             assert tactile_info.shape == (15,16,3) and allegro_joint_pos.shape == (16,)
 
-            if not self.cfg['loop']:
-                register = input('\nPress a key to perform an action...')
-
-            pred_action = self.module.get_action(tactile_info, allegro_joint_pos)
+            pred_action = self.module.get_action(
+                tactile_info,
+                allegro_joint_pos,
+                visualize=self.cfg['visualize']
+            )
             print('\nPredicted action: {}'.format(pred_action))
+
+            if not self.cfg['loop']:
+                register = input('\nPress a key to perform the action...')
+
 
             # Calculate the desired joint positions
             # desired_joint_pos = robot_state['allegro']['position'] + pred_action.cpu().detach().numpy()
@@ -92,6 +98,9 @@ class Deployer:
             action_dict['allegro'] = pred_action # Should be a numpy array
             self.deploy_api.send_robot_action(action_dict)
 
+            # if self.cfg['visualize']:
+            #     plt.cla()
+
             if self.cfg['loop']: 
                 self.frequency_timer.end_loop()
 
@@ -99,6 +108,7 @@ class Deployer:
 @hydra.main(version_base=None, config_path='tactile_learning/configs', config_name='deploy')
 def main(cfg : DictConfig) -> None:
     deploy_module = hydra.utils.instantiate(cfg.deploy_module)
+    print('deploy_module: {}'.format(deploy_module))
     deployer = Deployer(cfg, deploy_module)
     deployer.solve()
 
