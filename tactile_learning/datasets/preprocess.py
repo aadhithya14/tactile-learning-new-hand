@@ -117,7 +117,12 @@ def dump_data_indices(demo_id, root):
 
     while (True):
         # Get the proper next allegro id
-        allegro_id = find_next_allegro_id(allegro_kdl_solver, allegro_positions, allegro_id)
+        allegro_id = find_next_allegro_id(
+            allegro_kdl_solver,
+            allegro_positions,
+            allegro_id,
+            threshold_step_size=0.001 # When you preprocess for training, one should decrease this size - we need more data
+        )
         # allegro_id += 5 # NOTE: You might want to change this? - But for now we don't know how it should work
         if allegro_id >= len(allegro_positions)-1:
             break
@@ -185,7 +190,7 @@ def get_closest_id(curr_id, desired_timestamp, all_timestamps):
     return i
 
 if __name__ == '__main__':
-    data_path = '/home/irmak/Workspace/Holo-Bot/extracted_data/joystick'
+    data_path = '/home/irmak/Workspace/Holo-Bot/extracted_data/joystick_2'
     roots = glob.glob(f'{data_path}/demonstration_*') # TODO: change this in the future
     roots = sorted(roots)
     for demo_id, root in enumerate(roots):

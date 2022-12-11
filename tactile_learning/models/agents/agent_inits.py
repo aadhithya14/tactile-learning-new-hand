@@ -30,7 +30,6 @@ def init_byol(cfg, device, rank):
         augment_fn = augment_fn
     ).to(device)
     encoder = DDP(encoder, device_ids=[rank], output_device=rank, broadcast_buffers=False)
-    # byol = DDP(byol, device_ids=[rank], output_device=rank, broadcast_buffers=False)
     
     # Initialize the optimizer 
     optimizer = hydra.utils.instantiate(cfg.optimizer,

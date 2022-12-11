@@ -202,7 +202,7 @@ class DeployVINN:
             curr_fingertip_position
         )
 
-        k = 10
+        k = 20
         if self.only_fingertips:
             only_tip_representation = np.zeros_like(curr_representation)
             only_tip_representation[-6:] = curr_representation[-6:]
