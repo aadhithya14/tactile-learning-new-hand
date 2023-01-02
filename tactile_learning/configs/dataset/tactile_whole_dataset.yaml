@@ -1,0 +1,5 @@
+_target_: tactile_learning.datasets.tactile.TactileWholeDataset
+data_path: ???
+fingertip_stats:
+  - [0.07979609, 0.02479117, 0.04321017] # Mean
+  - [0.02117946, 0.05739853, 0.07401023] # Std

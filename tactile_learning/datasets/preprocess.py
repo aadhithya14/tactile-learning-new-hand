@@ -74,7 +74,7 @@ def dump_fingertips(root):
 
     print(f'Saved fingertip positions in {fingertip_state_file}')
 
-def dump_data_indices(demo_id, root):
+def dump_data_indices(demo_id, root, is_byol=False):
     print('dumping data indices in {}, {}'.format(demo_id, root))
     # Matches the index -> demo_id, datapoint_id according to the timestamps saved
     allegro_indices, image_indices, tactile_indices, allegro_action_indices = [], [], [], []
@@ -117,28 +117,36 @@ def dump_data_indices(demo_id, root):
 
     while (True):
         # Get the proper next allegro id
-        allegro_id = find_next_allegro_id(
-            allegro_kdl_solver,
-            allegro_positions,
-            allegro_id,
-            threshold_step_size=0.001 # When you preprocess for training, one should decrease this size - we need more data
-        )
-        # allegro_id += 5 # NOTE: You might want to change this? - But for now we don't know how it should work
-        if allegro_id >= len(allegro_positions)-1:
-            break
-        # tactile_id += 1 # NOTE: CAUTION HERE!!
-        # if tactile_id >= len(tactile_timestamps) - 1:
-        #     break
+        if not is_byol:
+            allegro_id = find_next_allegro_id(
+                allegro_kdl_solver,
+                allegro_positions,
+                allegro_id,
+                threshold_step_size=0.001 # When you preprocess for training, one should decrease this size - we need more data
+            )
+            # allegro_id += 5 # NOTE: You might want to change this? - But for now we don't know how it should work
+            if allegro_id >= len(allegro_positions)-1:
+                break
+            
+            metric_timestamp = allegro_timestamps[allegro_id]
+            tactile_id = get_closest_id(tactile_id, metric_timestamp, tactile_timestamps)
+
+        else: # Then we want as much data as we can
+
+            tactile_id += 1
+            metric_timestamp = tactile_timestamps[tactile_id]
+            allegro_id = get_closest_id(allegro_id, metric_timestamp, allegro_timestamps)
 
         # Get the closest timestamps to that
         # tactile_timestamp = tactile_timestamps[tactile_id]
         # allegro_id = get_closest_id(allegro_id, tactile_timestamp, allegro_timestamps)
         # image_id = get_closest_id(image_id, tactile_timestamp, image_timestamps)
         # allegro_action_id = get_closest_id(allegro_action_id, tactile_timestamp, allegro_action_timestamps)
-        allegro_timestamp = allegro_timestamps[allegro_id]
-        tactile_id = get_closest_id(tactile_id, allegro_timestamp, tactile_timestamps)
-        allegro_action_id = get_closest_id(allegro_action_id, allegro_timestamp, allegro_action_timestamps)
-        image_id = get_closest_id(image_id, allegro_timestamp, image_timestamps)        
+        # allegro_timestamp = allegro_timestamps[allegro_id]
+        # tactile_id = get_closest_id(tactile_id, allegro_timestamp, tactile_timestamps)
+        
+        allegro_action_id = get_closest_id(allegro_action_id, metric_timestamp, allegro_action_timestamps)
+        image_id = get_closest_id(image_id, metric_timestamp, image_timestamps)        
 
         # If some of the data has ended then return it
         if image_id >= len(image_timestamps)-1 or \
@@ -190,9 +198,9 @@ def get_closest_id(curr_id, desired_timestamp, all_timestamps):
     return i
 
 if __name__ == '__main__':
-    data_path = '/home/irmak/Workspace/Holo-Bot/extracted_data/joystick_2'
+    data_path = '/home/irmak/Workspace/Holo-Bot/extracted_data/box_handle_lifting'
     roots = glob.glob(f'{data_path}/demonstration_*') # TODO: change this in the future
     roots = sorted(roots)
     for demo_id, root in enumerate(roots):
         dump_fingertips(root=root)
-        dump_data_indices(demo_id=demo_id, root=root)
+        dump_data_indices(demo_id=demo_id, root=root, is_byol=True)

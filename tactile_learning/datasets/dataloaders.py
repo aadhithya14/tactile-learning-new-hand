@@ -4,7 +4,6 @@ import torch
 import torch.utils.data as data 
 from omegaconf import DictConfig, OmegaConf
 
-from tactile_learning.datasets.tactile import TactileFullDataset
 from tactile_learning.datasets.preprocess import dump_video_to_images
 
 # Script to return dataloaders
