@@ -12,13 +12,13 @@ from tactile_learning.models.custom import TactileJointLinear, TactileImageEncod
 
 def load_model(cfg, device, model_path):
     # Initialize the model
-    if cfg.agent_type == 'bc':
+    if cfg.learner_type == 'bc':
         model = TactileJointLinear(
             input_dim=cfg.tactile_info_dim + cfg.joint_pos_dim,
             output_dim=cfg.joint_pos_dim,
             hidden_dim=cfg.hidden_dim
         )
-    elif cfg.agent_type == 'byol': # load the encoder
+    elif cfg.learner_type == 'byol': # load the encoder
         model = TactileImageEncoder(
             in_channels=cfg.encoder.in_channels,
             out_dim=cfg.encoder.out_dim
@@ -29,7 +29,7 @@ def load_model(cfg, device, model_path):
     # Modify the state dict accordingly - this is needed when multi GPU saving was done
     new_state_dict = modify_multi_gpu_state_dict(state_dict)
     
-    if cfg.agent_type == 'byol':
+    if cfg.learner_type == 'byol':
         new_state_dict = modify_byol_state_dict(new_state_dict)
 
     # Load the new state dict to the model 

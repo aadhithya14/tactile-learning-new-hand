@@ -10,7 +10,7 @@ from tqdm import tqdm
 # Custom imports 
 from tactile_learning.utils.losses import mse, l1
 
-# Agent to get current state and predict the action applied
+# Learner to get current state and predict the action applied
 # It will learn in supervised way
 # 
 class TactileJointBC:
@@ -45,7 +45,7 @@ class TactileJointBC:
                    _use_new_zipfile_serialization=False)
 
     def train_epoch(self, train_loader):
-        self.train() # Set the agent to training mode
+        self.train() # Set the learner to training mode
 
         # Save the train loss 
         train_loss = 0.0

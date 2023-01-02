@@ -3,15 +3,14 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from tactile_learning.models.custom import TactileJointLinear
 from tactile_learning.models.ssl_wrappers.byol import BYOL
-from tactile_learning.models.agents.byol import TactileImageBYOL
+from tactile_learning.models.learners.byol import TactileImageBYOL
 from tactile_learning.utils.augmentations import get_tactile_augmentations
 from tactile_learning.utils.constants import *
-# import tactile_learning.models.agents.behavior_cloning import TactileJointBC - TODO: Remove agent from hydra
 
-def init_agent(cfg, device, rank):
-    if cfg.agent_type == 'bc':
+def init_learner(cfg, device, rank):
+    if cfg.learner_type == 'bc':
         return init_bc(cfg, device, rank)
-    if cfg.agent_type == 'byol':
+    if cfg.learner_type == 'byol':
         return init_byol(cfg, device, rank)
     return None
 
@@ -36,14 +35,14 @@ def init_byol(cfg, device, rank):
                                         params = byol.parameters())
     
     # Initialize the agent
-    agent = TactileImageBYOL(
+    learner = TactileImageBYOL(
         byol = byol,
         optimizer = optimizer
     )
 
-    agent.to(device)
+    learner.to(device)
 
-    return agent
+    return learner
 
 def init_bc(cfg, device, rank): 
     model = TactileJointLinear(input_dim=cfg.tactile_info_dim + cfg.joint_pos_dim,
@@ -57,10 +56,10 @@ def init_bc(cfg, device, rank):
                                         params = model.parameters())
     
     # Initialize the total agent
-    agent = hydra.utils.instantiate(cfg.agent,
+    learner = hydra.utils.instantiate(cfg.agent, # TODO: This should be changed
                                     model = model,
                                     optimizer = optimizer)
                                     
-    agent.to(device)
+    learner.to(device)
 
-    return agent
+    return learner
