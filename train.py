@@ -19,7 +19,7 @@ from tqdm import tqdm
 # Custom imports 
 from tactile_learning.utils.logger import Logger
 from tactile_learning.datasets.dataloaders import get_dataloaders
-from tactile_learning.models.agents.agent_inits import init_agent
+from tactile_learning.models.learners.learner_inits import init_learner
 from tactile_learning.utils.parsers import *
 from tactile_learning.datasets.preprocess import *
 
@@ -56,9 +56,9 @@ class Workspace:
         # It looks at the datatype type and returns the train and test loader accordingly
         train_loader, test_loader, _ = get_dataloaders(self.cfg)
 
-        # Initialize the agent - looks at the type of the agent to be initialized first
+        # Initialize the learner - looks at the type of the agent to be initialized first
         print('device: {}, rank: {}'.format(device, rank))
-        agent = init_agent(self.cfg, device, rank)
+        learner = init_learner(self.cfg, device, rank)
 
         best_loss = torch.inf 
 
@@ -78,7 +78,7 @@ class Workspace:
                 dist.barrier()
 
             # Train the models for one epoch
-            train_loss = agent.train_epoch(train_loader)
+            train_loss = learner.train_epoch(train_loader)
 
             if self.cfg.distributed:
                 dist.barrier()
@@ -96,14 +96,14 @@ class Workspace:
             if epoch % self.cfg.save_frequency == 0:
                 # Test for one epoch
                 if not self.cfg.self_supervised:
-                    test_loss = agent.test_epoch(test_loader)
+                    test_loss = learner.test_epoch(test_loader)
                 else:
                     test_loss = train_loss # In BYOL (for ex) test loss is not important
 
                 # Get the best loss
                 if test_loss < best_loss:
                     best_loss = test_loss
-                    agent.save(self.cfg.checkpoint_dir)
+                    learner.save(self.cfg.checkpoint_dir)
 
                 # Logging
                 if rank == 0:
