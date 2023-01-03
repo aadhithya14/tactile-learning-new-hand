@@ -8,7 +8,7 @@ from collections import OrderedDict
 from tqdm import tqdm 
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from tactile_learning.models.custom import TactileJointLinear, TactileImageEncoder
+from tactile_learning.models.custom import *
 
 def load_model(cfg, device, model_path):
     # Initialize the model
@@ -19,10 +19,16 @@ def load_model(cfg, device, model_path):
             hidden_dim=cfg.hidden_dim
         )
     elif cfg.learner_type == 'byol': # load the encoder
-        model = TactileImageEncoder(
-            in_channels=cfg.encoder.in_channels,
-            out_dim=cfg.encoder.out_dim
-        )
+        if cfg.tactile_image_size == 8:
+            model = TactileImageEncoder(
+                in_channels=cfg.encoder.in_channels,
+                out_dim=cfg.encoder.out_dim
+            )
+        elif cfg.tactile_image_size == 16:
+            model = TactileLargeImageEncoder(
+                in_channels=cfg.encoder.in_channels,
+                out_dim=cfg.encoder.out_dim
+            )
     # print('model: {}'.format(model))
     state_dict = torch.load(model_path)
     

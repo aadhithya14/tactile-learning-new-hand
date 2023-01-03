@@ -77,13 +77,13 @@ def dump_fingertips(root):
 def dump_data_indices(demo_id, root, is_byol=False):
     print('dumping data indices in {}, {}'.format(demo_id, root))
     # Matches the index -> demo_id, datapoint_id according to the timestamps saved
-    allegro_indices, image_indices, tactile_indices, allegro_action_indices = [], [], [], []
+    allegro_indices, image_indices, tactile_indices, allegro_action_indices, kinova_indices = [], [], [], [], []
     # for root in roots:
     allegro_states_path = os.path.join(root, 'allegro_joint_states.h5')
     image_metadata_path = os.path.join(root, 'cam_0_rgb_video.metadata')
     tactile_info_path = os.path.join(root, 'touch_sensor_values.h5')
     allegro_commanded_joint_path = os.path.join(root, 'allegro_commanded_joint_states.h5')
-    # kinova_states_path = os.path.join(root, 'kinova_joint_states.h5')
+    kinova_states_path = os.path.join(root, 'kinova_cartesian_states.h5')
 
     with h5py.File(allegro_states_path, 'r') as f:
         allegro_timestamps = f['timestamps'][()]
@@ -92,10 +92,8 @@ def dump_data_indices(demo_id, root, is_byol=False):
         tactile_timestamps = f['timestamps'][()]
     with h5py.File(allegro_commanded_joint_path, 'r') as f:
         allegro_action_timestamps = f['timestamps'][()]
-    # with h5py.File(kinova_states_path, 'r') as f:
-    #     print('kinova_file keys: {}'.format(f.keys()))
-    #     kinova_timestamps = f['timestamps'][()]
-    #     kinova_positions = f['positions'][()]
+    with h5py.File(kinova_states_path, 'r') as f:
+        kinova_timestamps = f['timestamps'][()]
     with open(image_metadata_path, 'rb') as f:
         image_metadata = pickle.load(f)
         image_timestamps = np.asarray(image_metadata['timestamps']) / 1000.
@@ -103,17 +101,19 @@ def dump_data_indices(demo_id, root, is_byol=False):
     # Start the allegro kdl solver 
     allegro_kdl_solver = AllegroKDL()
 
-    allegro_id, image_id, tactile_id, allegro_action_id = 0, 0, 0, 0
+    allegro_id, image_id, tactile_id, allegro_action_id, kinova_id = 0, 0, 0, 0, 0
     # Get the first timestamps
     tactile_timestamp = tactile_timestamps[0]
     allegro_id = get_closest_id(allegro_id, tactile_timestamp, allegro_timestamps)
     image_id = get_closest_id(image_id, tactile_timestamp, image_timestamps)
     allegro_action_id = get_closest_id(allegro_action_id, tactile_timestamp, allegro_action_timestamps)
+    kinova_id = get_closest_id(kinova_id, tactile_timestamp, kinova_timestamps)
 
     tactile_indices.append([demo_id, tactile_id])
     allegro_indices.append([demo_id, allegro_id])
     image_indices.append([demo_id, image_id])
     allegro_action_indices.append([demo_id, allegro_action_id])
+    kinova_indices.append([demo_id, kinova_id])
 
     while (True):
         # Get the proper next allegro id
@@ -147,22 +147,26 @@ def dump_data_indices(demo_id, root, is_byol=False):
         
         allegro_action_id = get_closest_id(allegro_action_id, metric_timestamp, allegro_action_timestamps)
         image_id = get_closest_id(image_id, metric_timestamp, image_timestamps)        
+        kinova_id = get_closest_id(kinova_id, metric_timestamp, kinova_timestamps)
 
         # If some of the data has ended then return it
         if image_id >= len(image_timestamps)-1 or \
            tactile_id >= len(tactile_timestamps)-1 or \
            allegro_id >= len(allegro_timestamps)-1 or \
-           allegro_action_id >= len(allegro_action_timestamps)-1:
+           allegro_action_id >= len(allegro_action_timestamps)-1 or \
+           kinova_id >= len(kinova_timestamps)-1:
             break
 
         tactile_indices.append([demo_id, tactile_id])
         allegro_indices.append([demo_id, allegro_id])
         image_indices.append([demo_id, image_id])
         allegro_action_indices.append([demo_id, allegro_action_id])
+        kinova_indices.append([demo_id, kinova_id])
 
     assert len(tactile_indices) == len(allegro_indices) and \
            len(tactile_indices) == len(image_indices) and \
-           len(tactile_indices) == len(allegro_action_indices)
+           len(tactile_indices) == len(allegro_action_indices) and \
+           len(tactile_indices) == len(kinova_indices)
 
     # Save the indices for that root 
     with open(os.path.join(root, 'tactile_indices.pkl'), 'wb') as f:
@@ -173,6 +177,8 @@ def dump_data_indices(demo_id, root, is_byol=False):
         pickle.dump(image_indices, f)
     with open(os.path.join(root, 'allegro_action_indices.pkl'), 'wb') as f:
         pickle.dump(allegro_action_indices, f)
+    with open(os.path.join(root, 'kinova_indices.pkl'), 'wb') as f:
+        pickle.dump(kinova_indices, f)
 
     
 def find_next_allegro_id(kdl_solver, positions, pos_id, threshold_step_size=0.01):
