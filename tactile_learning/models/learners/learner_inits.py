@@ -20,7 +20,8 @@ def init_byol(cfg, device, rank):
 
     augment_fn = get_tactile_augmentations(
         img_means = TACTILE_IMAGE_MEANS,
-        img_stds = TACTILE_IMAGE_STDS
+        img_stds = TACTILE_IMAGE_STDS,
+        img_size = (cfg.tactile_image_size, cfg.tactile_image_size)
     )
     # Initialize the byol wrapper
     byol = BYOL(

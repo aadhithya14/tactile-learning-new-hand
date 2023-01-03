@@ -8,6 +8,7 @@ import os
 import pickle
 import torch
 import torchvision.transforms as T 
+import torch.nn.functional as F
 
 from torchvision.datasets.folder import default_loader as loader 
 from torch.utils import data
@@ -189,7 +190,7 @@ class TactileMinDataset(data.Dataset):
     def getitem(self, index):
         return self.__getitem__(index)
 
-class TactileWholeDataset(data.Dataset):
+class TactileLargeDataset(data.Dataset):
     # Dataset to give tactile values for two fingers and tip positions for two fingers
     def __init__(
         self,

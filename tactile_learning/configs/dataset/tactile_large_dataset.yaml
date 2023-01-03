@@ -1,4 +1,4 @@
-_target_: tactile_learning.datasets.tactile.TactileWholeDataset
+_target_: tactile_learning.datasets.tactile.TactileLargeDataset
 data_path: ???
 fingertip_stats:
   - [0.07979609, 0.02479117, 0.04321017] # Mean

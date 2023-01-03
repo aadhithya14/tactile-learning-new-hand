@@ -1,6 +1,6 @@
 defaults:
-    - encoder: tactile_whole_encoder 
-    - dataset: tactile_whole_dataset
+    - encoder: tactile_large_encoder 
+    - dataset: tactile_large_dataset
     - optimizer: adam
 
 seed: 42
@@ -8,13 +8,13 @@ device: cuda
 
 learner_type: byol # bc, byol
 self_supervised: true
-preprocess: true
+preprocess: false
 train_epochs: 1000
 save_frequency: 10 # Frequency to save the model - there will be a test in each step
 train_dset_split: 0.9 # When self_supervised all data is used for encoder training
 
 # Hyperparameters to be used everywhere
-batch_size: 256
+batch_size: 1028
 tactile_image_size: 16
 tactile_info_dim: 720 # 15*16*3
 joint_pos_dim: 16

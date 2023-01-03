@@ -70,20 +70,20 @@ class TactileLargeImageEncoder(nn.Module): # Encoder for the whole tactile image
         super().__init__()
         self.out_dim = out_dim
         self.model = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels=64, kernel_size=3),
+            nn.Conv2d(in_channels, out_channels=64, kernel_size=2),
             nn.ReLU(),
             # PrintSize(),
-            nn.Conv2d(in_channels=64, out_channels=32, kernel_size=3),
+            nn.Conv2d(in_channels=64, out_channels=32, kernel_size=4),
             nn.ReLU(),
             # PrintSize(),
-            nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3),
+            nn.Conv2d(in_channels=32, out_channels=32, kernel_size=2),
             nn.ReLU(),
             # PrintSize(),
-            nn.Conv2d(in_channels=32, out_channels=16, kernel_size=3),
-            nn.ReLU()
+            nn.Conv2d(in_channels=32, out_channels=16, kernel_size=2),
+            nn.ReLU(),
             # PrintSize()
         )
-        self.linear = nn.Linear(in_features=16*8*8, out_features=out_dim)
+        self.linear = nn.Linear(in_features=16*10*10, out_features=out_dim)
         self.relu = nn.ReLU()
         
     def forward(self, x):

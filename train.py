@@ -134,7 +134,10 @@ def main(cfg : DictConfig) -> None:
         for demo_id, root in enumerate(roots):
             # dump_video_to_images(root)
             dump_fingertips(root)
-            dump_data_indices(demo_id, root)
+            if cfg.learner_type == 'byol': # If it is byol then there are more tactile images
+                dump_data_indices(demo_id, root, is_byol=True)
+            else:
+                dump_data_indices(demo_id, root, is_byol=False)
             print('----------------')
     
     print("Distributed training enabled. Spawning {} processes.".format(workspace.cfg.world_size))

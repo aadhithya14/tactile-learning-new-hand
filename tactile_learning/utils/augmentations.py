@@ -2,7 +2,7 @@ import torch.nn as nn
 import torchvision.transforms as T 
 
 # Method for tactile augmentations
-def get_tactile_augmentations(img_means, img_stds, img_size=(8,8)):
+def get_tactile_augmentations(img_means, img_stds, img_size):
     tactile_aug = T.Compose([
         T.RandomApply(
             nn.ModuleList([T.RandomResizedCrop(img_size, scale=(.8, 1))]),
