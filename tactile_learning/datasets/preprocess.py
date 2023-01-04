@@ -94,6 +94,7 @@ def dump_data_indices(demo_id, root, is_byol=False):
         allegro_action_timestamps = f['timestamps'][()]
     with h5py.File(kinova_states_path, 'r') as f:
         kinova_timestamps = f['timestamps'][()]
+        kinova_positions = f['positions'][()]
     with open(image_metadata_path, 'rb') as f:
         image_metadata = pickle.load(f)
         image_timestamps = np.asarray(image_metadata['timestamps']) / 1000.
@@ -108,6 +109,8 @@ def dump_data_indices(demo_id, root, is_byol=False):
     image_id = get_closest_id(image_id, tactile_timestamp, image_timestamps)
     allegro_action_id = get_closest_id(allegro_action_id, tactile_timestamp, allegro_action_timestamps)
     kinova_id = get_closest_id(kinova_id, tactile_timestamp, kinova_timestamps)
+
+    # print('kinova_timestamps: {}'.format(kinova_timestamps[0]))
 
     tactile_indices.append([demo_id, tactile_id])
     allegro_indices.append([demo_id, allegro_id])
@@ -124,11 +127,21 @@ def dump_data_indices(demo_id, root, is_byol=False):
                 allegro_id,
                 threshold_step_size=0.001 # When you preprocess for training, one should decrease this size - we need more data
             )
+            kinova_id = find_next_kinova_id(
+                kinova_positions,
+                kinova_id,
+                threshold_step_size=0.01 # 2 cms
+            )
             # allegro_id += 5 # NOTE: You might want to change this? - But for now we don't know how it should work
             if allegro_id >= len(allegro_positions)-1:
                 break
             
-            metric_timestamp = allegro_timestamps[allegro_id]
+            # print(f'kinova_timestamps[{kinova_id}]: {kinova_timestamps[kinova_id]}, allegro_ts[{allegro_id}]: {allegro_timestamps[allegro_id]}')
+            metric_timestamp = min(kinova_timestamps[kinova_id], allegro_timestamps[allegro_id])
+            if metric_timestamp == kinova_timestamps[kinova_id]:
+                allegro_id = get_closest_id(allegro_id, metric_timestamp, allegro_timestamps)
+            else: # metric is allegro
+                kinova_id = get_closest_id(kinova_id, metric_timestamp, kinova_timestamps)
             tactile_id = get_closest_id(tactile_id, metric_timestamp, tactile_timestamps)
 
         else: # Then we want as much data as we can
@@ -136,18 +149,10 @@ def dump_data_indices(demo_id, root, is_byol=False):
             tactile_id += 1
             metric_timestamp = tactile_timestamps[tactile_id]
             allegro_id = get_closest_id(allegro_id, metric_timestamp, allegro_timestamps)
+            kinova_id = get_closest_id(kinova_id, metric_timestamp, kinova_timestamps)
 
-        # Get the closest timestamps to that
-        # tactile_timestamp = tactile_timestamps[tactile_id]
-        # allegro_id = get_closest_id(allegro_id, tactile_timestamp, allegro_timestamps)
-        # image_id = get_closest_id(image_id, tactile_timestamp, image_timestamps)
-        # allegro_action_id = get_closest_id(allegro_action_id, tactile_timestamp, allegro_action_timestamps)
-        # allegro_timestamp = allegro_timestamps[allegro_id]
-        # tactile_id = get_closest_id(tactile_id, allegro_timestamp, tactile_timestamps)
-        
         allegro_action_id = get_closest_id(allegro_action_id, metric_timestamp, allegro_action_timestamps)
         image_id = get_closest_id(image_id, metric_timestamp, image_timestamps)        
-        kinova_id = get_closest_id(kinova_id, metric_timestamp, kinova_timestamps)
 
         # If some of the data has ended then return it
         if image_id >= len(image_timestamps)-1 or \
@@ -167,6 +172,8 @@ def dump_data_indices(demo_id, root, is_byol=False):
            len(tactile_indices) == len(image_indices) and \
            len(tactile_indices) == len(allegro_action_indices) and \
            len(tactile_indices) == len(kinova_indices)
+
+    print('len(kinova_indices): {}'.format(len(kinova_indices)))
 
     # Save the indices for that root 
     with open(os.path.join(root, 'tactile_indices.pkl'), 'wb') as f:
@@ -192,6 +199,17 @@ def find_next_allegro_id(kdl_solver, positions, pos_id, threshold_step_size=0.01
 
     return i # This will return len(positions)-1 when there are not enough 
 
+def find_next_kinova_id(positions, pos_id, threshold_step_size=0.1):
+    old_kinova_pos = positions[pos_id]
+    for i in range(pos_id, len(positions)):
+        curr_kinova_pos = positions[i]
+        step_size = np.linalg.norm(old_kinova_pos - curr_kinova_pos)
+        # print('step_size: {}'.format(step_size))
+        if step_size > threshold_step_size:
+            return i 
+
+    return i
+
 # Traverse through the cartesian positions and find the place
 # where the end effector moved - translationally - more than 1 cm
 # def find_next_kinova_id() - TODO 
@@ -209,4 +227,4 @@ if __name__ == '__main__':
     roots = sorted(roots)
     for demo_id, root in enumerate(roots):
         dump_fingertips(root=root)
-        dump_data_indices(demo_id=demo_id, root=root, is_byol=True)
+        dump_data_indices(demo_id=demo_id, root=root, is_byol=False)

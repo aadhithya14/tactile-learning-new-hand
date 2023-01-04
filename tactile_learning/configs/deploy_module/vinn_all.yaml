@@ -7,3 +7,6 @@ allegro_finger_indices: [0,1,2,3]
 robots: ['allegro', 'kinova']
 use_encoder: true
 only_states: false
+demos_to_use: [1,2,6,10,14,16,19,20,21]
+run_num: 1
+set_thumb_values: ???

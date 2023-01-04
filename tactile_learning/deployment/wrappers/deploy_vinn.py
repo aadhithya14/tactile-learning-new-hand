@@ -37,6 +37,26 @@ from tactile_learning.models.knn import KNearestNeighbors
 from tactile_learning.utils.visualization import dump_camera_image, dump_tactile_state, dump_knn_state
 from tactile_learning.utils.tactile_image import get_tactile_image
 
+import glob
+import h5py
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+import pickle 
+import torch
+import torchvision.transforms as T
+
+from omegaconf import OmegaConf
+from tqdm import tqdm 
+
+from holobot.robot.allegro.allegro_kdl import AllegroKDL
+from holobot.constants import *
+from tactile_learning.deployment.load_models import load_model
+from tactile_learning.deployment.nn_buffer import NearestNeighborBuffer
+from tactile_learning.models.knn import KNearestNeighbors
+from tactile_learning.utils.visualization import dump_camera_image, dump_whole_state, dump_knn_state
+from tactile_learning.utils.tactile_image import get_tactile_image
+
 class DeployVINN:
     def __init__(
         self,
@@ -47,7 +67,10 @@ class DeployVINN:
         use_encoder = True,
         only_states = False,
         nn_buffer_size=100,
-        nn_k=20
+        nn_k=20,
+        set_thumb_values=None,
+        demos_to_use=[0],
+        run_num=1
     ):
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = "29505"
@@ -60,6 +83,7 @@ class DeployVINN:
         print('self.allegro_finger_indices: {}'.format(self.allegro_finger_indices))
         self.only_states = only_states # Check to add tactile info to the representation or not
         self.use_encoder = use_encoder
+        self.set_thumb_values = set_thumb_values
         self.robots = robots # Types of robots to be used in the states
         print('self.only_states: {}, self.use_encoder: {}'.format(
             self.only_states, self.use_encoder
@@ -76,7 +100,7 @@ class DeployVINN:
 
         self.resize_transform = T.Resize((self.cfg.tactile_image_size, self.cfg.tactile_image_size))
 
-        self._load_data()
+        self._load_data(demos_to_use)
         self._get_all_representations()
         self.state_id = 0 # Increase it with each get_action
 
@@ -88,8 +112,9 @@ class DeployVINN:
             self.all_representations, # Both the input and the output of the nearest neighbors are
             self.all_representations
         )
+        self.run_num = run_num
 
-    def _load_data(self):
+    def _load_data(self, demos_to_use):
         roots = glob.glob(f'{self.data_path}/demonstration_*')
         roots = sorted(roots)
 
@@ -97,32 +122,35 @@ class DeployVINN:
         self.allegro_indices = [] 
         self.kinova_indices = []
         self.allegro_action_indices = [] 
-        self.allegro_actions = [] 
-        self.tactile_values = [] 
-        self.allegro_tip_positions = []
-        self.kinova_states = []
 
-        for root in roots:
+        self.allegro_actions = {}
+        self.tactile_values = {}
+        self.allegro_tip_positions = {}
+        self.kinova_states = {}
+
+        for demo_id, root in enumerate(roots):
             # Load the indices
-            with open(os.path.join(root, 'tactile_indices.pkl'), 'rb') as f:
-                self.tactile_indices += pickle.load(f)
-            with open(os.path.join(root, 'allegro_indices.pkl'), 'rb') as f:
-                self.allegro_indices += pickle.load(f)
-            with open(os.path.join(root, 'allegro_action_indices.pkl'), 'rb') as f:
-                self.allegro_action_indices += pickle.load(f)
-            with open(os.path.join(root, 'kinova_indices.pkl'), 'rb') as f:
-                self.kinova_indices += pickle.load(f)
+            demo_num = int(root.split('/')[-1].split('_')[-1])
+            if demo_num in demos_to_use:
+                with open(os.path.join(root, 'tactile_indices.pkl'), 'rb') as f:
+                    self.tactile_indices += pickle.load(f)
+                with open(os.path.join(root, 'allegro_indices.pkl'), 'rb') as f:
+                    self.allegro_indices += pickle.load(f)
+                with open(os.path.join(root, 'allegro_action_indices.pkl'), 'rb') as f:
+                    self.allegro_action_indices += pickle.load(f)
+                with open(os.path.join(root, 'kinova_indices.pkl'), 'rb') as f:
+                    self.kinova_indices += pickle.load(f)
 
-            # Load the data
-            with h5py.File(os.path.join(root, 'allegro_fingertip_states.h5'), 'r') as f:
-                self.allegro_tip_positions.append(f['positions'][()][:, self.allegro_finger_indices])
-            with h5py.File(os.path.join(root, 'allegro_commanded_joint_states.h5'), 'r') as f:
-                self.allegro_actions.append(f['positions'][()]) # Positions are to be learned - since this is a position control
-            with h5py.File(os.path.join(root, 'touch_sensor_values.h5'), 'r') as f:
-                self.tactile_values.append(f['sensor_values'][()][:,self.sensor_indices,:,:])
-            with h5py.File(os.path.join(root, 'kinova_cartesian_states.h5'), 'r') as f:
-                state = np.concatenate((f['positions'][()], f['orientations'][()]), axis=1) # TODO: Will need to probs change this
-                self.kinova_states.append(state)
+                # Load the data
+                with h5py.File(os.path.join(root, 'allegro_fingertip_states.h5'), 'r') as f:
+                    self.allegro_tip_positions[demo_id] = f['positions'][()][:, self.allegro_finger_indices]
+                with h5py.File(os.path.join(root, 'allegro_commanded_joint_states.h5'), 'r') as f:
+                    self.allegro_actions[demo_id] = f['positions'][()] # Positions are to be learned - since this is a position control
+                with h5py.File(os.path.join(root, 'touch_sensor_values.h5'), 'r') as f:
+                    self.tactile_values[demo_id] = f['sensor_values'][()][:,self.sensor_indices,:,:]
+                with h5py.File(os.path.join(root, 'kinova_cartesian_states.h5'), 'r') as f:
+                    state = np.concatenate([f['positions'][()], f['orientations'][()]], axis=1)
+                    self.kinova_states[demo_id] = state
 
     def _get_tactile_image(self, tactile_value):
         tactile_image = get_tactile_image(tactile_value)
@@ -130,7 +158,7 @@ class DeployVINN:
 
     # tactile_values: (N,16,3) - N: number of sensors
     # robot_states: { allegro: allegro_tip_positions: (3*M,) - 3 values for each finger M: number of fingers included,
-    #                 kinova: kinova_states : (7,) - cartesian state of the arm}
+    #                 kinova: kinova_states : (3,) - cartesian position of the arm end effector}
     def _get_one_representation(self, tactile_values, robot_states):
         states = np.concatenate([robot_states[robot_type] for robot_type in self.robots], axis=0)
         assert len(states) == len(self.allegro_finger_indices) + 7, "len(states) in get_one_representation: {}".format(len(states))
@@ -191,7 +219,7 @@ class DeployVINN:
         pbar.close()
 
     # tactile_values.shape: (16,15,3)
-    # robot_state: {allegro: allegro_joint_state (16,), kinova: kinova_cart_state (7,)}
+    # robot_state: {allegro: allegro_joint_state (16,), kinova: kinova_cart_state (3,)}
     def get_action(self, tactile_values, recv_robot_state, visualize=False):
         # Get the allegro tip positions with kdl solver 
         allegro_joint_state = recv_robot_state['allegro']
@@ -236,14 +264,19 @@ class DeployVINN:
         nn_id = nn_idxs[id_of_nn]
         print('chosen nn_id: {}'.format(nn_id))
         demo_id, action_id = self.allegro_action_indices[nn_id] 
-        nn_allegro_action = self.allegro_actions[demo_id][action_id+1] # Get the next commanded action (commanded actions are saved in that timestamp)
-        nn_action = dict(
-            allegro = nn_allegro_action
+        nn_allegro_action = self.allegro_actions[demo_id][action_id] # Get the next commanded action (commanded actions are saved in that timestamp)
+        if self.set_thumb_values is not None:
+            nn_allegro_action[-4:] = self.set_thumb_values
+        nn_action = dict(            allegro = nn_allegro_action
         )
         
         if 'kinova' in self.robots:
             _, kinova_id = self.kinova_indices[nn_id] 
-            nn_kinova_action = self.kinova_states[demo_id][kinova_id+1] # Get the next saved kinova_state
+            nn_kinova_action = self.kinova_states[demo_id][kinova_id] # Get the next saved kinova_state
+            # print('kinova action shape: {}'.format(nn_kinova_action.shape))
+            assert nn_kinova_action.shape == (7,), 'kinova_action shape : {} incorrect - it shouldve been (7,)'.format(nn_kinova_action.shape)
+            # kinova_action = np.zeros(6)
+            # kinova_action[:3] = (nn_kinova_action - kinova_cart_state) * KINOVA_VELOCITY_SCALING_FACTOR # Since we're only doing velocity control
             nn_action['kinova'] = nn_kinova_action
 
         # Visualize if given 
@@ -251,31 +284,36 @@ class DeployVINN:
             self._visualize_state(
                 curr_tactile_values, 
                 curr_fingertip_position,
+                kinova_cart_state[:3],
                 nn_id
             )
 
-        print('nn_action: {}'.format(nn_action))
+        # print('nn_action: {}'.format(nn_action))
         self.state_id += 1
 
         return nn_action
 
-    def _visualize_state(self, curr_tactile_values, curr_fingertip_position, nn_id):
+    def _visualize_state(self, curr_tactile_values, curr_fingertip_position, curr_kinova_cart_pos, nn_id):
         demo_id, tactile_id = self.tactile_indices[nn_id]
         _, allegro_tip_id = self.allegro_indices[nn_id]
+        _, kinova_id = self.kinova_indices[nn_id]
 
         knn_tactile_values = self.tactile_values[demo_id][tactile_id]
         knn_tip_pos = self.allegro_tip_positions[demo_id][allegro_tip_id]
+        knn_cart_pos = self.kinova_states[demo_id][kinova_id][:3]
 
-        assert knn_tactile_values.shape == (2,16,3) and knn_tip_pos.shape == (6,)
+        # assert knn_tactile_values.shape == (2,16,3) and knn_tip_pos.shape == (6,)
 
         # Dump all the current state, nn state and curr image
         dump_camera_image()
-        dump_tactile_state(curr_tactile_values, curr_fingertip_position, title='Current State')
-        dump_tactile_state(knn_tactile_values, knn_tip_pos, title='Nearest Neighbor')
+        dump_whole_state(curr_tactile_values, curr_fingertip_position, curr_kinova_cart_pos, title='curr_state')
+        dump_whole_state(knn_tactile_values, knn_tip_pos, knn_cart_pos, title='knn_state')
+        # dump_tactile_state(curr_tactile_values, curr_fingertip_position, title='Current State')
+        # dump_tactile_state(knn_tactile_values, knn_tip_pos, title='Nearest Neighbor')
 
         # Plot from the dumped images
         dump_knn_state(
-            dump_dir = os.path.join(self.out_dir, f'runs/run_ue_{self.use_encoder}_of_{self.only_states}'),
+            dump_dir = os.path.join(self.out_dir, f'runs/run_ue_{self.use_encoder}_of_{self.only_states}_{self.run_num}'),
             img_name = 'state_{}.png'.format(str(self.state_id).zfill(2))
         ) # It will read the written images
 

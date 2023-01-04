@@ -2,8 +2,8 @@ defaults:
   - deploy_module: vinn_all
 
 robots: [allegro, kinova]
-visualize: false
+visualize: true
 loop: false
 frequency: 15
-object: joystick
+object: box_handle_lifting
 data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}

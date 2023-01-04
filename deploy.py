@@ -11,6 +11,7 @@ import sys
 # from holobot.components.deploy.commander import DeployAPI
 from holobot_api.api import DeployAPI
 from holobot.utils.timer import FrequencyTimer
+from holobot.constants import ALLEGRO_BOX_HANDLE_LIFTING_THUMB_VALUES
 from omegaconf import DictConfig, OmegaConf
 
 class Deployer:
@@ -72,9 +73,8 @@ class Deployer:
             # tactile_info = self._normalize_tactile_state(sensor_state['xela']['sensor_values'])
 
             allegro_joint_pos = robot_state['allegro']['position']
-            print('ROBOT_STATE[KINOVA]: {}'.format(robot_state['kinova']))
             tactile_info = sensor_state['xela']['sensor_values']
-            robot_state = dict(
+            send_robot_state = dict(
                 allegro = allegro_joint_pos
             )
             print('allegro_joint_pos.shape: {}, tactile_info.shape: {}'.format(
@@ -83,12 +83,12 @@ class Deployer:
             assert tactile_info.shape == (15,16,3) and allegro_joint_pos.shape == (16,)
             
             if 'kinova' in self.cfg.robots:
-                kinova_state = robot_state['kinova']['position'] + robot_state['kinova']['orientation'] # TODO: check this - this should be cartesian state
-                robot_state['kinova'] = kinova_state
+                kinova_state = robot_state['kinova']
+                send_robot_state['kinova'] = kinova_state
 
             pred_action = self.module.get_action(
                 tactile_info,
-                robot_state,
+                send_robot_state,
                 visualize=self.cfg['visualize']
             )
             print('\nPredicted action: {}'.format(pred_action))
@@ -115,7 +115,14 @@ class Deployer:
 
 @hydra.main(version_base=None, config_path='tactile_learning/configs', config_name='deploy')
 def main(cfg : DictConfig) -> None:
-    deploy_module = hydra.utils.instantiate(cfg.deploy_module)
+    if cfg.object == 'box_handle_lifting':
+        set_thumb_values = ALLEGRO_BOX_HANDLE_LIFTING_THUMB_VALUES
+    else:
+        set_thumb_values = None
+    deploy_module = hydra.utils.instantiate(
+        cfg.deploy_module,
+        set_thumb_values = set_thumb_values
+    )
     print('deploy_module: {}'.format(deploy_module))
     deployer = Deployer(cfg, deploy_module, cfg.deploy_module.robots)
     deployer.solve()
