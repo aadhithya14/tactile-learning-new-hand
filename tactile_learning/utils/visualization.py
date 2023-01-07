@@ -187,7 +187,9 @@ def turn_images_to_video(viz_dir, video_fps):
 
 # Example
 if __name__ == '__main__':
+    model_path = '/home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.02/19-29_byol_bs_1028_box_handle_lifting/runs'
+    run_name = 'run_tactile_kinova_10cm_forward_start_ue_True' 
     turn_images_to_video(
-        viz_dir = '/home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.02/19-29_byol_bs_1028_box_handle_lifting/runs/run_ue_True_of_False',
-        video_fps = 1
+        viz_dir = f'{model_path}/{run_name}',
+        video_fps = 2
     )
