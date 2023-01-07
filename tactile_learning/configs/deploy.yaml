@@ -3,7 +3,7 @@ defaults:
 
 robots: [allegro, kinova]
 visualize: true
-loop: false
+loop: true
 frequency: 15
 object: box_handle_lifting
 data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}

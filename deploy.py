@@ -65,22 +65,19 @@ class Deployer:
 
             # Get the robot state and the tactile info
             robot_state = self.deploy_api.get_robot_state() 
-            print('robot_state received')
+            # print('robot_state received')
             sensor_state = self.deploy_api.get_sensor_state()
-            print('senor_state received')
-            # TODO: This should be normalized inside the module if needed
-            # allegro_joint_pos = self._normalize_allegro_state(robot_state['allegro']['position'])
-            # tactile_info = self._normalize_tactile_state(sensor_state['xela']['sensor_values'])
+            # print('senor_state received')
 
             allegro_joint_pos = robot_state['allegro']['position']
             tactile_info = sensor_state['xela']['sensor_values']
             send_robot_state = dict(
                 allegro = allegro_joint_pos
             )
-            print('allegro_joint_pos.shape: {}, tactile_info.shape: {}'.format(
-                allegro_joint_pos.shape, tactile_info.shape
-            ))
-            assert tactile_info.shape == (15,16,3) and allegro_joint_pos.shape == (16,)
+            # print('allegro_joint_pos.shape: {}, tactile_info.shape: {}'.format(
+            #     allegro_joint_pos.shape, tactile_info.shape
+            # ))
+            # assert tactile_info.shape == (15,16,3) and allegro_joint_pos.shape == (16,)
             
             if 'kinova' in self.cfg.robots:
                 kinova_state = robot_state['kinova']
@@ -96,18 +93,10 @@ class Deployer:
             if not self.cfg['loop']:
                 register = input('\nPress a key to perform the action...')
 
-
-            # Calculate the desired joint positions
-            # desired_joint_pos = robot_state['allegro']['position'] + pred_action.cpu().detach().numpy()
-            # desired_joint_pos = pred_action.cpu().detach().numpy() 
-
             action_dict = dict() 
             action_dict['allegro'] = pred_action['allegro'] # Should be a numpy array
             action_dict['kinova'] = pred_action['kinova']
             self.deploy_api.send_robot_action(action_dict)
-
-            # if self.cfg['visualize']:
-            #     plt.cla()
 
             if self.cfg['loop']: 
                 self.frequency_timer.end_loop()

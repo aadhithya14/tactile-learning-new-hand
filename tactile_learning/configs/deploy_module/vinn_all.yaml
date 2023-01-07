@@ -1,12 +1,16 @@
 _target_: tactile_learning.deployment.wrappers.deploy_vinn.DeployVINN
 out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.02/19-29_byol_bs_1028_box_handle_lifting
-nn_buffer_size: 100
-nn_k: 20
+nn_buffer_size: 200
+nn_k: 100
 sensor_indices: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]
 allegro_finger_indices: [0,1,2,3]
 robots: ['allegro', 'kinova']
 use_encoder: true
-only_states: false
-demos_to_use: [1,2,6,10,14,16,19,20,21]
-run_num: 1
+representation_types: ['tactile', 'kinova'] # observations used in the representations
+run_num: tactile_kinova_2cm_down_start_2
+# demos_to_use: [1,2,3,4,5,7,8,9,10,11,37,39,41] # [37,39,41] # [1,2,6,10,14,16,19,20,21] %
+# demos_to_use: [1,2,3,4,5,6,7,8,9,10,11,37,39,41]
+# demos_to_use: [7]
+demos_to_use: [12,13,14,15,16,17,18,19,20,37,39,41] # These are the ones where we only use movement demos to come close
 set_thumb_values: ???
+run_the_demo: false # Boolean to indicate if one should only run the demo or deploy vinn or not

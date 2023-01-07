@@ -4,6 +4,8 @@ import glob
 import h5py 
 import numpy as np
 import pickle 
+
+from copy import deepcopy as copy
 from tqdm import tqdm
 
 from holobot.robot.allegro.allegro_kdl import AllegroKDL
@@ -121,31 +123,35 @@ def dump_data_indices(demo_id, root, is_byol=False):
     while (True):
         # Get the proper next allegro id
         if not is_byol:
-            allegro_id = find_next_allegro_id(
+            # old_allegro_id = copy(allegro_id)
+            # old_kinova_id = copy
+            pos_allegro_id = find_next_allegro_id(
                 allegro_kdl_solver,
                 allegro_positions,
                 allegro_id,
-                threshold_step_size=0.001 # When you preprocess for training, one should decrease this size - we need more data
+                threshold_step_size=0.01 # When you preprocess for training, one should decrease this size - we need more data
             )
-            kinova_id = find_next_kinova_id(
+            pos_kinova_id = find_next_kinova_id(
                 kinova_positions,
                 kinova_id,
                 threshold_step_size=0.01 # 2 cms
             )
             # allegro_id += 5 # NOTE: You might want to change this? - But for now we don't know how it should work
-            if allegro_id >= len(allegro_positions)-1:
+            if pos_allegro_id >= len(allegro_positions)-1 or pos_kinova_id >= len(kinova_positions)-1:
                 break
             
             # print(f'kinova_timestamps[{kinova_id}]: {kinova_timestamps[kinova_id]}, allegro_ts[{allegro_id}]: {allegro_timestamps[allegro_id]}')
-            metric_timestamp = min(kinova_timestamps[kinova_id], allegro_timestamps[allegro_id])
-            if metric_timestamp == kinova_timestamps[kinova_id]:
+            metric_timestamp = min(kinova_timestamps[pos_kinova_id], allegro_timestamps[pos_allegro_id])
+            # metric_timestamp = allegro_timestamps[allegro_id]
+            if metric_timestamp == kinova_timestamps[pos_kinova_id]:
+                kinova_id = pos_kinova_id
                 allegro_id = get_closest_id(allegro_id, metric_timestamp, allegro_timestamps)
             else: # metric is allegro
+                allegro_id = pos_allegro_id
                 kinova_id = get_closest_id(kinova_id, metric_timestamp, kinova_timestamps)
             tactile_id = get_closest_id(tactile_id, metric_timestamp, tactile_timestamps)
 
         else: # Then we want as much data as we can
-
             tactile_id += 1
             metric_timestamp = tactile_timestamps[tactile_id]
             allegro_id = get_closest_id(allegro_id, metric_timestamp, allegro_timestamps)
@@ -155,12 +161,20 @@ def dump_data_indices(demo_id, root, is_byol=False):
         image_id = get_closest_id(image_id, metric_timestamp, image_timestamps)        
 
         # If some of the data has ended then return it
+        # NOTE: Successful demos end after 50th step 
         if image_id >= len(image_timestamps)-1 or \
            tactile_id >= len(tactile_timestamps)-1 or \
            allegro_id >= len(allegro_timestamps)-1 or \
            allegro_action_id >= len(allegro_action_timestamps)-1 or \
            kinova_id >= len(kinova_timestamps)-1:
             break
+
+        # if len(image_indices) >= 50 or image_id >= len(image_timestamps)-1 or \
+        #     tactile_id >= len(tactile_timestamps)-1 or \
+        #     allegro_id >= len(allegro_timestamps)-1 or \
+        #     allegro_action_id >= len(allegro_action_timestamps)-1 or \
+        #     kinova_id >= len(kinova_timestamps)-1:
+        #     break
 
         tactile_indices.append([demo_id, tactile_id])
         allegro_indices.append([demo_id, allegro_id])
@@ -175,17 +189,18 @@ def dump_data_indices(demo_id, root, is_byol=False):
 
     print('len(kinova_indices): {}'.format(len(kinova_indices)))
 
-    # Save the indices for that root 
+    # Save the indices for that root
+    last_stopping_index = 1 # Not including the last few frames since they are noisy a bit
     with open(os.path.join(root, 'tactile_indices.pkl'), 'wb') as f:
-        pickle.dump(tactile_indices, f)
+        pickle.dump(tactile_indices[:-last_stopping_index], f)
     with open(os.path.join(root, 'allegro_indices.pkl'), 'wb') as f:
-        pickle.dump(allegro_indices, f)
+        pickle.dump(allegro_indices[:-last_stopping_index], f)
     with open(os.path.join(root, 'image_indices.pkl'), 'wb') as f:
-        pickle.dump(image_indices, f)
+        pickle.dump(image_indices[:-last_stopping_index], f)
     with open(os.path.join(root, 'allegro_action_indices.pkl'), 'wb') as f:
-        pickle.dump(allegro_action_indices, f)
+        pickle.dump(allegro_action_indices[:-last_stopping_index], f)
     with open(os.path.join(root, 'kinova_indices.pkl'), 'wb') as f:
-        pickle.dump(kinova_indices, f)
+        pickle.dump(kinova_indices[:-last_stopping_index], f)
 
     
 def find_next_allegro_id(kdl_solver, positions, pos_id, threshold_step_size=0.01):
@@ -225,6 +240,12 @@ if __name__ == '__main__':
     data_path = '/home/irmak/Workspace/Holo-Bot/extracted_data/box_handle_lifting'
     roots = glob.glob(f'{data_path}/demonstration_*') # TODO: change this in the future
     roots = sorted(roots)
+    # roots = [
+    #     '/home/irmak/Workspace/Holo-Bot/extracted_data/box_handle_lifting/demonstration_37',
+    #     '/home/irmak/Workspace/Holo-Bot/extracted_data/box_handle_lifting/demonstration_39',
+    #     '/home/irmak/Workspace/Holo-Bot/extracted_data/box_handle_lifting/demonstration_41'
+    # ]
     for demo_id, root in enumerate(roots):
         dump_fingertips(root=root)
         dump_data_indices(demo_id=demo_id, root=root, is_byol=False)
+        print('-----')
