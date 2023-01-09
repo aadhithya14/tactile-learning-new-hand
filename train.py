@@ -93,7 +93,7 @@ class Workspace:
                                  'train loss': train_loss})
 
             # Testing and saving the model
-            if epoch % self.cfg.save_frequency == 0:
+            if epoch % self.cfg.save_frequency == 0 and rank == 0: # NOTE: Not sure why this is a problem but this could be the fix
                 # Test for one epoch
                 if not self.cfg.self_supervised:
                     test_loss = learner.test_epoch(test_loader)
