@@ -2,10 +2,13 @@ import os
 import cv2
 import glob
 import h5py 
+import hydra
 import numpy as np
 import pickle 
 
+
 from copy import deepcopy as copy
+from omegaconf import DictConfig
 from tqdm import tqdm
 
 from holobot.robot.allegro.allegro_kdl import AllegroKDL
@@ -76,11 +79,10 @@ def dump_fingertips(root):
 
     print(f'Saved fingertip positions in {fingertip_state_file}')
 
-def dump_data_indices(demo_id, root, is_byol=False):
+def dump_data_indices(demo_id, root, is_byol_tactile=False, is_byol_image=False):
     print('dumping data indices in {}, {}'.format(demo_id, root))
     # Matches the index -> demo_id, datapoint_id according to the timestamps saved
     allegro_indices, image_indices, tactile_indices, allegro_action_indices, kinova_indices = [], [], [], [], []
-    # for root in roots:
     allegro_states_path = os.path.join(root, 'allegro_joint_states.h5')
     image_metadata_path = os.path.join(root, 'cam_0_rgb_video.metadata')
     tactile_info_path = os.path.join(root, 'touch_sensor_values.h5')
@@ -112,8 +114,6 @@ def dump_data_indices(demo_id, root, is_byol=False):
     allegro_action_id = get_closest_id(allegro_action_id, tactile_timestamp, allegro_action_timestamps)
     kinova_id = get_closest_id(kinova_id, tactile_timestamp, kinova_timestamps)
 
-    # print('kinova_timestamps: {}'.format(kinova_timestamps[0]))
-
     tactile_indices.append([demo_id, tactile_id])
     allegro_indices.append([demo_id, allegro_id])
     image_indices.append([demo_id, image_id])
@@ -121,10 +121,17 @@ def dump_data_indices(demo_id, root, is_byol=False):
     kinova_indices.append([demo_id, kinova_id])
 
     while (True):
-        # Get the proper next allegro id
-        if not is_byol:
-            # old_allegro_id = copy(allegro_id)
-            # old_kinova_id = copy
+        if is_byol_tactile:
+            tactile_id += 1
+            if tactile_id >= len(tactile_timestamps):
+                break
+            metric_timestamp = tactile_timestamps[tactile_id]
+        elif is_byol_image:
+            image_id += 1
+            if image_id >= len(image_timestamps):
+                break
+            metric_timestamp = image_timestamps[image_id]        
+        else:
             pos_allegro_id = find_next_allegro_id(
                 allegro_kdl_solver,
                 allegro_positions,
@@ -137,28 +144,64 @@ def dump_data_indices(demo_id, root, is_byol=False):
                 threshold_step_size=0.01 # 2 cms
             )
             # allegro_id += 5 # NOTE: You might want to change this? - But for now we don't know how it should work
-            if pos_allegro_id >= len(allegro_positions)-1 or pos_kinova_id >= len(kinova_positions)-1:
+            if pos_allegro_id >= len(allegro_positions) or pos_kinova_id >= len(kinova_positions):
                 break
             
             # print(f'kinova_timestamps[{kinova_id}]: {kinova_timestamps[kinova_id]}, allegro_ts[{allegro_id}]: {allegro_timestamps[allegro_id]}')
             metric_timestamp = min(kinova_timestamps[pos_kinova_id], allegro_timestamps[pos_allegro_id])
-            # metric_timestamp = allegro_timestamps[allegro_id]
-            if metric_timestamp == kinova_timestamps[pos_kinova_id]:
-                kinova_id = pos_kinova_id
-                allegro_id = get_closest_id(allegro_id, metric_timestamp, allegro_timestamps)
-            else: # metric is allegro
-                allegro_id = pos_allegro_id
-                kinova_id = get_closest_id(kinova_id, metric_timestamp, kinova_timestamps)
-            tactile_id = get_closest_id(tactile_id, metric_timestamp, tactile_timestamps)
+            # if metric_timestamp == kinova_timestamps[pos_kinova_id]:
+            #     kinova_id = pos_kinova_id
+            #     allegro_id = get_closest_id(allegro_id, metric_timestamp, allegro_timestamps)
+            # else: # metric is allegro
+            #     allegro_id = pos_allegro_id
+            #     kinova_id = get_closest_id(kinova_id, metric_timestamp, kinova_timestamps)
+            # tactile_id = get_closest_id(tactile_id, metric_timestamp, tactile_timestamps)
 
-        else: # Then we want as much data as we can
-            tactile_id += 1
-            metric_timestamp = tactile_timestamps[tactile_id]
-            allegro_id = get_closest_id(allegro_id, metric_timestamp, allegro_timestamps)
-            kinova_id = get_closest_id(kinova_id, metric_timestamp, kinova_timestamps)
-
+        # Get the ids from this metric timestamp
+        allegro_id = get_closest_id(allegro_id, metric_timestamp, allegro_timestamps)
         allegro_action_id = get_closest_id(allegro_action_id, metric_timestamp, allegro_action_timestamps)
-        image_id = get_closest_id(image_id, metric_timestamp, image_timestamps)        
+        kinova_id = get_closest_id(kinova_id, metric_timestamp, kinova_timestamps)
+        image_id = get_closest_id(image_id, metric_timestamp, image_timestamps)
+        tactile_id = get_closest_id(tactile_id, metric_timestamp, tactile_timestamps)
+
+
+
+        # Get the proper next allegro id
+        # if (not is_byol_tactile) or (not is_byol_image):
+        #     pos_allegro_id = find_next_allegro_id(
+        #         allegro_kdl_solver,
+        #         allegro_positions,
+        #         allegro_id,
+        #         threshold_step_size=0.01 # When you preprocess for training, one should decrease this size - we need more data
+        #     )
+        #     pos_kinova_id = find_next_kinova_id(
+        #         kinova_positions,
+        #         kinova_id,
+        #         threshold_step_size=0.01 # 2 cms
+        #     )
+        #     # allegro_id += 5 # NOTE: You might want to change this? - But for now we don't know how it should work
+        #     if pos_allegro_id >= len(allegro_positions)-1 or pos_kinova_id >= len(kinova_positions)-1:
+        #         break
+            
+        #     # print(f'kinova_timestamps[{kinova_id}]: {kinova_timestamps[kinova_id]}, allegro_ts[{allegro_id}]: {allegro_timestamps[allegro_id]}')
+        #     metric_timestamp = min(kinova_timestamps[pos_kinova_id], allegro_timestamps[pos_allegro_id])
+        #     # metric_timestamp = allegro_timestamps[allegro_id]
+        #     if metric_timestamp == kinova_timestamps[pos_kinova_id]:
+        #         kinova_id = pos_kinova_id
+        #         allegro_id = get_closest_id(allegro_id, metric_timestamp, allegro_timestamps)
+        #     else: # metric is allegro
+        #         allegro_id = pos_allegro_id
+        #         kinova_id = get_closest_id(kinova_id, metric_timestamp, kinova_timestamps)
+        #     tactile_id = get_closest_id(tactile_id, metric_timestamp, tactile_timestamps)
+
+        # else: # Then we want as much data as we can
+        #     tactile_id += 1
+        #     metric_timestamp = tactile_timestamps[tactile_id]
+        #     allegro_id = get_closest_id(allegro_id, metric_timestamp, allegro_timestamps)
+        #     kinova_id = get_closest_id(kinova_id, metric_timestamp, kinova_timestamps)
+
+        # allegro_action_id = get_closest_id(allegro_action_id, metric_timestamp, allegro_action_timestamps)
+        # image_id = get_closest_id(image_id, metric_timestamp, image_timestamps)        
 
         # If some of the data has ended then return it
         # NOTE: Successful demos end after 50th step 
@@ -168,13 +211,6 @@ def dump_data_indices(demo_id, root, is_byol=False):
            allegro_action_id >= len(allegro_action_timestamps)-1 or \
            kinova_id >= len(kinova_timestamps)-1:
             break
-
-        # if len(image_indices) >= 50 or image_id >= len(image_timestamps)-1 or \
-        #     tactile_id >= len(tactile_timestamps)-1 or \
-        #     allegro_id >= len(allegro_timestamps)-1 or \
-        #     allegro_action_id >= len(allegro_action_timestamps)-1 or \
-        #     kinova_id >= len(kinova_timestamps)-1:
-        #     break
 
         tactile_indices.append([demo_id, tactile_id])
         allegro_indices.append([demo_id, allegro_id])
@@ -225,27 +261,9 @@ def find_next_kinova_id(positions, pos_id, threshold_step_size=0.1):
 
     return i
 
-# Traverse through the cartesian positions and find the place
-# where the end effector moved - translationally - more than 1 cm
-# def find_next_kinova_id() - TODO 
-
 def get_closest_id(curr_id, desired_timestamp, all_timestamps):
     for i in range(curr_id, len(all_timestamps)):
-        if all_timestamps[i] > desired_timestamp:
+        if all_timestamps[i] >= desired_timestamp:
             return i # Find the first timestamp that is after that
     
     return i
-
-if __name__ == '__main__':
-    data_path = '/home/irmak/Workspace/Holo-Bot/extracted_data/box_handle_lifting'
-    roots = glob.glob(f'{data_path}/demonstration_*') # TODO: change this in the future
-    roots = sorted(roots)
-    # roots = [
-    #     '/home/irmak/Workspace/Holo-Bot/extracted_data/box_handle_lifting/demonstration_37',
-    #     '/home/irmak/Workspace/Holo-Bot/extracted_data/box_handle_lifting/demonstration_39',
-    #     '/home/irmak/Workspace/Holo-Bot/extracted_data/box_handle_lifting/demonstration_41'
-    # ]
-    for demo_id, root in enumerate(roots):
-        dump_fingertips(root=root)
-        dump_data_indices(demo_id=demo_id, root=root, is_byol=False)
-        print('-----')

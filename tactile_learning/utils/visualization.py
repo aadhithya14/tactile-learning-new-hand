@@ -133,23 +133,33 @@ def dump_robot_state(allegro_tip_pos, kinova_cart_pos):
     plt.savefig('robot_state.png', bbox_inches='tight')
     plt.close()
 
-def dump_whole_state(tactile_values, allegro_tip_pos, kinova_cart_pos, title='curr_state'):
+def dump_whole_state(tactile_values, allegro_tip_pos, kinova_cart_pos, title='curr_state', vision_state=None):
     dump_tactile_state(tactile_values)
-    dump_robot_state(allegro_tip_pos, kinova_cart_pos)
     tactile_state = cv2.imread('tactile_state.png')
-    robot_state = cv2.imread('robot_state.png')
-    state_img = concat_imgs(tactile_state, robot_state, orientation='horizontal')
+    if vision_state is None:
+        dump_robot_state(allegro_tip_pos, kinova_cart_pos)
+        robot_state = cv2.imread('robot_state.png')
+        state_img = concat_imgs(tactile_state, robot_state, orientation='horizontal')
+    else:
+        cv2.imwrite(f'{title}_vision.png', vision_state)
+        vision_img = cv2.imread(f'{title}_vision.png')
+        state_img = concat_imgs(vision_img, tactile_state, orientation='horizontal')
     cv2.imwrite(f'{title}.png', state_img)
 
-def dump_knn_state(dump_dir, img_name):
+def dump_knn_state(dump_dir, img_name, image_repr=False): # image_repr - if image is part of repr we only show tactile and image
     os.makedirs(dump_dir, exist_ok=True)
-    camera_img = cv2.imread('camera_image.png')
     knn_state = cv2.imread('knn_state.png')
     curr_state = cv2.imread('curr_state.png')
+    if not image_repr:
+        camera_img = cv2.imread('camera_image.png')
 
-    state_img = concat_imgs(curr_state, knn_state, 'vertical')
-    all_state_img = concat_imgs(camera_img, state_img, 'vertical')
+        state_img = concat_imgs(curr_state, knn_state, 'vertical')
+        all_state_img = concat_imgs(camera_img, state_img, 'vertical')
+    else:
+        all_state_img = concat_imgs(curr_state, knn_state, 'vertical')
+        
     cv2.imwrite(os.path.join(dump_dir, img_name), all_state_img)
+
 
 
 def concat_imgs(img1, img2, orientation='horizontal'): # Or it could be vertical as well
@@ -190,6 +200,6 @@ if __name__ == '__main__':
     model_path = '/home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.02/19-29_byol_bs_1028_box_handle_lifting/runs'
     run_name = 'run_tactile_kinova_10cm_forward_start_ue_True' 
     turn_images_to_video(
-        viz_dir = f'{model_path}/{run_name}',
+        viz_dir = '/home/irmak/Workspace/Holo-Bot/deployment_data/box_handle_lifting/image_tactile_sec_try',
         video_fps = 2
     )

@@ -1,12 +1,12 @@
 defaults:
-    - encoder: tactile_large_encoder 
-    - dataset: tactile_large_dataset
+    - encoder: resnet18
+    - dataset: tactile_vision_dataset
     - optimizer: adam
 
 seed: 42
 device: cuda
 
-learner_type: byol # bc, byol
+learner_type: image_byol # bc, tactile_byol
 self_supervised: true
 preprocess: false
 train_epochs: 1000
@@ -14,8 +14,9 @@ save_frequency: 10 # Frequency to save the model - there will be a test in each 
 train_dset_split: 0.9 # When self_supervised all data is used for encoder training
 
 # Hyperparameters to be used everywhere
-batch_size: 1028
+batch_size: 32 # 1028
 tactile_image_size: 16
+vision_image_size: 480
 tactile_info_dim: 720 # 15*16*3
 joint_pos_dim: 16
 hidden_dim: 64
@@ -27,9 +28,8 @@ num_gpus: 4
 fps: 15 # This should be the same as the all the fps in saving - little differences are not going to be taken
 video_type: rgb # NOTE: you could remove this if you want to use both
 
-
 # this needs to be specified manually
-object: box_handle_lifting
+object: box_handle_lifting/box_location_changing/training
 experiment: ${learner_type}_bs_${batch_size}_${object}
 data_dir: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}
 checkpoint_dir: ??? # Will be set to hydra dir inside the code

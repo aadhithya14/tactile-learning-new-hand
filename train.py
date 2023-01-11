@@ -94,6 +94,7 @@ class Workspace:
 
             # Testing and saving the model
             if epoch % self.cfg.save_frequency == 0 and rank == 0: # NOTE: Not sure why this is a problem but this could be the fix
+                learner.save(self.cfg.checkpoint_dir, f'byol_encoder_{epoch}.pt')
                 # Test for one epoch
                 if not self.cfg.self_supervised:
                     test_loss = learner.test_epoch(test_loader)
@@ -103,7 +104,7 @@ class Workspace:
                 # Get the best loss
                 if test_loss < best_loss:
                     best_loss = test_loss
-                    learner.save(self.cfg.checkpoint_dir)
+                    learner.save(self.cfg.checkpoint_dir, f'byol_encoder_best.pt')
 
                 # Logging
                 if rank == 0:

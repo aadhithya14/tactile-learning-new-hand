@@ -1,0 +1,2 @@
+_target_: tactile_learning.models.pretrained.resnet18
+pretrained: false

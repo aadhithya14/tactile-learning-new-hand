@@ -5,5 +5,5 @@ robots: [allegro, kinova]
 visualize: true
 loop: true
 frequency: 15
-object: box_handle_lifting
+object: box_handle_lifting/box_location_changing/eval
 data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}

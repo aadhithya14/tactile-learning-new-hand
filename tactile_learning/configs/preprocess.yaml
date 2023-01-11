@@ -1,0 +1,5 @@
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/box_handle_lifting/box_location_changing/training
+# data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/box_handle_lifting/box_
+vision_byol: true
+tactile_byol: false
+view_num: 0

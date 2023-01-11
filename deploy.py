@@ -110,7 +110,8 @@ def main(cfg : DictConfig) -> None:
         set_thumb_values = None
     deploy_module = hydra.utils.instantiate(
         cfg.deploy_module,
-        set_thumb_values = set_thumb_values
+        set_thumb_values = set_thumb_values,
+        data_path = cfg.data_path
     )
     print('deploy_module: {}'.format(deploy_module))
     deployer = Deployer(cfg, deploy_module, cfg.deploy_module.robots)
