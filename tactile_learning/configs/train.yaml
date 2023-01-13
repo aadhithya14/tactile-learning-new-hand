@@ -1,12 +1,13 @@
 defaults:
-    - encoder: tactile_large_encoder
-    - dataset: tactile_vision_dataset
+    - encoder: tactile_single_sensor_encoder
+    - dataset: tactile_sensor_dataset
+    # - learner: tactile_linear_byol
     - optimizer: adam
 
 seed: 42
 device: cuda
 
-learner_type: tactile_byol # bc, tactile_byol
+learner_type: tactile_byol # tactile_byol, bc, tactile_byol -- NOTE: this is not going to be used - hopefully
 self_supervised: true
 preprocess: false
 train_epochs: 1000
@@ -14,8 +15,8 @@ save_frequency: 10 # Frequency to save the model - there will be a test in each 
 train_dset_split: 0.9 # When self_supervised all data is used for encoder training
 
 # Hyperparameters to be used everywhere
-batch_size: 128 # 1028 - Trying with a lower batch size
-tactile_image_size: 16
+batch_size: 1028 # 1028 - Trying with a lower batch size
+tactile_image_size: 4
 vision_image_size: 480
 tactile_info_dim: 720 # 15*16*3
 joint_pos_dim: 16
@@ -31,7 +32,7 @@ video_type: rgb # NOTE: you could remove this if you want to use both
 # this needs to be specified manually
 # object: box_handle_lifting/box_location_changing/training
 object: tactile_play_data
-experiment: ${learner_type}_bs_${batch_size}_${object}
+experiment: ${learner_type}_bs_${batch_size}_${object}_single_sensor_encoder
 data_dir: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}
 checkpoint_dir: ??? # Will be set to hydra dir inside the code
 

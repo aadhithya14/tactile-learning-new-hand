@@ -10,16 +10,20 @@
 #     0.06255601,
 #     0.08893731
 # ]
-TACTILE_IMAGE_MEANS = [
-    -1.9989,
-    0.9851,
-    0.0650
-]
-TACTILE_IMAGE_STDS = [
-    60.2708,
-    39.4647,
-    41.2752
-]
+# TACTILE_IMAGE_MEANS = [
+#     -1.9989,
+#     0.9851,
+#     0.0650
+# ]
+# TACTILE_IMAGE_STDS = [
+#     60.2708,
+#     39.4647,
+#     41.2752
+# ]
+
+# Play Data Tactile Mean and Stds - The Whole Hand 
+TACTILE_IMAGE_MEANS = [-6.5651,  3.4824, 10.0751]
+TACTILE_IMAGE_STDS = [183.9877, 151.5086, 128.7941]
 
 ALLEGRO_FINGERTIP_MEANS = [
     0.0745204,

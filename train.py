@@ -94,7 +94,7 @@ class Workspace:
 
             # Testing and saving the model
             if epoch % self.cfg.save_frequency == 0 and rank == 0: # NOTE: Not sure why this is a problem but this could be the fix
-                learner.save(self.cfg.checkpoint_dir, f'byol_encoder_{epoch}.pt')
+                learner.save(self.cfg.checkpoint_dir, f'byol_encoder_latest.pt') # Always save the latest encoder
                 # Test for one epoch
                 if not self.cfg.self_supervised:
                     test_loss = learner.test_epoch(test_loader)
@@ -127,19 +127,19 @@ def main(cfg : DictConfig) -> None:
     workspace = Workspace(cfg)
 
     os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "29503"
+    os.environ["MASTER_PORT"] = "29502"
 
-    if cfg.preprocess:
-        roots = glob.glob(f'{cfg.data_dir}/demonstration_*') 
-        roots = sorted(roots)
-        for demo_id, root in enumerate(roots):
-            # dump_video_to_images(root)
-            dump_fingertips(root)
-            if cfg.learner_type == 'byol': # If it is byol then there are more tactile images
-                dump_data_indices(demo_id, root, is_byol=True)
-            else:
-                dump_data_indices(demo_id, root, is_byol=False)
-            print('----------------')
+    # if cfg.preprocess:
+    #     roots = glob.glob(f'{cfg.data_dir}/demonstration_*') 
+    #     roots = sorted(roots)
+    #     for demo_id, root in enumerate(roots):
+    #         # dump_video_to_images(root)
+    #         dump_fingertips(root)
+    #         if cfg.learner_type == 'byol': # If it is byol then there are more tactile images
+    #             dump_data_indices(demo_id, root, is_byol=True)
+    #         else:
+    #             dump_data_indices(demo_id, root, is_byol=False)
+    #         print('----------------')
     
     print("Distributed training enabled. Spawning {} processes.".format(workspace.cfg.world_size))
     mp.spawn(workspace.train, nprocs=workspace.cfg.world_size)

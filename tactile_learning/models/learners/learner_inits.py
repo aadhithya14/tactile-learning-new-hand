@@ -10,14 +10,22 @@ from tactile_learning.utils.constants import *
 def init_learner(cfg, device, rank):
     if cfg.learner_type == 'bc':
         return init_bc(cfg, device, rank)
-    if cfg.learner_type == 'tactile_byol':
+    elif cfg.learner_type == 'tactile_byol':
         return init_tactile_byol(cfg, device, rank)
+    elif cfg.learner_type == 'tactile_linear_byol':
+        return init_tactile_byol(cfg, device, rank, byol_hidden_layer=-1)
     if cfg.learner_type == 'image_byol':
         return init_image_byol(cfg, device, rank)
     return None
+# def init_learner(cfg, device, rank):
+#     hydra.utils.instantiate(cfg.learner, 
+#                             cfg=cfg,
+#                             device=device,
+#                             rank=rank)
 
-def init_tactile_byol(cfg, device, rank):
+def init_tactile_byol(cfg, device, rank, byol_hidden_layer=-2):
     # Start the encoder
+    # print('IN INIT_TACTILE_BYOL - initializing linear')
     encoder = hydra.utils.instantiate(cfg.encoder).to(device)
 
     augment_fn = get_tactile_augmentations(
@@ -29,7 +37,8 @@ def init_tactile_byol(cfg, device, rank):
     byol = BYOL(
         net = encoder,
         image_size = cfg.tactile_image_size,
-        augment_fn = augment_fn
+        augment_fn = augment_fn,
+        hidden_layer = byol_hidden_layer
     ).to(device)
     encoder = DDP(encoder, device_ids=[rank], output_device=rank, broadcast_buffers=False)
     

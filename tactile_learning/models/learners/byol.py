@@ -37,7 +37,8 @@ class BYOLLearner:
         # Training loop 
         for batch in train_loader: 
             if self.byol_type == 'tactile':
-                image, _ = [b.to(self.device) for b in batch] # NOTE: Be careful here
+                # image, _ = [b.to(self.device) for b in batch] # NOTE: Be careful here
+                image = batch.to(self.device) # NOTE: assumes that it uses single tactile giving dataset
             elif self.byol_type == 'image':
                 _, image = [b.to(self.device) for b in batch]
             self.optimizer.zero_grad()

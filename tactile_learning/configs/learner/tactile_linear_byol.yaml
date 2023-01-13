@@ -1,0 +1,6 @@
+# Learner config for BYOL with Tactile Linear Encoder (Linear Layer for each tactile sensor)
+_target_: tactile_learning.models.learners.learner_inits.init_tactile_byol
+byol_hidden_layer: -1
+cfg: ???
+device: ???
+rank: ???

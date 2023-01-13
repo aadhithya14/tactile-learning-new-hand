@@ -15,6 +15,9 @@ from torch.utils import data
 from tqdm import tqdm
 from omegaconf import DictConfig, OmegaConf
 
+from tactile_learning.utils.constants import *
+from tactile_learning.utils.data import load_data
+
 # from holobot.robot.allegro.allegro_kdl import AllegroKDL
 from tactile_learning.datasets.preprocess import dump_video_to_images, dump_data_indices
 
@@ -63,6 +66,55 @@ class TactileImage:
 
     def get_image(self):
         return self.tactile_image
+
+class TactileSensorDataset(data.Dataset):
+    def __init__(
+        self,
+        data_path,
+        normalize=False,
+        stats=[TACTILE_IMAGE_MEANS, TACTILE_IMAGE_STDS], # Will have image means and stds
+    ):
+        super().__init__()
+        self.roots = glob.glob(f'{data_path}/demonstration_*')
+        self.roots = sorted(self.roots)
+        self.data = load_data(self.roots, demos_to_use=[])
+        self.normalize = normalize
+        self.normalization_transform = T.Normalize(stats[0], stats[1])
+        self._preprocess_tactile_indices()
+
+    def _preprocess_tactile_indices(self):
+        self.tactile_mapper = np.zeros(len(self.data['tactile']['indices'])*15).astype(int)
+        for data_id in range(len(self.data['tactile']['indices'])):
+            for sensor_id in range(15):
+                self.tactile_mapper[data_id*15+sensor_id] = data_id # Assign each finger to an index basically
+
+    def _get_sensor_id(self, index):
+        return index % 15
+
+    def __len__(self):
+        return len(self.tactile_mapper)
+
+    def _get_single_tactile_image(self, tactile_value):
+        tactile_image = torch.FloatTensor(tactile_value)
+        tactile_image = tactile_image.view(4,4,3)
+        return torch.permute(tactile_image, (2,0,1))
+
+    def __getitem__(self, index):
+        data_id = self.tactile_mapper[index]
+        demo_id, tactile_id = self.data['tactile']['indices'][data_id]
+        sensor_id = self._get_sensor_id(index)
+
+        # Get the tactile image
+        tactile_value = self.data['tactile']['values'][demo_id][tactile_id][sensor_id]
+        tactile_image = self._get_single_tactile_image(tactile_value)
+
+        if self.normalize:
+            return self.normalization_transform(tactile_image)
+        else:
+            return tactile_image
+
+    def getitem(self, index):
+        return self.__getitem__(index) # NOTE: for debugging purposes
 
 # Minimalistick tactile dataset - it will only get fingertip of one finger
 class TactileMinDataset(data.Dataset):
