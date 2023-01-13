@@ -4,6 +4,7 @@ import glob
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import pickle
 import torch
 import torchvision.transforms as T
 
@@ -12,14 +13,13 @@ from omegaconf import OmegaConf
 from tqdm import tqdm 
 from torchvision.datasets.folder import default_loader as loader
 
-
 from holobot.constants import *
 from holobot.utils.network import ZMQCameraSubscriber
 from holobot.robot.allegro.allegro_kdl import AllegroKDL
 
 from tactile_learning.deployment.load_models import load_model
 from tactile_learning.deployment.nn_buffer import NearestNeighborBuffer
-from tactile_learning.models.knn import KNearestNeighbors
+from tactile_learning.models.knn import KNearestNeighbors, ScaledKNearestNeighbors
 from tactile_learning.utils.augmentations import crop_transform
 from tactile_learning.utils.constants import *
 from tactile_learning.utils.data import load_data
@@ -47,7 +47,7 @@ class DeployVINN:
         run_num=1,
     ):
         os.environ["MASTER_ADDR"] = "localhost"
-        os.environ["MASTER_PORT"] = "29505"
+        os.environ["MASTER_PORT"] = "29506"
 
         torch.distributed.init_process_group(backend='gloo', rank=0, world_size=1)
         torch.cuda.set_device(0)
@@ -72,7 +72,7 @@ class DeployVINN:
         self.inv_image_transform = self._get_inverse_image_norm()
 
         roots = sorted(glob.glob(f'{data_path}/demonstration_*'))
-        print('roots: {}'.format(roots))
+        # print('roots: {}'.format(roots))
         self.data_path = data_path
         self.data = load_data(roots, demos_to_use=demos_to_use) # This will return all the desired indices and the values
         self._get_all_representations()
@@ -81,20 +81,28 @@ class DeployVINN:
         self.kdl_solver = AllegroKDL()
         self.buffer = NearestNeighborBuffer(nn_buffer_size)
         self.nn_k = nn_k
-        self.knn = KNearestNeighbors(
+        self.knn = ScaledKNearestNeighbors(
             self.all_representations, # Both the input and the output of the nearest neighbors are
-            self.all_representations
+            self.all_representations,
+            representation_types
         )
         self.run_num = run_num
         # self.deployment_dump_dir = os.path.join(, f'runs/run_{self.run_num}_ue_{self.use_encoder}')
         self.deployment_dump_dir = deployment_dump_dir
         os.makedirs(self.deployment_dump_dir, exist_ok=True)
+        self.deployment_info = dict(
+            all_representations = self.all_representations,
+            curr_representations = [], # representations will be appended to this list
+            closest_representations = []
+        )
 
     def _init_encoder_info(self, device, out_dir, encoder_type='tactile'): # encoder_type: either image or tactile
         cfg = OmegaConf.load(os.path.join(out_dir, '.hydra/config.yaml'))
-        if encoder_type == 'tactile':
-            cfg.learner_type = 'tactile_byol' # NOTE: This will not be needed in newer trainings - but still
-        model_path = os.path.join(out_dir, 'models/byol_encoder.pt')
+        # if encoder_type == 'tactile':
+        #     cfg.learner_type = 'tactile_byol' # NOTE: This will not be needed in newer trainings - but still
+        #     model_path = os.path.join(out_dir, 'models/byol_encoder.pt')
+        # else:
+        model_path = os.path.join(out_dir, 'models/byol_encoder_best.pt')
         encoder = load_model(cfg, device, model_path)
         encoder.eval() 
         if encoder_type == 'tactile':
@@ -103,7 +111,7 @@ class DeployVINN:
                 T.Normalize(TACTILE_IMAGE_MEANS, TACTILE_IMAGE_STDS),
                 # T.ToTensor(),
             ])
-            # transform = T.Resize(cfg.tactile_image_size, cfg.tactile_image_size)
+            # transform = T.Resize((cfg.tactile_image_size, cfg.tactile_image_size))
         elif encoder_type == 'image':
             transform = T.Compose([
                 T.Resize((480,640)),
@@ -187,7 +195,7 @@ class DeployVINN:
                 repr_dim = len(self.sensor_indices) * 16 * 3
         if 'allegro' in self.representation_types:  repr_dim += len(self.allegro_finger_indices)
         if 'kinova' in self.representation_types: repr_dim += 7
-        if 'image' in self.representation_types: repr_dim += 1000 # NOTE: This should be lower (or tactile should be higher) - we could use a random layer on top?
+        if 'image' in self.representation_types: repr_dim += 512 # NOTE: This should be lower (or tactile should be higher) - we could use a random layer on top?
 
         self.all_representations = np.zeros((
             len(self.data['tactile']['indices']), repr_dim
@@ -220,7 +228,29 @@ class DeployVINN:
             self.all_representations[index, :] = representation[:]
             pbar.update(1)
 
+        # Save the maximum and minimum values of all representations
+        # if repr_dim >= 512:
+        # self.repr_stats = dict(
+        #     image = dict(max=self.all_representations[:,:512].max(), min=self.all_representations[:,512].min()),
+        #     tactile = dict(max=self.all_representations[:,512:576].max(), min=self.all_representations[:,512:576].min()),
+        #     kinova=dict(max=self.all_representations[:,576:].max(), min=self.all_representations[:,576:].min())
+        # )
+
+        # print('self.repr_stats: {}'.format(self.repr_stats))
+        # self.all_representations[:,:512] / (self.repr_stats['image']['max'] - self.repr_stats['image']['min'])
+        # self.all_representations[:,512:576] / (self.repr_stats['tactile']['max'] - self.repr_stats['tactile']['min'])
+        # self.all_representations[:,576:] / (self.repr_stats['kinova']['max'] - self.repr_stats['kinova']['min'])
+
         pbar.close()
+
+    # Method that will save all representations and each representation in each timestamp
+    def save_deployment(self):
+        print('saving deployment - deployment_info[all_repr].shape: {}, deployment_info[curr_reprs].shape: {}'.format(
+            self.deployment_info['all_representations'].shape, len(self.deployment_info['curr_representations'])
+        ))
+        with open(os.path.join(self.deployment_dump_dir, 'deployment_info.pkl'), 'wb') as f:
+            pickle.dump(self.deployment_info, f)
+
 
     def get_action(self, tactile_values, recv_robot_state, visualize=False):
         if self.run_the_demo:
@@ -274,7 +304,14 @@ class DeployVINN:
             curr_tactile_values, 
             curr_robot_state
         )
+        # curr_representation[:512] = curr_representation[:512] / (self.repr_stats['image']['max'] - self.repr_stats['image']['min'])
+        # curr_representation[512:576] = curr_representation[512:576] / (self.repr_stats['tactile']['max'] - self.repr_stats['tactile']['min']) 
+        # curr_representation[576:] = curr_representation[576:] / (self.repr_stats['kinova']['max'] - self.repr_stats['kinova']['min'])
+
+        self.deployment_info['curr_representations'].append(curr_representation)
         _, nn_idxs = self.knn.get_k_nearest_neighbors(curr_representation, k=self.nn_k)
+        closest_representation = self.all_representations[nn_idxs[0]]
+        self.deployment_info['closest_representations'].append(closest_representation)
 
         # Choose the action with the buffer 
         id_of_nn = self.buffer.choose(nn_idxs)

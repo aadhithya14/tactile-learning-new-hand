@@ -31,8 +31,6 @@ class Deployer:
         self.device = torch.device('cuda:0')
         self.frequency_timer = FrequencyTimer(cfg.frequency)
 
-        # self._load_stats()
-        
     def _load_stats(self):
         # Load the mean and std of the allegro hand
         with open(os.path.join(self.data_path, 'allegro_stats.pkl'), 'rb') as f:
@@ -57,50 +55,47 @@ class Deployer:
 
         while True:
             
-            if self.cfg['loop']:
-                self.frequency_timer.start_loop()
+            try:
 
-            print('\n***************************************************************')
-            print('\nGetting state information...') 
+                if self.cfg['loop']:
+                    self.frequency_timer.start_loop()
 
-            # Get the robot state and the tactile info
-            robot_state = self.deploy_api.get_robot_state() 
-            # print('robot_state received')
-            sensor_state = self.deploy_api.get_sensor_state()
-            # print('senor_state received')
+                print('\n***************************************************************')
+                print('\nGetting state information...') 
 
-            allegro_joint_pos = robot_state['allegro']['position']
-            tactile_info = sensor_state['xela']['sensor_values']
-            send_robot_state = dict(
-                allegro = allegro_joint_pos
-            )
-            # print('allegro_joint_pos.shape: {}, tactile_info.shape: {}'.format(
-            #     allegro_joint_pos.shape, tactile_info.shape
-            # ))
-            # assert tactile_info.shape == (15,16,3) and allegro_joint_pos.shape == (16,)
-            
-            if 'kinova' in self.cfg.robots:
-                kinova_state = robot_state['kinova']
-                send_robot_state['kinova'] = kinova_state
+                # Get the robot state and the tactile info
+                robot_state = self.deploy_api.get_robot_state() 
+                sensor_state = self.deploy_api.get_sensor_state()
 
-            pred_action = self.module.get_action(
-                tactile_info,
-                send_robot_state,
-                visualize=self.cfg['visualize']
-            )
-            print('\nPredicted action: {}'.format(pred_action))
+                allegro_joint_pos = robot_state['allegro']['position']
+                tactile_info = sensor_state['xela']['sensor_values']
+                send_robot_state = dict(
+                    allegro = allegro_joint_pos
+                )
+                if 'kinova' in self.cfg.robots:
+                    kinova_state = robot_state['kinova']
+                    send_robot_state['kinova'] = kinova_state
 
-            if not self.cfg['loop']:
-                register = input('\nPress a key to perform the action...')
+                pred_action = self.module.get_action(
+                    tactile_info,
+                    send_robot_state,
+                    visualize=self.cfg['visualize']
+                )
+                print('\nPredicted action: {}'.format(pred_action))
 
-            action_dict = dict() 
-            action_dict['allegro'] = pred_action['allegro'] # Should be a numpy array
-            action_dict['kinova'] = pred_action['kinova']
-            self.deploy_api.send_robot_action(action_dict)
+                if not self.cfg['loop']:
+                    register = input('\nPress a key to perform the action...')
 
-            if self.cfg['loop']: 
-                self.frequency_timer.end_loop()
+                action_dict = dict() 
+                action_dict['allegro'] = pred_action['allegro'] # Should be a numpy array
+                action_dict['kinova'] = pred_action['kinova']
+                self.deploy_api.send_robot_action(action_dict)
 
+                if self.cfg['loop']: 
+                    self.frequency_timer.end_loop()
+
+            except KeyboardInterrupt:
+                self.module.save_deployment() # This is supposed to save all the representaitons and run things 
 
 @hydra.main(version_base=None, config_path='tactile_learning/configs', config_name='deploy')
 def main(cfg : DictConfig) -> None:

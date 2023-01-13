@@ -1,18 +1,16 @@
 _target_: tactile_learning.deployment.wrappers.deploy_vinn.DeployVINN
 data_path: ???
-tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.02/19-29_byol_bs_1028_box_handle_lifting
-image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.09/13-07_image_byol_bs_32_box_handle_lifting/box_location_changing
-deployment_dump_dir: /home/irmak/Workspace/Holo-Bot/deployment_data/box_handle_lifting/image_tactile_sec_try
+tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.12/22-08_tactile_byol_bs_128_tactile_play_data
+image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.10/20-22_image_byol_bs_32_box_handle_lifting/box_location_changing/training
 nn_buffer_size: 200
 nn_k: 100
 sensor_indices: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]
 allegro_finger_indices: [0,1,2,3]
 robots: ['allegro', 'kinova']
 use_encoder: true
-representation_types: ['image', 'tactile'] # observations used in the representations
-run_num: image_tactile_eval_demos
-demos_to_use: []
-# demos_to_use: [5,6,8,12,13,15,17,18,20,21,22,23,24,28,29] # [37,39,41] # [1,2,6,10,14,16,19,20,21] %
-# demos_to_use: [5]
+representation_types: ['image', 'tactile', 'kinova'] # observations used in the representations
+run_num: image_tactile_kinova_play_data_2
+deployment_dump_dir: /home/irmak/Workspace/Holo-Bot/deployment_data/box_handle_lifting/image_tactile_kinova_play_data_2
+demos_to_use: [2,3,4]
 set_thumb_values: ???
 run_the_demo: false # Boolean to indicate if one should only run the demo or deploy vinn or not

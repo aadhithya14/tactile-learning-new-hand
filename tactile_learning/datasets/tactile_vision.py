@@ -23,6 +23,7 @@ class TactileVisionDataset(data.Dataset):
         self,
         data_path,
         normalize=False,
+        tactile_only=False,
         vision_stats=[], # Will have image means and stds
     ):
         super().__init__()
@@ -42,6 +43,7 @@ class TactileVisionDataset(data.Dataset):
             )
         self.vision_transform = T.Compose(vision_transforms)
         self.tactile_transform = T.Resize((16,16))
+        self.tactile_only = tactile_only
 
     def __len__(self):
         return len(self.data['tactile']['indices'])
@@ -74,8 +76,10 @@ class TactileVisionDataset(data.Dataset):
         tactile_image = self._get_tactile_image(tactile_values)
 
         # Get the camera image
-        image = self._get_image(demo_id, image_id)
+        if self.tactile_only:
+            return tactile_image, torch.empty(1) # Just return empty tensor if only tactile will be used
 
+        image = self._get_image(demo_id, image_id)
         return tactile_image, image
 
     def getitem(self, index):

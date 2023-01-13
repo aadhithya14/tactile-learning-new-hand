@@ -17,26 +17,38 @@ from holobot.robot.allegro.allegro_kdl import AllegroKDL
 
 # Dumping video to images
 # Creating pickle files to pick images
-def dump_video_to_images(root: str, video_type: str ='rgb', view_num: int=0) -> None:
+def dump_video_to_images(root: str, video_type: str ='rgb', view_num: int=0, dump_all=True) -> None:
     # Convert the video into image sequences and name them with the frames
     video_path = os.path.join(root, f'cam_{view_num}_{video_type}_video.avi')
-    # video_path = os.path.join(root, f'videos/{video_type}_video.mp4') # TODO: this will be taken from cfg.data_dir
     images_path = os.path.join(root, f'cam_{view_num}_{video_type}_images')
-    if os.path.exists(images_path):
-        print(f'{images_path} exists dump_video_to_images exiting')
-        return
+    # if os.path.exists(images_path):
+    #     print(f'{images_path} exists dump_video_to_images exiting')
+    #     return
     os.makedirs(images_path, exist_ok=True)
 
     vidcap = cv2.VideoCapture(video_path)
     success, image = vidcap.read()
     frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
 
+    if not dump_all:
+        with open(os.path.join(root, 'image_indices.pkl'), 'rb') as f:
+            desired_indices = pickle.load(f)
+
+    print('desired_indices: {}'.format(desired_indices))
+
+    # return
+
     frame_id = 0
+    desired_img_id = 0
     print(f'dumping video in {root}')
     pbar = tqdm(total = frame_count)
     while success: # The matching 
         pbar.update(1)
-        cv2.imwrite('{}.png'.format(os.path.join(images_path, 'frame_{}'.format(str(frame_id).zfill(5)))), image)
+        if (not dump_all and frame_id == desired_indices[desired_img_id][1]) or dump_all:
+            cv2.imwrite('{}.png'.format(os.path.join(images_path, 'frame_{}'.format(str(frame_id).zfill(5)))), image)
+            curr_id = desired_img_id
+            while desired_img_id < len(desired_indices)-1 and desired_indices[curr_id][1] == desired_indices[desired_img_id][1]:
+                desired_img_id += 1
         success, image = vidcap.read()
         frame_id += 1
 
@@ -163,45 +175,6 @@ def dump_data_indices(demo_id, root, is_byol_tactile=False, is_byol_image=False)
         kinova_id = get_closest_id(kinova_id, metric_timestamp, kinova_timestamps)
         image_id = get_closest_id(image_id, metric_timestamp, image_timestamps)
         tactile_id = get_closest_id(tactile_id, metric_timestamp, tactile_timestamps)
-
-
-
-        # Get the proper next allegro id
-        # if (not is_byol_tactile) or (not is_byol_image):
-        #     pos_allegro_id = find_next_allegro_id(
-        #         allegro_kdl_solver,
-        #         allegro_positions,
-        #         allegro_id,
-        #         threshold_step_size=0.01 # When you preprocess for training, one should decrease this size - we need more data
-        #     )
-        #     pos_kinova_id = find_next_kinova_id(
-        #         kinova_positions,
-        #         kinova_id,
-        #         threshold_step_size=0.01 # 2 cms
-        #     )
-        #     # allegro_id += 5 # NOTE: You might want to change this? - But for now we don't know how it should work
-        #     if pos_allegro_id >= len(allegro_positions)-1 or pos_kinova_id >= len(kinova_positions)-1:
-        #         break
-            
-        #     # print(f'kinova_timestamps[{kinova_id}]: {kinova_timestamps[kinova_id]}, allegro_ts[{allegro_id}]: {allegro_timestamps[allegro_id]}')
-        #     metric_timestamp = min(kinova_timestamps[pos_kinova_id], allegro_timestamps[pos_allegro_id])
-        #     # metric_timestamp = allegro_timestamps[allegro_id]
-        #     if metric_timestamp == kinova_timestamps[pos_kinova_id]:
-        #         kinova_id = pos_kinova_id
-        #         allegro_id = get_closest_id(allegro_id, metric_timestamp, allegro_timestamps)
-        #     else: # metric is allegro
-        #         allegro_id = pos_allegro_id
-        #         kinova_id = get_closest_id(kinova_id, metric_timestamp, kinova_timestamps)
-        #     tactile_id = get_closest_id(tactile_id, metric_timestamp, tactile_timestamps)
-
-        # else: # Then we want as much data as we can
-        #     tactile_id += 1
-        #     metric_timestamp = tactile_timestamps[tactile_id]
-        #     allegro_id = get_closest_id(allegro_id, metric_timestamp, allegro_timestamps)
-        #     kinova_id = get_closest_id(kinova_id, metric_timestamp, kinova_timestamps)
-
-        # allegro_action_id = get_closest_id(allegro_action_id, metric_timestamp, allegro_action_timestamps)
-        # image_id = get_closest_id(image_id, metric_timestamp, image_timestamps)        
 
         # If some of the data has ended then return it
         # NOTE: Successful demos end after 50th step 

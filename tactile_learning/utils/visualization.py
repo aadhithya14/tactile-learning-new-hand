@@ -200,6 +200,6 @@ if __name__ == '__main__':
     model_path = '/home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.02/19-29_byol_bs_1028_box_handle_lifting/runs'
     run_name = 'run_tactile_kinova_10cm_forward_start_ue_True' 
     turn_images_to_video(
-        viz_dir = '/home/irmak/Workspace/Holo-Bot/deployment_data/box_handle_lifting/image_tactile_sec_try',
+        viz_dir = '/home/irmak/Workspace/Holo-Bot/deployment_data/box_handle_lifting/image_tactile_kinova_play_data_2',
         video_fps = 2
     )

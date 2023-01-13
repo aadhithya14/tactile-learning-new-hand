@@ -1,6 +1,7 @@
 _target_: tactile_learning.datasets.tactile_vision.TactileVisionDataset
 data_path: ???
 normalize: False # For BYOL normalization shouldn't happen since it should be in the regular augmentations 
+tactile_only: True
 vision_stats:
   - [0.4191, 0.4445, 0.4409] # Mean
   - [0.2108, 0.1882, 0.1835] # Std
