@@ -23,7 +23,7 @@ class BYOLLearner:
     def eval(self):
         self.byol.eval()
 
-    def save(self, checkpoint_dir, model_name='best_byol_encoder.pt'):
+    def save(self, checkpoint_dir, model_name='byol_encoder_best.pt'):
         torch.save(self.byol.state_dict(),
                    os.path.join(checkpoint_dir, model_name),
                    _use_new_zipfile_serialization=False)
@@ -39,7 +39,7 @@ class BYOLLearner:
             if self.byol_type == 'tactile':
                 # image, _ = [b.to(self.device) for b in batch] # NOTE: Be careful here
                 image = batch.to(self.device) # NOTE: assumes that it uses single tactile giving dataset
-            elif self.byol_type == 'image':
+            elif self.byol_type == 'image': # TODO: For BYOL we actually should always use dataset that gives one output only
                 _, image = [b.to(self.device) for b in batch]
             self.optimizer.zero_grad()
 

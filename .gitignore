@@ -7,3 +7,5 @@ wandb/*
 *__pycache__*
 
 *.png
+
+notebooks/*.pt

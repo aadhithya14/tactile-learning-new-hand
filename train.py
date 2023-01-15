@@ -127,7 +127,7 @@ def main(cfg : DictConfig) -> None:
     workspace = Workspace(cfg)
 
     os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "29502"
+    os.environ["MASTER_PORT"] = "29504"
 
     # if cfg.preprocess:
     #     roots = glob.glob(f'{cfg.data_dir}/demonstration_*') 

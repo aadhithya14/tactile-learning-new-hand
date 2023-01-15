@@ -14,7 +14,9 @@ def init_learner(cfg, device, rank):
         return init_tactile_byol(cfg, device, rank)
     elif cfg.learner_type == 'tactile_linear_byol':
         return init_tactile_byol(cfg, device, rank, byol_hidden_layer=-1)
-    if cfg.learner_type == 'image_byol':
+    elif cfg.learner_type == 'tactile_stacked_byol':
+        return init_tactile_byol(cfg, device, rank, aug_stat_multiplier=15, byol_in_channels=45)
+    elif cfg.learner_type == 'image_byol':
         return init_image_byol(cfg, device, rank)
     return None
 # def init_learner(cfg, device, rank):
@@ -23,14 +25,14 @@ def init_learner(cfg, device, rank):
 #                             device=device,
 #                             rank=rank)
 
-def init_tactile_byol(cfg, device, rank, byol_hidden_layer=-2):
+def init_tactile_byol(cfg, device, rank, aug_stat_multiplier=1, byol_in_channels=3, byol_hidden_layer=-2):
     # Start the encoder
     # print('IN INIT_TACTILE_BYOL - initializing linear')
     encoder = hydra.utils.instantiate(cfg.encoder).to(device)
 
     augment_fn = get_tactile_augmentations(
-        img_means = TACTILE_IMAGE_MEANS,
-        img_stds = TACTILE_IMAGE_STDS,
+        img_means = TACTILE_IMAGE_MEANS*aug_stat_multiplier,
+        img_stds = TACTILE_IMAGE_STDS*aug_stat_multiplier,
         img_size = (cfg.tactile_image_size, cfg.tactile_image_size)
     )
     # Initialize the byol wrapper
@@ -38,7 +40,8 @@ def init_tactile_byol(cfg, device, rank, byol_hidden_layer=-2):
         net = encoder,
         image_size = cfg.tactile_image_size,
         augment_fn = augment_fn,
-        hidden_layer = byol_hidden_layer
+        hidden_layer = byol_hidden_layer,
+        in_channels = byol_in_channels
     ).to(device)
     encoder = DDP(encoder, device_ids=[rank], output_device=rank, broadcast_buffers=False)
     

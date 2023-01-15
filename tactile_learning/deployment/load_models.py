@@ -19,23 +19,9 @@ def load_model(cfg, device, model_path):
             output_dim=cfg.joint_pos_dim,
             hidden_dim=cfg.hidden_dim
         )
-    elif cfg.learner_type == 'tactile_byol': # load the encoder
-        if cfg.tactile_image_size == 8:
-            model = TactileImageEncoder(
-                in_channels=cfg.encoder.in_channels,
-                out_dim=cfg.encoder.out_dim
-            )
-        elif cfg.tactile_image_size == 16:
-            # model = TactileLargeImageEncoder(
-            #     in_channels=cfg.encoder.in_channels,
-            #     out_dim=cfg.encoder.out_dim
-            # )
-            model = hydra.utils.instantiate(cfg.encoder) # NOTE: Wouldm't this work? 
+    elif 'byol' in cfg.learner_type: # load the encoder
+        model = hydra.utils.instantiate(cfg.encoder) # NOTE: Wouldm't this work? 
 
-    elif cfg.learner_type == 'image_byol':
-        model = hydra.utils.instantiate(cfg.encoder) 
-
-    # print('model: {}'.format(model))
     state_dict = torch.load(model_path)
     
     # Modify the state dict accordingly - this is needed when multi GPU saving was done

@@ -146,7 +146,7 @@ def dump_whole_state(tactile_values, allegro_tip_pos, kinova_cart_pos, title='cu
         state_img = concat_imgs(vision_img, tactile_state, orientation='horizontal')
     cv2.imwrite(f'{title}.png', state_img)
 
-def dump_knn_state(dump_dir, img_name, image_repr=False): # image_repr - if image is part of repr we only show tactile and image
+def dump_knn_state(dump_dir, img_name, image_repr=False, add_repr_effects=False): # image_repr - if image is part of repr we only show tactile and image
     os.makedirs(dump_dir, exist_ok=True)
     knn_state = cv2.imread('knn_state.png')
     curr_state = cv2.imread('curr_state.png')
@@ -157,10 +157,19 @@ def dump_knn_state(dump_dir, img_name, image_repr=False): # image_repr - if imag
         all_state_img = concat_imgs(camera_img, state_img, 'vertical')
     else:
         all_state_img = concat_imgs(curr_state, knn_state, 'vertical')
+        if add_repr_effects:
+            repr_img = cv2.imread('repr_effects.png')
+            all_state_img = concat_imgs(all_state_img, repr_img, 'vertical')
         
     cv2.imwrite(os.path.join(dump_dir, img_name), all_state_img)
 
-
+def dump_repr_effects(nn_separate_dists, representation_types):
+    _, ax = plt.subplots(1,1,figsize=(5,2))
+    ax.set_ylim(0, 1)
+    ax.bar(representation_types, nn_separate_dists)
+    # ax.get_yaxis().set_ticks([])
+    plt.savefig('repr_effects.png', bbox_inches='tight')
+    plt.close()
 
 def concat_imgs(img1, img2, orientation='horizontal'): # Or it could be vertical as well
     metric_id = 0 if orientation == 'horizontal' else 1
@@ -200,6 +209,6 @@ if __name__ == '__main__':
     model_path = '/home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.02/19-29_byol_bs_1028_box_handle_lifting/runs'
     run_name = 'run_tactile_kinova_10cm_forward_start_ue_True' 
     turn_images_to_video(
-        viz_dir = '/home/irmak/Workspace/Holo-Bot/deployment_data/box_handle_lifting/image_tactile_kinova_play_data_2',
+        viz_dir = '/home/irmak/Workspace/Holo-Bot/deployment_data/box_handle_lifting/image_tactile_single_sensor_cnn',
         video_fps = 2
     )

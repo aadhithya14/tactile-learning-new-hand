@@ -178,7 +178,8 @@ class BYOL(nn.Module):
         augment_fn = None,
         augment_fn2 = None,
         moving_average_decay = 0.99,
-        use_momentum = True
+        use_momentum = True,
+        in_channels = 3
     ):
         super().__init__()
         self.net = net
@@ -218,7 +219,7 @@ class BYOL(nn.Module):
         self.to(device)
 
         # send a mock image tensor to instantiate singleton parameters
-        self.forward(torch.randn(2, 3, image_size, image_size, device=device))
+        self.forward(torch.randn(2, in_channels, image_size, image_size, device=device))
 
     @singleton('target_encoder')
     def _get_target_encoder(self):
