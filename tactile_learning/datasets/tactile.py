@@ -154,3 +154,54 @@ class TactileStackedDataset(data.Dataset): # Dataset that will return 16x3,4,4 i
 
     def getitem(self, index):
         return self.__getitem__(index) # NOTE: for debugging purposes
+
+class TactileWholeHandDataset(data.Dataset): # Dataset that will return 16x3,4,4 images - stacked cnn
+    def __init__(
+        self,
+        data_path,
+        img_size=16,
+        normalize=False,
+        stats=[TACTILE_IMAGE_MEANS, TACTILE_IMAGE_STDS], # Will have image means and stds
+    ):
+        super().__init__()
+        self.roots = glob.glob(f'{data_path}/demonstration_*')
+        self.roots = sorted(self.roots)
+        self.data = load_data(self.roots, demos_to_use=[])
+        self.normalize = normalize
+        self.resize_transform = T.Resize((img_size, img_size))
+        self.normalization_transform = T.Normalize(stats[0], stats[1])
+
+    def __len__(self):
+        return len(self.data['tactile']['indices'])
+
+    def _get_whole_hand_tactile_image(self, tactile_values): 
+        # tactile_values: (15,16,3)
+        # turn it into 16,16,3 by concatenating 0z
+        tactile_image = torch.FloatTensor(tactile_values)
+        tactile_image = F.pad(tactile_image, (0,0,0,0,1,0), 'constant', 0)
+        # reshape it to 4x4
+        tactile_image = tactile_image.view(16,4,4,3)
+
+        # concat for it have its proper shape
+        tactile_image = torch.concat([
+            torch.concat([tactile_image[i*4+j] for j in range(4)], dim=0)
+            for i in range(4)
+        ], dim=1)
+
+        tactile_image = torch.permute(tactile_image, (2,0,1))
+
+        return self.resize_transform(tactile_image)
+
+    def __getitem__(self, index):
+        # Get the tactile image
+        demo_id, tactile_id = self.data['tactile']['indices'][index]
+        tactile_values = self.data['tactile']['values'][demo_id][tactile_id]
+        tactile_image = self._get_whole_hand_tactile_image(tactile_values)
+
+        if self.normalize:
+            return self.normalization_transform(tactile_image)
+        else:
+            return tactile_image
+
+    def getitem(self, index):
+        return self.__getitem__(index) # NOTE: for debugging purposes

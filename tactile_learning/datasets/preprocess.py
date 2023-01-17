@@ -5,7 +5,7 @@ import h5py
 import hydra
 import numpy as np
 import pickle 
-
+import shutil
 
 from copy import deepcopy as copy
 from omegaconf import DictConfig
@@ -21,9 +21,10 @@ def dump_video_to_images(root: str, video_type: str ='rgb', view_num: int=0, dum
     # Convert the video into image sequences and name them with the frames
     video_path = os.path.join(root, f'cam_{view_num}_{video_type}_video.avi')
     images_path = os.path.join(root, f'cam_{view_num}_{video_type}_images')
-    # if os.path.exists(images_path):
-    #     print(f'{images_path} exists dump_video_to_images exiting')
-    #     return
+    if os.path.exists(images_path):
+        print(f'{images_path} exists it is being removed')
+        shutil.rmtree(images_path)
+
     os.makedirs(images_path, exist_ok=True)
 
     vidcap = cv2.VideoCapture(video_path)
@@ -35,8 +36,6 @@ def dump_video_to_images(root: str, video_type: str ='rgb', view_num: int=0, dum
             desired_indices = pickle.load(f)
 
     print('desired_indices: {}'.format(desired_indices))
-
-    # return
 
     frame_id = 0
     desired_img_id = 0
@@ -144,30 +143,31 @@ def dump_data_indices(demo_id, root, is_byol_tactile=False, is_byol_image=False)
                 break
             metric_timestamp = image_timestamps[image_id]        
         else:
-            pos_allegro_id = find_next_allegro_id(
-                allegro_kdl_solver,
-                allegro_positions,
-                allegro_id,
-                threshold_step_size=0.01 # When you preprocess for training, one should decrease this size - we need more data
-            )
-            pos_kinova_id = find_next_kinova_id(
-                kinova_positions,
-                kinova_id,
-                threshold_step_size=0.01 # 2 cms
-            )
-            # allegro_id += 5 # NOTE: You might want to change this? - But for now we don't know how it should work
-            if pos_allegro_id >= len(allegro_positions) or pos_kinova_id >= len(kinova_positions):
-                break
+            # pos_allegro_id = find_next_allegro_id(
+            #     allegro_kdl_solver,
+            #     allegro_positions,
+            #     allegro_id,
+            #     threshold_step_size=0.01 # When you preprocess for training, one should decrease this size - we need more data
+            # )
+            # pos_kinova_id = find_next_kinova_id(
+            #     kinova_positions,
+            #     kinova_id,
+            #     threshold_step_size=0.01 # 2 cms
+            # )
+
+            # # allegro_id += 5 # NOTE: You might want to change this? - But for now we don't know how it should work
+            # if pos_allegro_id >= len(allegro_positions) or pos_kinova_id >= len(kinova_positions):
+            #     break
+
             
-            # print(f'kinova_timestamps[{kinova_id}]: {kinova_timestamps[kinova_id]}, allegro_ts[{allegro_id}]: {allegro_timestamps[allegro_id]}')
-            metric_timestamp = min(kinova_timestamps[pos_kinova_id], allegro_timestamps[pos_allegro_id])
-            # if metric_timestamp == kinova_timestamps[pos_kinova_id]:
-            #     kinova_id = pos_kinova_id
-            #     allegro_id = get_closest_id(allegro_id, metric_timestamp, allegro_timestamps)
-            # else: # metric is allegro
-            #     allegro_id = pos_allegro_id
-            #     kinova_id = get_closest_id(kinova_id, metric_timestamp, kinova_timestamps)
-            # tactile_id = get_closest_id(tactile_id, metric_timestamp, tactile_timestamps)
+            # metric_timestamp = min(kinova_timestamps[pos_kinova_id], allegro_timestamps[pos_allegro_id])
+            metric_timestamp = find_next_robot_state_timestamp(
+                allegro_kdl_solver, allegro_positions, allegro_timestamps, allegro_id, 
+                kinova_positions, kinova_id, kinova_timestamps,
+                threshold_step_size = 0.012
+            )
+            if metric_timestamp is None:
+                break
 
         # Get the ids from this metric timestamp
         allegro_id = get_closest_id(allegro_id, metric_timestamp, allegro_timestamps)
@@ -233,6 +233,25 @@ def find_next_kinova_id(positions, pos_id, threshold_step_size=0.1):
             return i 
 
     return i
+
+def find_next_robot_state_timestamp(kdl_solver, allegro_positions, allegro_timestamps, allegro_id, kinova_positions, kinova_id, kinova_timestamps, threshold_step_size=0.015):
+    # Find the timestamp where allegro and kinova difference in total is larger than the given threshold
+    old_allegro_pos = allegro_positions[allegro_id]
+    old_allegro_fingertip_pos = kdl_solver.get_fingertip_coords(old_allegro_pos)
+    old_kinova_pos = kinova_positions[kinova_id]
+    for i in range(allegro_id, len(allegro_positions)):
+        curr_allegro_fingertip_pos = kdl_solver.get_fingertip_coords(allegro_positions[i])
+        curr_allegro_timestamp = allegro_timestamps[i]
+        kinova_id = get_closest_id(kinova_id, curr_allegro_timestamp, kinova_timestamps)
+        curr_kinova_pos = kinova_positions[kinova_id]
+        step_size = np.linalg.norm(old_allegro_fingertip_pos - curr_allegro_fingertip_pos) + np.linalg.norm(old_kinova_pos - curr_kinova_pos)
+        if step_size > threshold_step_size:
+            return curr_allegro_timestamp
+
+        if kinova_id >= len(kinova_positions):
+            return None
+            
+    return None
 
 def get_closest_id(curr_id, desired_timestamp, all_timestamps):
     for i in range(curr_id, len(all_timestamps)):

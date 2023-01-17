@@ -146,17 +146,26 @@ def dump_whole_state(tactile_values, allegro_tip_pos, kinova_cart_pos, title='cu
         state_img = concat_imgs(vision_img, tactile_state, orientation='horizontal')
     cv2.imwrite(f'{title}.png', state_img)
 
-def dump_knn_state(dump_dir, img_name, image_repr=False, add_repr_effects=False): # image_repr - if image is part of repr we only show tactile and image
+# If include temporal states it will plot closest neighbor to the right side of the current state
+# and previous nn state to the bottom of the current and the next nn state to the bottom of the next nn
+def dump_knn_state(dump_dir, img_name, image_repr=False, add_repr_effects=False, include_temporal_states=False): # image_repr - if image is part of repr we only show tactile and image
     os.makedirs(dump_dir, exist_ok=True)
     knn_state = cv2.imread('knn_state.png')
     curr_state = cv2.imread('curr_state.png')
+    if include_temporal_states:
+        next_knn_state = cv2.imread('next_knn_state.png')
+        prev_knn_state = cv2.imread('prev_knn_state.png')
     if not image_repr:
         camera_img = cv2.imread('camera_image.png')
-
         state_img = concat_imgs(curr_state, knn_state, 'vertical')
         all_state_img = concat_imgs(camera_img, state_img, 'vertical')
     else:
-        all_state_img = concat_imgs(curr_state, knn_state, 'vertical')
+        if include_temporal_states:
+            curr_knn_state_img = concat_imgs(curr_state, knn_state, 'horizontal')
+            prev_next_knn_state_img = concat_imgs(prev_knn_state, next_knn_state, 'horizontal')
+            all_state_img = concat_imgs(curr_knn_state_img, prev_next_knn_state_img, 'vertical')
+        else:
+            all_state_img = concat_imgs(curr_state, knn_state, 'vertical')
         if add_repr_effects:
             repr_img = cv2.imread('repr_effects.png')
             all_state_img = concat_imgs(all_state_img, repr_img, 'vertical')
@@ -209,6 +218,6 @@ if __name__ == '__main__':
     model_path = '/home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.02/19-29_byol_bs_1028_box_handle_lifting/runs'
     run_name = 'run_tactile_kinova_10cm_forward_start_ue_True' 
     turn_images_to_video(
-        viz_dir = '/home/irmak/Workspace/Holo-Bot/deployment_data/box_handle_lifting/image_tactile_single_sensor_cnn',
+        viz_dir = '/home/irmak/Workspace/Holo-Bot/deployment_data/box_handle_lifting/image_tactile_single_sensor_cnn_only_fingertips_runs/single_sensor_next_action_bs_10_forward_open_hand',
         video_fps = 2
     )

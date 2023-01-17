@@ -7,6 +7,8 @@ import os
 import pickle
 import torch
 import torchvision.transforms as T
+import torch.nn.functional as F
+import torch.nn as nn
 
 from PIL import Image as im
 from omegaconf import OmegaConf
@@ -44,7 +46,9 @@ class DeployVINN:
         run_the_demo=False,
         sensor_indices = (0,1,2,3,4,5,6,7,8,9,10,11,12,13,14),
         allegro_finger_indices = (0,1,2,3),
-        single_sensor_tactile=False
+        single_sensor_tactile=False,
+        stacked_tactile=False,
+        alexnet_tactile=False
     ):
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = "29504"
@@ -68,6 +72,8 @@ class DeployVINN:
 
         device = torch.device('cuda:0')
         self.single_sensor_tactile = single_sensor_tactile
+        self.stacked_tactile = stacked_tactile
+        self.alexnet_tactile = alexnet_tactile
         self.tactile_cfg, self.tactile_encoder, self.tactile_transform = self._init_encoder_info(device, tactile_out_dir, 'tactile')
         self.tactile_repr_size = self.tactile_cfg.encoder.out_dim * len(sensor_indices) if single_sensor_tactile else self.tactile_cfg.encoder.out_dim
         self.image_cfg, self.image_encoder, self.image_transform = self._init_encoder_info(device, image_out_dir, 'image')
@@ -88,8 +94,7 @@ class DeployVINN:
             representation_types,
             self.tactile_repr_size
         )
-        # self.run_num = run_num
-        # self.deployment_dump_dir = os.path.join(, f'runs/run_{self.run_num}_ue_{self.use_encoder}')
+
         self.deployment_dump_dir = os.path.join('/home/irmak/Workspace/Holo-Bot/deployment_data/box_handle_lifting', deployment_run_name)
         os.makedirs(self.deployment_dump_dir, exist_ok=True)
         self.deployment_info = dict(
@@ -99,18 +104,32 @@ class DeployVINN:
         )
 
     def _init_encoder_info(self, device, out_dir, encoder_type='tactile'): # encoder_type: either image or tactile
-        cfg = OmegaConf.load(os.path.join(out_dir, '.hydra/config.yaml'))
-
-        model_path = os.path.join(out_dir, 'models/byol_encoder_best.pt')
-        encoder = load_model(cfg, device, model_path)
+        if encoder_type == 'tactile' and self.alexnet_tactile:
+            # Load alexnet and create a mock cfg to get the out_dim
+            encoder = torch.hub.load('pytorch/vision:v0.10.0', 'alexnet', pretrained=True)
+            encoder.fc = nn.Identity()
+            cfg = OmegaConf.create({"encoder":{"out_dim":1000}})
+        else:
+            cfg = OmegaConf.load(os.path.join(out_dir, '.hydra/config.yaml'))
+            model_path = os.path.join(out_dir, 'models/byol_encoder_best.pt')
+            encoder = load_model(cfg, device, model_path)
         encoder.eval() 
         if encoder_type == 'tactile':
-            transform = T.Compose([
-                T.Resize((cfg.tactile_image_size, cfg.tactile_image_size)),
-                T.Normalize(TACTILE_IMAGE_MEANS, TACTILE_IMAGE_STDS),
-                # T.ToTensor(),
-            ])
-            # transform = T.Resize((cfg.tactile_image_size, cfg.tactile_image_size))
+            if self.stacked_tactile:
+                transform = T.Compose([
+                    T.Resize((cfg.tactile_image_size, cfg.tactile_image_size)),
+                    T.Normalize(TACTILE_IMAGE_MEANS*15, TACTILE_IMAGE_STDS*15),
+                ])
+            elif self.alexnet_tactile:
+                transform = T.Compose([
+                    T.Resize((224, 224)),
+                    T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                ]) # These are the requirements for alexnet
+            else:
+                transform = T.Compose([
+                    T.Resize((cfg.tactile_image_size, cfg.tactile_image_size)),
+                    T.Normalize(TACTILE_IMAGE_MEANS, TACTILE_IMAGE_STDS),
+                ])
         elif encoder_type == 'image':
             transform = T.Compose([
                 T.Resize((480,640)),
@@ -157,6 +176,17 @@ class DeployVINN:
         img = self.image_transform(loader(image_path))
         return torch.FloatTensor(img)
 
+    def _get_tactile_representation_with_stacked_tactile_encoder(self, tactile_values):
+        def _get_stacked_tactile_image(tactile_values):
+            tactile_image = torch.FloatTensor(tactile_values)
+            tactile_image = tactile_image.view(15,4,4,3) # Just making sure that everything stays the same
+            tactile_image = torch.permute(tactile_image, (0,3,1,2))
+            tactile_image = tactile_image.reshape(-1,4,4)
+            return self.tactile_transform(tactile_image)
+
+        tactile_image = _get_stacked_tactile_image(tactile_values)
+        return self.tactile_encoder(tactile_image).squeeze()
+
     def _get_tactile_representation_with_single_sensor_encoder(self, tactile_values): # tactile_values.shape: (15,16,3)
         def _get_single_tactile_image(tactile_value):
             tactile_image = torch.FloatTensor(tactile_value) # tactile_value.shape: (16,3)
@@ -174,6 +204,36 @@ class DeployVINN:
 
         return curr_repr
 
+    def _get_alexnet_tactile_representation(self, tactile_values): # This is dependent on
+        def _get_whole_hand_tactile_image(tactile_values): 
+            # tactile_values: (15,16,3) - turn it into 16,16,3 by concatenating 0z
+            tactile_image = torch.FloatTensor(tactile_values)
+            tactile_image = F.pad(tactile_image, (0,0,0,0,1,0), 'constant', 0)
+            # reshape it to 4x4
+            tactile_image = tactile_image.view(16,4,4,3)
+
+            # concat for it have its proper shape
+            tactile_image = torch.concat([
+                torch.concat([tactile_image[i*4+j] for j in range(4)], dim=0)
+                for i in range(4)
+            ], dim=1)
+
+            tactile_image = torch.permute(tactile_image, (2,0,1))
+            pre_tactile_transform = T.Compose([
+                T.Resize((16,16)),
+                T.Normalize(TACTILE_IMAGE_MEANS, TACTILE_IMAGE_STDS)
+            ])
+            return pre_tactile_transform(tactile_image)
+        
+        tactile_image = _get_whole_hand_tactile_image(tactile_values)
+        # map it bw 0 and 1 (that's needed for alexnet)
+        min_tactile = -112.1339
+        max_tactile = 99.1087 # These are calculated - it could effect how things are NOTE: should be careful here! 
+        tactile_image = (tactile_image - min_tactile) / (max_tactile - min_tactile)
+        # then transform as required for alexnet
+        tactile_image = self.tactile_transform(tactile_image)
+        return self.tactile_encoder(tactile_image.unsqueeze(0)).squeeze()
+
     # tactile_values: (N,16,3) - N: number of sensors
     # robot_states: { allegro: allegro_tip_positions: (3*M,) - 3 values for each finger M: number of fingers included,
     #                 kinova: kinova_states : (3,) - cartesian position of the arm end effector}
@@ -185,6 +245,10 @@ class DeployVINN:
                 if self.use_encoder:
                     if self.single_sensor_tactile:
                         new_repr = self._get_tactile_representation_with_single_sensor_encoder(tactile_values).detach().cpu().numpy()
+                    elif self.stacked_tactile: # - TODO
+                        new_repr = self._get_tactile_representation_with_stacked_tactile_encoder(tactile_values).detach().cpu().numpy()
+                    elif self.alexnet_tactile:
+                        new_repr = self._get_alexnet_tactile_representation(tactile_values).detach().cpu().numpy()
                     else:
                         tactile_image = self._get_tactile_image(tactile_values).unsqueeze(dim=0)
                         new_repr = self.tactile_encoder(tactile_image)
@@ -321,7 +385,11 @@ class DeployVINN:
         # Choose the action with the buffer 
         id_of_nn = self.buffer.choose(nn_idxs)
         nn_id = nn_idxs[id_of_nn]
-        demo_id, action_id = self.data['allegro_actions']['indices'][nn_id] 
+        if nn_id+1 >= len(self.data['allegro_actions']['indices']):
+            nn_idxs = np.delete(nn_idxs, id_of_nn)
+            id_of_nn = self.buffer.choose(nn_idxs)
+            nn_id = nn_idxs[id_of_nn]
+        demo_id, action_id = self.data['allegro_actions']['indices'][nn_id+1] 
         nn_allegro_action = self.data['allegro_actions']['values'][demo_id][action_id] # Get the next commanded action (commanded actions are saved in that timestamp)
         if self.set_thumb_values is not None:
             nn_allegro_action[-4:] = self.set_thumb_values
@@ -330,7 +398,7 @@ class DeployVINN:
         )
         
         if 'kinova' in self.robots:
-            _, kinova_id = self.data['kinova']['indices'][nn_id] 
+            _, kinova_id = self.data['kinova']['indices'][nn_id+1] # We send it to go to the next state
             nn_kinova_action = self.data['kinova']['values'][demo_id][kinova_id] # Get the next saved kinova_state
             nn_action['kinova'] = nn_kinova_action
         print('STATE ID: {}, CHOSEN DEMO ID: {}, ALLEGRO ID: {}, KINOVA ID: {}, SEPARATE_DISTS[ID_OF_NN:{}]: {}'.format(
@@ -352,26 +420,21 @@ class DeployVINN:
         return nn_action
 
     def _visualize_state(self, curr_tactile_values, curr_fingertip_position, curr_kinova_cart_pos, nn_id, nn_separate_dists):
-
-        demo_id, tactile_id = self.data['tactile']['indices'][nn_id]
-        _, allegro_tip_id = self.data['allegro_states']['indices'][nn_id]
-        _, kinova_id = self.data['kinova']['indices'][nn_id]
-        _, image_id = self.data['image']['indices'][nn_id]
+        # Get the current image 
         curr_image = self.inv_image_transform(self._get_curr_image()).numpy().transpose(1,2,0)
         curr_image_cv2 = cv2.cvtColor(curr_image*255, cv2.COLOR_RGB2BGR)
         print('curr_image.shape: {}'.format(curr_image.shape))
 
-        knn_tactile_values = self.data['tactile']['values'][demo_id][tactile_id]
-        knn_tip_pos = self.data['allegro_states']['values'][demo_id][allegro_tip_id]
-        knn_cart_pos = self.data['kinova']['values'][demo_id][kinova_id][:3]
-        knn_image = self.inv_image_transform(self._load_dataset_image(demo_id, image_id)).numpy().transpose(1,2,0)
-        knn_image_cv2 = cv2.cvtColor(knn_image*255, cv2.COLOR_RGB2BGR)
+        # Get the next visualization data
+        knn_vis_data = self._get_data_with_id_for_visualization(nn_id)
+        prev_knn_vis_data = self._get_data_with_id_for_visualization(nn_id-1)
+        next_knn_vis_data = self._get_data_with_id_for_visualization(nn_id+1)
 
         if not ('image' in self.representation_types):
             # Dump all the current state, nn state and curr image
             dump_camera_image()
             dump_whole_state(curr_tactile_values, curr_fingertip_position, curr_kinova_cart_pos, title='curr_state')
-            dump_whole_state(knn_tactile_values, knn_tip_pos, knn_cart_pos, title='knn_state')
+            dump_whole_state(knn_vis_data['tactile'], knn_vis_data['allegro'], knn_vis_data['kinova'], title='knn_state')
             # Plot from the dumped images
             dump_knn_state(
                 dump_dir = self.deployment_dump_dir,
@@ -380,12 +443,34 @@ class DeployVINN:
     
         else:
             dump_whole_state(curr_tactile_values, curr_fingertip_position, curr_kinova_cart_pos, title='curr_state', vision_state=curr_image_cv2)
-            dump_whole_state(knn_tactile_values, knn_tip_pos, knn_cart_pos, title='knn_state', vision_state=knn_image_cv2)
+            dump_whole_state(knn_vis_data['tactile'], knn_vis_data['allegro'], knn_vis_data['kinova'], title='knn_state', vision_state=knn_vis_data['image'])
+            dump_whole_state(prev_knn_vis_data['tactile'], prev_knn_vis_data['allegro'], prev_knn_vis_data['kinova'], title='prev_knn_state', vision_state=prev_knn_vis_data['image'])
+            dump_whole_state(next_knn_vis_data['tactile'], next_knn_vis_data['allegro'], next_knn_vis_data['kinova'], title='next_knn_state', vision_state=next_knn_vis_data['image'])
             dump_repr_effects(nn_separate_dists, self.representation_types)
             dump_knn_state(
                 dump_dir = self.deployment_dump_dir,
                 img_name = 'state_{}.png'.format(str(self.state_id).zfill(2)),
-                image_repr=True,
-                add_repr_effects=True
+                image_repr = True,
+                add_repr_effects = True,
+                include_temporal_states = True
             )
             
+    def _get_data_with_id_for_visualization(self, id):
+        demo_id, tactile_id = self.data['tactile']['indices'][id]
+        _, allegro_tip_id = self.data['allegro_states']['indices'][id]
+        _, kinova_id = self.data['kinova']['indices'][id]
+        _, image_id = self.data['image']['indices'][id]
+        tactile_values = self.data['tactile']['values'][demo_id][tactile_id]
+        allegro_finger_tip_pos = self.data['allegro_states']['values'][demo_id][allegro_tip_id]
+        kinova_cart_pos = self.data['kinova']['values'][demo_id][kinova_id][:3]
+        image = self.inv_image_transform(self._load_dataset_image(demo_id, image_id)).numpy().transpose(1,2,0)
+        image_cv2 = cv2.cvtColor(image*255, cv2.COLOR_RGB2BGR)
+
+        visualization_data = dict(
+            image = image_cv2,
+            kinova = kinova_cart_pos, 
+            allegro = allegro_finger_tip_pos, 
+            tactile = tactile_values
+        )
+
+        return visualization_data
