@@ -2,21 +2,19 @@ _target_: tactile_learning.deployment.wrappers.deploy_vinn.DeployVINN
 data_path: ???
 # tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.12/22-08_tactile_byol_bs_128_tactile_play_data
 # tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.13/18-43_tactile_byol_bs_1028_tactile_play_data_single_sensor_encoder
+# tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.15/15-47_tactile_stacked_byol_bs_1028_box_handle_lifting/box_location_changing/training_stacked_encoder_normalized_box_handle_training_dset
 tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.14/20-07_tactile_byol_bs_1028_tactile_play_data_single_sensor_encoder_out_dim_8
 image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.10/20-22_image_byol_bs_32_box_handle_lifting/box_location_changing/training
 nn_buffer_size: 20
 nn_k: 20
 # sensor_indices: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]
-sensor_indices: [0,3,7,11]
+sensor_indices: [0,1,3,6,7,10,11,14]
 allegro_finger_indices: [0,1,2,3]
 robots: ['allegro', 'kinova']
 use_encoder: true
 representation_types: ['image', 'tactile'] # observations used in the representations
-deployment_run_name: image_tactile_single_sensor_cnn_only_fingertips_runs/single_sensor_out_dim_8_8_cut_demos_2
-# deployment_run_name: 
-# demos_to_use: [2,3,4,6,7,9,10,21]
-# demos_to_use: [2,3,4]
-demos_to_use: [4,11] # 4,6,19 are also good candidates
+deployment_run_name: box_handle_lifting/image_tactile_single_sensor_8_sensor_runs/1
+demos_to_use: [2,3,4,11] # 4,6,19 are also good candidates
 set_thumb_values: ???
 run_the_demo: false # Boolean to indicate if one should only run the demo or deploy vinn or not
 single_sensor_tactile: true

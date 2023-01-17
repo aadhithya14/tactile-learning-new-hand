@@ -95,7 +95,7 @@ class DeployVINN:
             self.tactile_repr_size
         )
 
-        self.deployment_dump_dir = os.path.join('/home/irmak/Workspace/Holo-Bot/deployment_data/box_handle_lifting', deployment_run_name)
+        self.deployment_dump_dir = os.path.join('/home/irmak/Workspace/Holo-Bot/deployment_data', deployment_run_name)
         os.makedirs(self.deployment_dump_dir, exist_ok=True)
         self.deployment_info = dict(
             all_representations = self.all_representations,
@@ -185,7 +185,7 @@ class DeployVINN:
             return self.tactile_transform(tactile_image)
 
         tactile_image = _get_stacked_tactile_image(tactile_values)
-        return self.tactile_encoder(tactile_image).squeeze()
+        return self.tactile_encoder(tactile_image.unsqueeze(0)).squeeze()
 
     def _get_tactile_representation_with_single_sensor_encoder(self, tactile_values): # tactile_values.shape: (15,16,3)
         def _get_single_tactile_image(tactile_value):
@@ -411,24 +411,39 @@ class DeployVINN:
                 tactile_values, # We do want to plot all the tactile values - not only the ones we want  
                 curr_fingertip_position,
                 kinova_cart_state[:3],
-                nn_id,
-                nn_separate_dists[id_of_nn]
+                id_of_nn,
+                nn_idxs,
+                nn_separate_dists, # We'll visualize 3 more neighbors' distances with their demos and ids
+
             )
 
         self.state_id += 1
 
         return nn_action
 
-    def _visualize_state(self, curr_tactile_values, curr_fingertip_position, curr_kinova_cart_pos, nn_id, nn_separate_dists):
+    def _visualize_state(self, curr_tactile_values, curr_fingertip_position, curr_kinova_cart_pos, id_of_nn, nn_idxs, nn_separate_dists):
         # Get the current image 
         curr_image = self.inv_image_transform(self._get_curr_image()).numpy().transpose(1,2,0)
         curr_image_cv2 = cv2.cvtColor(curr_image*255, cv2.COLOR_RGB2BGR)
         print('curr_image.shape: {}'.format(curr_image.shape))
 
+        nn_id = nn_idxs[id_of_nn]
         # Get the next visualization data
         knn_vis_data = self._get_data_with_id_for_visualization(nn_id)
         prev_knn_vis_data = self._get_data_with_id_for_visualization(nn_id-1)
         next_knn_vis_data = self._get_data_with_id_for_visualization(nn_id+1)
+
+        # Get the demo ids of the closest 3 neighbor
+        demo_ids = []
+        viz_id_of_nns = []
+        for i in range(3):
+            if not (id_of_nn+i >= len(nn_idxs)):
+                viz_nn_id = nn_idxs[id_of_nn+i]
+                viz_id_of_nns.append(id_of_nn+i)
+            else:
+                viz_id_of_nns.append(viz_id_of_nns[-1])
+            demo_id, _ = self.data['tactile']['indices'][viz_nn_id]
+            demo_ids.append(demo_id)
 
         if not ('image' in self.representation_types):
             # Dump all the current state, nn state and curr image
@@ -446,7 +461,7 @@ class DeployVINN:
             dump_whole_state(knn_vis_data['tactile'], knn_vis_data['allegro'], knn_vis_data['kinova'], title='knn_state', vision_state=knn_vis_data['image'])
             dump_whole_state(prev_knn_vis_data['tactile'], prev_knn_vis_data['allegro'], prev_knn_vis_data['kinova'], title='prev_knn_state', vision_state=prev_knn_vis_data['image'])
             dump_whole_state(next_knn_vis_data['tactile'], next_knn_vis_data['allegro'], next_knn_vis_data['kinova'], title='next_knn_state', vision_state=next_knn_vis_data['image'])
-            dump_repr_effects(nn_separate_dists, self.representation_types)
+            dump_repr_effects(nn_separate_dists, viz_id_of_nns, demo_ids, self.representation_types)
             dump_knn_state(
                 dump_dir = self.deployment_dump_dir,
                 img_name = 'state_{}.png'.format(str(self.state_id).zfill(2)),
