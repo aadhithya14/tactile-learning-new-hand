@@ -205,3 +205,125 @@ class TactileWholeHandDataset(data.Dataset): # Dataset that will return 16x3,4,4
 
     def getitem(self, index):
         return self.__getitem__(index) # NOTE: for debugging purposes
+
+
+class TactileBYOLDataset(data.Dataset):
+    # Dataset for all possible tactile types (stacked, whole hand, one sensor)
+    def __init__(
+        self,
+        data_path,
+        tactile_information_type, # It could be either one of - stacked, whole_hand, single_sensor
+        img_size,
+        mean_std=None, # This is a general stats for all tactile information
+        min_max=None # Minimum and maximum of the tactile dataset - if given none these values should be found by using this dataset
+    ):
+        super().__init__()
+        self.roots = glob.glob(f'{data_path}/demonstration_*')
+        self.roots = sorted(self.roots)
+        self.data = load_data(self.roots, demos_to_use=[])
+        assert tactile_information_type in ['stacked', 'whole_hand', 'single_sensor'], 'tactile_information_type can either be "stacked", "whole_hand" or "single_sensor"'
+        self.tactile_information_type = tactile_information_type
+        
+        # Set the transforms accordingly
+        self.img_size = img_size
+        self.min_max = min_max # Little change in min_max for to make it 3 dimensional
+        self.mean_std = mean_std
+            
+        if mean_std is None:
+            self.transform = T.Resize(img_size)
+        elif min_max is None:
+            self.transform = T.Compose([
+                T.Resize(img_size),
+                T.Normalize(mean_std[0], mean_std[1])
+            ])
+        else:
+            self.min_max[0] = torch.Tensor(self.min_max[0]).unsqueeze(1).unsqueeze(1)
+            self.min_max[1] = torch.Tensor(self.min_max[1]).unsqueeze(1).unsqueeze(1)
+            self.transform = T.Compose([
+                T.Resize(img_size),
+                T.Normalize(mean_std[0], mean_std[1]),
+                T.Lambda(self._scale_transform)
+            ])
+            
+        # Set the indices for one sensor
+        if tactile_information_type == 'single_sensor':
+            self._preprocess_tactile_indices()
+            
+        # Set up the tactile image retrieval function
+        if tactile_information_type == 'single_sensor':
+            self._get_tactile_image = self._get_single_sensor_tactile_image
+        elif tactile_information_type == 'stacked':
+            self._get_tactile_image = self._get_stacked_tactile_image
+        elif tactile_information_type == 'whole_hand':
+            self._get_tactile_image = self._get_whole_hand_tactile_image
+            
+    def _preprocess_tactile_indices(self):
+        self.tactile_mapper = np.zeros(len(self.data['tactile']['indices'])*15).astype(int)
+        for data_id in range(len(self.data['tactile']['indices'])):
+            for sensor_id in range(15):
+                self.tactile_mapper[data_id*15+sensor_id] = data_id # Assign each finger to an index basically
+
+    def _get_sensor_id(self, index):
+        return index % 15
+            
+    def _scale_transform(self, image): # Transform function to map the image between 0 and 1
+        image = (image - self.min_max[0]) / (self.min_max[1] - self.min_max[0])
+        return image
+            
+    def _get_whole_hand_tactile_image(self, tactile_values): 
+        # tactile_values: (15,16,3) - turn it into 16,16,3 by concatenating 0z
+        tactile_image = torch.FloatTensor(tactile_values)
+        tactile_image = F.pad(tactile_image, (0,0,0,0,1,0), 'constant', 0)
+        # reshape it to 4x4
+        tactile_image = tactile_image.view(16,4,4,3)
+
+        # concat for it have its proper shape
+        tactile_image = torch.concat([
+            torch.concat([tactile_image[i*4+j] for j in range(4)], dim=0)
+            for i in range(4)
+        ], dim=1)
+
+        tactile_image = torch.permute(tactile_image, (2,0,1))
+        
+        return self.transform(tactile_image)
+    
+    def _get_stacked_tactile_image(self, tactile_values):
+        tactile_image = torch.FloatTensor(tactile_values)
+        tactile_image = tactile_image.view(15,4,4,3) # Just making sure that everything stays the same
+        tactile_image = torch.permute(tactile_image, (0,3,1,2))
+        tactile_image = tactile_image.reshape(-1,4,4) # Make 45 the channel number 
+        return self.transform(tactile_image)
+    
+    def _get_single_sensor_tactile_image(self, tactile_value):
+        tactile_image = torch.FloatTensor(tactile_value) # tactile_value.shape: (16,3)
+        tactile_image = tactile_image.view(4,4,3)
+        tactile_image = torch.permute(tactile_image, (2,0,1))
+        return self.transform(tactile_image)
+    
+    def __len__(self):
+        if self.tactile_information_type == 'single_sensor':
+            return len(self.tactile_mapper)
+        else: 
+            return len(self.data['tactile']['indices'])
+        
+    def _get_proper_tactile_value(self, index):
+        if self.tactile_information_type == 'single_sensor':
+            data_id = self.tactile_mapper[index]
+            demo_id, tactile_id = self.data['tactile']['indices'][data_id]
+            sensor_id = self._get_sensor_id(index)
+            tactile_value = self.data['tactile']['values'][demo_id][tactile_id][sensor_id]
+            
+            return tactile_value
+        
+        else:
+            demo_id, tactile_id = self.data['tactile']['indices'][index]
+            tactile_values = self.data['tactile']['values'][demo_id][tactile_id]
+            
+            return tactile_values
+
+    def __getitem__(self, index):
+        tactile_value = self._get_proper_tactile_value(index)
+        tactile_image = self._get_tactile_image(tactile_value)
+        
+        return tactile_image
+        
