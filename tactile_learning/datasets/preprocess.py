@@ -90,7 +90,7 @@ def dump_fingertips(root):
 
     print(f'Saved fingertip positions in {fingertip_state_file}')
 
-def dump_data_indices(demo_id, root, is_byol_tactile=False, is_byol_image=False):
+def dump_data_indices(demo_id, root, is_byol_tactile=False, is_byol_image=False, threshold_step_size=0.012):
     print('dumping data indices in {}, {}'.format(demo_id, root))
     # Matches the index -> demo_id, datapoint_id according to the timestamps saved
     allegro_indices, image_indices, tactile_indices, allegro_action_indices, kinova_indices = [], [], [], [], []
@@ -164,7 +164,7 @@ def dump_data_indices(demo_id, root, is_byol_tactile=False, is_byol_image=False)
             metric_timestamp = find_next_robot_state_timestamp(
                 allegro_kdl_solver, allegro_positions, allegro_timestamps, allegro_id, 
                 kinova_positions, kinova_id, kinova_timestamps,
-                threshold_step_size = 0.012
+                threshold_step_size = threshold_step_size # 0.012
             )
             if metric_timestamp is None:
                 break

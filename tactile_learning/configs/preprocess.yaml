@@ -1,10 +1,11 @@
 # data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/box_handle_lifting/box_location_changing/training
 # data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/box_handle_lifting/box_location_changing/eval
 # data_path: /home/irmak/Workspace/Holo-Bot/deployment_data/box_handle_lifting
-data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/tactile_play_data
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/gamepad/training/demonstration_1
 # data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/tactile_play_data/demonstration_hand_touching_itself_record_2
-process_single_demo: false
+process_single_demo: true
 vision_byol: false
-tactile_byol: true
-dump_images: false
-view_num: 0
+tactile_byol: false
+dump_images: true
+threshold_step_size: 0.005 # it was 0.012
+view_num: 1

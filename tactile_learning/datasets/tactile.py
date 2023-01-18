@@ -230,10 +230,14 @@ class TactileBYOLDataset(data.Dataset):
         self.mean_std = mean_std
             
         if mean_std is None:
-            self.transform = T.Resize(img_size)
+            self.transform = T.Compose([
+                T.Resize(img_size),
+                T.Lambda(self._clamp_transform)
+            ])
         elif min_max is None:
             self.transform = T.Compose([
                 T.Resize(img_size),
+                T.Lambda(self._clamp_transform),
                 T.Normalize(mean_std[0], mean_std[1])
             ])
         else:
@@ -241,10 +245,11 @@ class TactileBYOLDataset(data.Dataset):
             self.min_max[1] = torch.Tensor(self.min_max[1]).unsqueeze(1).unsqueeze(1)
             self.transform = T.Compose([
                 T.Resize(img_size),
+                T.Lambda(self._clamp_transform),
                 T.Normalize(mean_std[0], mean_std[1]),
                 T.Lambda(self._scale_transform)
             ])
-            
+
         # Set the indices for one sensor
         if tactile_information_type == 'single_sensor':
             self._preprocess_tactile_indices()
@@ -268,6 +273,10 @@ class TactileBYOLDataset(data.Dataset):
             
     def _scale_transform(self, image): # Transform function to map the image between 0 and 1
         image = (image - self.min_max[0]) / (self.min_max[1] - self.min_max[0])
+        return image
+
+    def _clamp_transform(self, image):
+        image = torch.clamp(image, min=TACTILE_PLAY_DATA_CLAMP_MIN, max=TACTILE_PLAY_DATA_CLAMP_MAX)
         return image
             
     def _get_whole_hand_tactile_image(self, tactile_values): 

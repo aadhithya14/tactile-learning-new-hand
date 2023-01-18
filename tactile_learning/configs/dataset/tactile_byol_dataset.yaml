@@ -2,9 +2,10 @@ _target_: tactile_learning.datasets.tactile.TactileBYOLDataset
 data_path: ???
 tactile_information_type: whole_hand
 img_size: 224
+# Stats for the play data
 mean_std: # These values should be found through notebook
-  - [ 0.1218,  0.7076, 12.5459] 
-  - [168.1889,  98.6576, 104.8352]
+  - [-3.4821,  0.8840, 11.0220]
+  - [96.1595, 67.3064, 72.4123]
 min_max: 
-  - [-107.0494, -172.3380,  -84.2302] 
-  - [112.6702, 142.1870, 130.8831]
+  - [ -5.9464, -10.1432,  -9.6585] # After clamping min and max
+  - [ 5.9450, 10.1289,  9.4191]

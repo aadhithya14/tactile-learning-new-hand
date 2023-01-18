@@ -8,4 +8,4 @@ loop: true
 frequency: 15
 # object: box_handle_lifting/box_location_changing/eval
 # data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}
-data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/tactile_play_data/demonstration_hand_touching_itself_record_2
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/gamepad/training/demonstration_1
