@@ -18,6 +18,7 @@ def load_data(roots, demos_to_use=[]):
     
     tactile_values = {}
     allegro_tip_positions = {} 
+    allegro_joint_positions = {}
     allegro_actions = {}
     kinova_states = {}
 
@@ -40,6 +41,8 @@ def load_data(roots, demos_to_use=[]):
             # Load the data
             with h5py.File(os.path.join(root, 'allegro_fingertip_states.h5'), 'r') as f:
                 allegro_tip_positions[demo_id] = f['positions'][()]
+            with h5py.File(os.path.join(root, 'allegro_joint_states.h5'), 'r') as f:
+                allegro_joint_positions[demo_id] = f['positions'][()]
             with h5py.File(os.path.join(root, 'allegro_commanded_joint_states.h5'), 'r') as f:
                 allegro_actions[demo_id] = f['positions'][()] # Positions are to be learned - since this is a position control
             with h5py.File(os.path.join(root, 'touch_sensor_values.h5'), 'r') as f:
@@ -53,7 +56,11 @@ def load_data(roots, demos_to_use=[]):
             indices = tactile_indices,
             values = tactile_values
         ),
-        allegro_states = dict(
+        allegro_joint_states = dict(
+            indices = allegro_indices, 
+            values = allegro_joint_positions
+        ),
+        allegro_tip_states = dict(
             indices = allegro_indices, 
             values = allegro_tip_positions
         ),

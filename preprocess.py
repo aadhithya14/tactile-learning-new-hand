@@ -6,8 +6,11 @@ from tactile_learning.datasets.preprocess import *
 
 @hydra.main(version_base=None, config_path='tactile_learning/configs', config_name='preprocess')
 def main(cfg : DictConfig) -> None:
-    roots = glob.glob(f'{cfg.data_path}/demonstration_*') # TODO: change this in the future
-    roots = sorted(roots)
+    if cfg.process_single_demo:
+        roots = [cfg.data_path]
+    else:
+        roots = glob.glob(f'{cfg.data_path}/demonstration_*') # TODO: change this in the future
+        roots = sorted(roots)
     # roots = ['/home/irmak/Workspace/Holo-Bot/extracted_data/box_handle_lifting/box_location_changing/eval/demonstration_4']
 
     for demo_id, root in enumerate(roots):

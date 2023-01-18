@@ -36,12 +36,12 @@ class DeployVINN:
         image_out_dir,
         data_path,
         deployment_run_name,
+        task_object,
         robots = ['allegro', 'kinova'],
         representation_types = ['image', 'tactile', 'kinova', 'allegro'],
         use_encoder = True,
         nn_buffer_size=100,
         nn_k=20,
-        set_thumb_values=None,
         demos_to_use=[0],
         run_the_demo=False,
         sensor_indices = (0,1,2,3,4,5,6,7,8,9,10,11,12,13,14),
@@ -63,7 +63,7 @@ class DeployVINN:
         print('self.representation_types: {}, len(demos_to_use): {}'.format(
             self.representation_types, len(demos_to_use)
         ))
-        self.set_thumb_values = set_thumb_values
+        self._set_thumb_value(task_object)
         if run_the_demo:
             assert len(demos_to_use) == 1, 'While running one demo, length of the demos to use should be 1'
         self.run_the_demo = run_the_demo # Boolean to indicate if 
@@ -102,6 +102,12 @@ class DeployVINN:
             curr_representations = [], # representations will be appended to this list
             closest_representations = []
         )
+
+    def _set_thumb_value(self, task_object):
+        if task_object == 'box_handle_lifting':
+            self.set_thumb_values = ALLEGRO_BOX_HANDLE_LIFTING_THUMB_VALUES
+        else:
+            self.set_thumb_values = None
 
     def _init_encoder_info(self, device, out_dir, encoder_type='tactile'): # encoder_type: either image or tactile
         if encoder_type == 'tactile' and self.alexnet_tactile:
@@ -291,12 +297,12 @@ class DeployVINN:
 
         for index in range(len(self.data['tactile']['indices'])):
             demo_id, tactile_id = self.data['tactile']['indices'][index]
-            _, allegro_tip_id = self.data['allegro_states']['indices'][index]
+            _, allegro_tip_id = self.data['allegro_tip_states']['indices'][index]
             _, kinova_id = self.data['kinova']['indices'][index]
             _, image_id = self.data['image']['indices'][index]
 
             tactile_value = self.data['tactile']['values'][demo_id][tactile_id][self.sensor_indices,:,:] # This should be (N,16,3)
-            allegro_tip_position = self.data['allegro_states']['values'][demo_id][allegro_tip_id] # This should be (M*3,)
+            allegro_tip_position = self.data['allegro_tip_states']['values'][demo_id][allegro_tip_id] # This should be (M*3,)
             kinova_state = self.data['kinova']['values'][demo_id][kinova_id]
             image = self._load_dataset_image(demo_id, image_id)
             
@@ -472,11 +478,11 @@ class DeployVINN:
             
     def _get_data_with_id_for_visualization(self, id):
         demo_id, tactile_id = self.data['tactile']['indices'][id]
-        _, allegro_tip_id = self.data['allegro_states']['indices'][id]
+        _, allegro_tip_id = self.data['allegro_tip_states']['indices'][id]
         _, kinova_id = self.data['kinova']['indices'][id]
         _, image_id = self.data['image']['indices'][id]
         tactile_values = self.data['tactile']['values'][demo_id][tactile_id]
-        allegro_finger_tip_pos = self.data['allegro_states']['values'][demo_id][allegro_tip_id]
+        allegro_finger_tip_pos = self.data['allegro_tip_states']['values'][demo_id][allegro_tip_id]
         kinova_cart_pos = self.data['kinova']['values'][demo_id][kinova_id][:3]
         image = self.inv_image_transform(self._load_dataset_image(demo_id, image_id)).numpy().transpose(1,2,0)
         image_cv2 = cv2.cvtColor(image*255, cv2.COLOR_RGB2BGR)

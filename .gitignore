@@ -9,3 +9,4 @@ wandb/*
 *.png
 
 notebooks/*.pt
+notebooks/.ipynb_checkpoints/*
