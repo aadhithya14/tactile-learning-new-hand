@@ -4,24 +4,29 @@ import torch
 
 # Script to return all pretrained models in torchvision.models module
 def resnet18(pretrained : bool):
-    if pretrained:
-        encoder = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
-    else:
-        encoder = models.resnet18()
+    encoder = models.__dict__['resnet18'](pretrained = True)
     encoder.fc = nn.Identity()
 
     return encoder
 
 def resnet34(pretrained : bool):
-    if pretrained:
-        encoder = models.resnet34(weights=models.ResNet34_Weights.DEFAULT)
-    else:
-        encoder = models.resnet34()
+    encoder = models.__dict__['resnet34'](pretrained = True)
     encoder.fc = nn.Identity()
+
     return encoder
 
-def alexnet(pretrained, out_dim):
+
+def alexnet(pretrained, out_dim, remove_last_layer=False):
     encoder = torch.hub.load('pytorch/vision:v0.10.0', 'alexnet', pretrained=pretrained)
-    encoder.fc = nn.Identity()
+
+    if remove_last_layer:
+        # Remove and recreate the last layer of alexnet - should be 
+        encoder.classifier = nn.Sequential(
+            nn.Dropout(p=0.5, inplace=False),
+            nn.Linear(9216, out_features=4096, bias=True),
+            nn.ReLU(inplace=True),
+            nn.Dropout(p=0.5, inplace=False),
+            nn.Linear(4096, out_dim, bias=True)
+        )
 
     return encoder

@@ -1,4 +1,5 @@
 _target_: tactile_learning.deployment.wrappers.run_demo.RunDemo
 data_path: ???
-apply_allegro_states: true # For fingers touching yourself this should be true
+apply_allegro_states: false # For fingers touching yourself this should be true
 robots: ['allegro', 'kinova']
+demo_to_run: 6

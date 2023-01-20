@@ -31,11 +31,14 @@ class RunDemo:
     def __init__(
         self,
         data_path, # root in string
+        demo_to_run,
         apply_allegro_states = False, # boolean to indicate if we should apply commanded allegro states or actual allegro states
-        robots = ['allegro', 'kinova']
+        robots = ['allegro', 'kinova'],
     ):
 
-        self.data = load_data([data_path], demos_to_use=[])
+        roots = glob.glob(f'{data_path}/demonstration_*')
+        roots = sorted(roots)
+        self.data = load_data(roots, demos_to_use=[demo_to_run])
         self.state_id = 0
         self.allegro_action_key = 'allegro_joint_states' if apply_allegro_states else 'allegro_actions'
         self.robots = robots

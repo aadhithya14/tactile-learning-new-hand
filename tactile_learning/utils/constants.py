@@ -25,6 +25,34 @@
 # TACTILE_IMAGE_MEANS = [-6.5651,  3.4824, 10.0751]
 # TACTILE_IMAGE_STDS = [183.9877, 151.5086, 128.7941]
 
+# Stats for the play data
+# PLAY_DATA_TACTILE_MEAN = torch.Tensor([-3.4821,  0.8840, 11.0220])
+# PLAY_DATA_TACTILE_STD = torch.Tensor([96.1595, 67.3064, 72.4123])
+# PLAY_DATA_TACTILE_MIN = torch.Tensor([ -5.9464, -10.1432,  -9.6585]).unsqueeze(1).unsqueeze(1)
+# PLAY_DATA_TACTILE_MAX = torch.Tensor([ 5.9450, 10.1289,  9.4191]).unsqueeze(1).unsqueeze(1)
+
+# # Stats for gamepad task
+# GAMEPAD_TACTILE_MEAN = torch.Tensor([-12.8636,  -1.1549,   1.3344])
+# GAMEPAD_TACTILE_STD = torch.Tensor([66.7323, 43.5684, 49.4381])
+# GAMEPAD_TACTILE_MIN = torch.Tensor([-14.7925, -22.9259, -20.2543]).unsqueeze(1).unsqueeze(1)
+# GAMEPAD_TACTILE_MAX = torch.Tensor([15.1780, 22.9789, 20.2003]).unsqueeze(1).unsqueeze(1)
+
+# Task based stats
+TACTILE_IMAGE_STATS = {
+    'gamepad': {
+        'mean': [-12.8636,  -1.1549,   1.3344],
+        'std': [66.7323, 43.5684, 49.4381],
+        'min': [-14.7925, -22.9259, -20.2543],
+        'max': [15.1780, 22.9789, 20.2003] 
+    },
+    'play_data': {
+        'mean': [-3.4821,  0.8840, 11.0220],
+        'std': [96.1595, 67.3064, 72.4123], 
+        'min': [ -5.9464, -10.1432,  -9.6585],
+        'max': [ 5.9450, 10.1289,  9.4191]
+    }
+}
+
 # Alexnet means and stds
 TACTILE_IMAGE_MEANS = [0.485, 0.456, 0.406]
 TACTILE_IMAGE_STDS = [0.229, 0.224, 0.225]

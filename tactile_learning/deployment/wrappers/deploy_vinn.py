@@ -14,6 +14,7 @@ from PIL import Image as im
 from omegaconf import OmegaConf
 from tqdm import tqdm 
 from torchvision.datasets.folder import default_loader as loader
+from torchvision import models
 
 from holobot.constants import *
 from holobot.utils.network import ZMQCameraSubscriber
@@ -27,6 +28,7 @@ from tactile_learning.utils.constants import *
 from tactile_learning.utils.data import load_data
 from tactile_learning.utils.tactile_image import get_tactile_image
 from tactile_learning.utils.visualization import *
+from torchvision.transforms.functional import crop
 
 
 class DeployVINN:
@@ -48,7 +50,10 @@ class DeployVINN:
         allegro_finger_indices = (0,1,2,3),
         single_sensor_tactile=False,
         stacked_tactile=False,
-        alexnet_tactile=False
+        alexnet_tactile=False,
+        alexnet_nontrained=False,
+        image_nontrained=False, # If we want pretrained non fine tuned models then we can just use these
+        view_num = 0 # View number to use for image
     ):
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = "29504"
@@ -74,11 +79,20 @@ class DeployVINN:
         self.single_sensor_tactile = single_sensor_tactile
         self.stacked_tactile = stacked_tactile
         self.alexnet_tactile = alexnet_tactile
+        self.alexnet_nontrained = alexnet_nontrained
+        self.image_nontrained = image_nontrained
+        self.view_num = view_num
+        self.task_object = task_object
+
+        self.tactile_min = torch.Tensor(TACTILE_IMAGE_STATS[task_object]['min']).unsqueeze(1).unsqueeze(1)
+        self.tactile_max = torch.Tensor(TACTILE_IMAGE_STATS[task_object]['max']).unsqueeze(1).unsqueeze(1)
+
         self.tactile_cfg, self.tactile_encoder, self.tactile_transform = self._init_encoder_info(device, tactile_out_dir, 'tactile')
         self.tactile_repr_size = self.tactile_cfg.encoder.out_dim * len(sensor_indices) if single_sensor_tactile else self.tactile_cfg.encoder.out_dim
+        print('tactile_repr_size: {}'.format(self.tactile_repr_size))
         self.image_cfg, self.image_encoder, self.image_transform = self._init_encoder_info(device, image_out_dir, 'image')
         self.inv_image_transform = self._get_inverse_image_norm()
-
+        print('image_repr_size: {}')
         roots = sorted(glob.glob(f'{data_path}/demonstration_*'))
         self.data_path = data_path
         self.data = load_data(roots, demos_to_use=demos_to_use) # This will return all the desired indices and the values
@@ -110,11 +124,14 @@ class DeployVINN:
             self.set_thumb_values = None
 
     def _init_encoder_info(self, device, out_dir, encoder_type='tactile'): # encoder_type: either image or tactile
-        if encoder_type == 'tactile' and self.alexnet_tactile:
-            # Load alexnet and create a mock cfg to get the out_dim
+        if encoder_type == 'tactile' and self.alexnet_tactile and self.alexnet_nontrained:
             encoder = torch.hub.load('pytorch/vision:v0.10.0', 'alexnet', pretrained=True)
             encoder.fc = nn.Identity()
             cfg = OmegaConf.create({"encoder":{"out_dim":1000}})
+        elif encoder_type =='image' and self.image_nontrained: # Load the pretrained encoder 
+            encoder = models.__dict__['resnet18'](pretrained = True)
+            encoder.fc = nn.Identity()
+            cfg = OmegaConf.create({"encoder":{"out_dim":512}})
         else:
             cfg = OmegaConf.load(os.path.join(out_dir, '.hydra/config.yaml'))
             model_path = os.path.join(out_dir, 'models/byol_encoder_best.pt')
@@ -129,8 +146,8 @@ class DeployVINN:
             elif self.alexnet_tactile:
                 transform = T.Compose([
                     T.Resize((224, 224)),
-                    T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-                ]) # These are the requirements for alexnet
+                    T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) # These are the requirements for alexnet
+                ]) 
             else:
                 transform = T.Compose([
                     T.Resize((cfg.tactile_image_size, cfg.tactile_image_size)),
@@ -139,12 +156,26 @@ class DeployVINN:
         elif encoder_type == 'image':
             transform = T.Compose([
                 T.Resize((480,640)),
-                T.Lambda(crop_transform),
+                T.Lambda(self._crop_transform),
                 T.ToTensor(),
                 T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS),
             ]) 
 
         return cfg, encoder, transform
+
+    def _crop_transform(self, image): 
+        if self.view_num == 0:
+            return crop(image, 0,0,480,480)
+        elif self.view_num == 1:
+            return crop(image, 0,160,480,640) 
+
+    def _clamp_transform(self, image):
+        image = torch.clamp(image, min=TACTILE_PLAY_DATA_CLAMP_MIN, max=TACTILE_PLAY_DATA_CLAMP_MAX)
+        return image
+
+    def _scale_transform(self, image):
+        image = (image - self.tactile_min) / (self.tactile_max - self.tactile_min)
+        return image
 
     def _get_inverse_image_norm(self):
         np_means = np.asarray(VISION_IMAGE_MEANS)
@@ -164,7 +195,7 @@ class DeployVINN:
     def _get_curr_image(self, host='172.24.71.240', port=10005):
         image_subscriber = ZMQCameraSubscriber(
             host = host,
-            port = port,
+            port = port + self.view_num,
             topic_type = 'RGB'
         )
         image, _ = image_subscriber.recv_rgb_image()
@@ -178,7 +209,7 @@ class DeployVINN:
         roots = glob.glob(f'{self.data_path}/demonstration_*')
         roots = sorted(roots)
         image_root = roots[demo_id]
-        image_path = os.path.join(image_root, 'cam_0_rgb_images/frame_{}.png'.format(str(image_id).zfill(5)))
+        image_path = os.path.join(image_root, 'cam_{}_rgb_images/frame_{}.png'.format(self.view_num, str(image_id).zfill(5)))
         img = self.image_transform(loader(image_path))
         return torch.FloatTensor(img)
 
@@ -227,16 +258,13 @@ class DeployVINN:
             tactile_image = torch.permute(tactile_image, (2,0,1))
             pre_tactile_transform = T.Compose([
                 T.Resize((16,16)),
-                T.Normalize(TACTILE_IMAGE_MEANS, TACTILE_IMAGE_STDS)
+                T.Lambda(self._clamp_transform),
+                T.Normalize(TACTILE_IMAGE_STATS[self.task_object]['mean'], TACTILE_IMAGE_STATS[self.task_object]['std']),
+                T.Lambda(self._scale_transform)
             ])
             return pre_tactile_transform(tactile_image)
         
         tactile_image = _get_whole_hand_tactile_image(tactile_values)
-        # map it bw 0 and 1 (that's needed for alexnet)
-        min_tactile = -112.1339
-        max_tactile = 99.1087 # These are calculated - it could effect how things are NOTE: should be careful here! 
-        tactile_image = (tactile_image - min_tactile) / (max_tactile - min_tactile)
-        # then transform as required for alexnet
         tactile_image = self.tactile_transform(tactile_image)
         return self.tactile_encoder(tactile_image.unsqueeze(0)).squeeze()
 
@@ -286,7 +314,7 @@ class DeployVINN:
                 repr_dim = len(self.sensor_indices) * 16 * 3
         if 'allegro' in self.representation_types:  repr_dim += len(self.allegro_finger_indices)
         if 'kinova' in self.representation_types: repr_dim += 7
-        if 'image' in self.representation_types: repr_dim += 512 # NOTE: This should be lower (or tactile should be higher) - we could use a random layer on top?
+        if 'image' in self.representation_types: repr_dim += self.image_cfg.encoder.out_dim # NOTE: This should be lower (or tactile should be higher) - we could use a random layer on top?
 
         self.all_representations = np.zeros((
             len(self.data['tactile']['indices']), repr_dim
@@ -431,7 +459,8 @@ class DeployVINN:
         # Get the current image 
         curr_image = self.inv_image_transform(self._get_curr_image()).numpy().transpose(1,2,0)
         curr_image_cv2 = cv2.cvtColor(curr_image*255, cv2.COLOR_RGB2BGR)
-        print('curr_image.shape: {}'.format(curr_image.shape))
+        # print('curr_image.shape: {}'.format(curr_image.shape))
+        curr_tactile_image = self._get_tactile_image_for_visualization(curr_tactile_values)
 
         nn_id = nn_idxs[id_of_nn]
         # Get the next visualization data
@@ -451,30 +480,58 @@ class DeployVINN:
             demo_id, _ = self.data['tactile']['indices'][viz_nn_id]
             demo_ids.append(demo_id)
 
-        if not ('image' in self.representation_types):
-            # Dump all the current state, nn state and curr image
-            dump_camera_image()
-            dump_whole_state(curr_tactile_values, curr_fingertip_position, curr_kinova_cart_pos, title='curr_state')
-            dump_whole_state(knn_vis_data['tactile'], knn_vis_data['allegro'], knn_vis_data['kinova'], title='knn_state')
-            # Plot from the dumped images
-            dump_knn_state(
-                dump_dir = self.deployment_dump_dir,
-                img_name = 'state_{}.png'.format(str(self.state_id).zfill(2))
-            )
+        # if not ('image' in self.representation_types):
+        #     # Dump all the current state, nn state and curr image
+        #     dump_camera_image()
+        #     dump_whole_state(curr_tactile_values, curr_fingertip_position, curr_kinova_cart_pos, title='curr_state')
+        #     dump_whole_state(knn_vis_data['tactile'], knn_vis_data['allegro'], knn_vis_data['kinova'], title='knn_state')
+        #     # Plot from the dumped images
+        #     dump_knn_state(
+        #         dump_dir = self.deployment_dump_dir,
+        #         img_name = 'state_{}.png'.format(str(self.state_id).zfill(2))
+        #     )
     
-        else:
-            dump_whole_state(curr_tactile_values, curr_fingertip_position, curr_kinova_cart_pos, title='curr_state', vision_state=curr_image_cv2)
-            dump_whole_state(knn_vis_data['tactile'], knn_vis_data['allegro'], knn_vis_data['kinova'], title='knn_state', vision_state=knn_vis_data['image'])
-            dump_whole_state(prev_knn_vis_data['tactile'], prev_knn_vis_data['allegro'], prev_knn_vis_data['kinova'], title='prev_knn_state', vision_state=prev_knn_vis_data['image'])
-            dump_whole_state(next_knn_vis_data['tactile'], next_knn_vis_data['allegro'], next_knn_vis_data['kinova'], title='next_knn_state', vision_state=next_knn_vis_data['image'])
-            dump_repr_effects(nn_separate_dists, viz_id_of_nns, demo_ids, self.representation_types)
-            dump_knn_state(
-                dump_dir = self.deployment_dump_dir,
-                img_name = 'state_{}.png'.format(str(self.state_id).zfill(2)),
-                image_repr = True,
-                add_repr_effects = True,
-                include_temporal_states = True
-            )
+        # else:
+        dump_whole_state(curr_tactile_values, curr_tactile_image, curr_fingertip_position, curr_kinova_cart_pos, title='curr_state', vision_state=curr_image_cv2)
+        dump_whole_state(knn_vis_data['tactile_values'], knn_vis_data['tactile_image'], knn_vis_data['allegro'], knn_vis_data['kinova'], title='knn_state', vision_state=knn_vis_data['image'])
+        # dump_whole_state(prev_knn_vis_data['tactile_values'], prev_knn_vis_data['tactile_image'], prev_knn_vis_data['allegro'], prev_knn_vis_data['kinova'], title='prev_knn_state', vision_state=prev_knn_vis_data['image'])
+        # dump_whole_state(next_knn_vis_data['tactile_values'], next_knn_vis_data['tactile_image'], next_knn_vis_data['allegro'], next_knn_vis_data['kinova'], title='next_knn_state', vision_state=next_knn_vis_data['image'])
+        dump_repr_effects(nn_separate_dists, viz_id_of_nns, demo_ids, self.representation_types)
+        dump_knn_state(
+            dump_dir = self.deployment_dump_dir,
+            img_name = 'state_{}.png'.format(str(self.state_id).zfill(2)),
+            image_repr = True,
+            add_repr_effects = True,
+            include_temporal_states = False
+        )
+
+    def _get_tactile_image_for_visualization(self, tactile_values):
+        def _get_whole_hand_tactile_image(tactile_values): 
+            # tactile_values: (15,16,3) - turn it into 16,16,3 by concatenating 0z
+            tactile_image = torch.FloatTensor(tactile_values)
+            tactile_image = F.pad(tactile_image, (0,0,0,0,1,0), 'constant', 0)
+            # reshape it to 4x4
+            tactile_image = tactile_image.view(16,4,4,3)
+
+            # concat for it have its proper shape
+            tactile_image = torch.concat([
+                torch.concat([tactile_image[i*4+j] for j in range(4)], dim=0)
+                for i in range(4)
+            ], dim=1)
+
+            tactile_image = torch.permute(tactile_image, (2,0,1))
+            pre_tactile_transform = T.Compose([
+                T.Resize((16,16)),
+                T.Lambda(self._clamp_transform),
+                T.Normalize(TACTILE_IMAGE_STATS[self.task_object]['mean'], TACTILE_IMAGE_STATS[self.task_object]['std']),
+                T.Lambda(self._scale_transform)
+            ])
+            return pre_tactile_transform(tactile_image)
+
+        tactile_image = _get_whole_hand_tactile_image(tactile_values)
+        tactile_image = T.Resize(224)(tactile_image) # Don't need another normalization
+        tactile_image = (tactile_image - tactile_image.min()) / (tactile_image.max() - tactile_image.min())
+        return tactile_image    
             
     def _get_data_with_id_for_visualization(self, id):
         demo_id, tactile_id = self.data['tactile']['indices'][id]
@@ -482,6 +539,7 @@ class DeployVINN:
         _, kinova_id = self.data['kinova']['indices'][id]
         _, image_id = self.data['image']['indices'][id]
         tactile_values = self.data['tactile']['values'][demo_id][tactile_id]
+        tactile_image = self._get_tactile_image_for_visualization(tactile_values)
         allegro_finger_tip_pos = self.data['allegro_tip_states']['values'][demo_id][allegro_tip_id]
         kinova_cart_pos = self.data['kinova']['values'][demo_id][kinova_id][:3]
         image = self.inv_image_transform(self._load_dataset_image(demo_id, image_id)).numpy().transpose(1,2,0)
@@ -491,7 +549,8 @@ class DeployVINN:
             image = image_cv2,
             kinova = kinova_cart_pos, 
             allegro = allegro_finger_tip_pos, 
-            tactile = tactile_values
+            tactile_values = tactile_values,
+            tactile_image = tactile_image
         )
 
         return visualization_data

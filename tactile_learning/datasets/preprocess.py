@@ -90,12 +90,12 @@ def dump_fingertips(root):
 
     print(f'Saved fingertip positions in {fingertip_state_file}')
 
-def dump_data_indices(demo_id, root, is_byol_tactile=False, is_byol_image=False, threshold_step_size=0.012):
+def dump_data_indices(demo_id, root, is_byol_tactile=False, is_byol_image=False, threshold_step_size=0.012, cam_view_num=0):
     print('dumping data indices in {}, {}'.format(demo_id, root))
     # Matches the index -> demo_id, datapoint_id according to the timestamps saved
     allegro_indices, image_indices, tactile_indices, allegro_action_indices, kinova_indices = [], [], [], [], []
     allegro_states_path = os.path.join(root, 'allegro_joint_states.h5')
-    image_metadata_path = os.path.join(root, 'cam_0_rgb_video.metadata')
+    image_metadata_path = os.path.join(root, f'cam_{cam_view_num}_rgb_video.metadata')
     tactile_info_path = os.path.join(root, 'touch_sensor_values.h5')
     allegro_commanded_joint_path = os.path.join(root, 'allegro_commanded_joint_states.h5')
     kinova_states_path = os.path.join(root, 'kinova_cartesian_states.h5')

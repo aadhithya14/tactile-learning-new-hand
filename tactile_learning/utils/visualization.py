@@ -116,6 +116,12 @@ def dump_tactile_state(tactile_values):
     fig.clf()
     plt.close()
 
+def dump_tactile_image(tactile_image):
+    # plot and dumpy the image
+    npimg = tactile_image.numpy()
+    plt.axis('off')
+    plt.imsave('tactile_image.png', np.transpose(npimg, (1,2,0)))
+
 def dump_robot_state(allegro_tip_pos, kinova_cart_pos):
     fig = plt.figure(figsize=(10,10))
     allegro_axs = []
@@ -133,9 +139,12 @@ def dump_robot_state(allegro_tip_pos, kinova_cart_pos):
     plt.savefig('robot_state.png', bbox_inches='tight')
     plt.close()
 
-def dump_whole_state(tactile_values, allegro_tip_pos, kinova_cart_pos, title='curr_state', vision_state=None):
+def dump_whole_state(tactile_values, tactile_image, allegro_tip_pos, kinova_cart_pos, title='curr_state', vision_state=None):
     dump_tactile_state(tactile_values)
+    dump_tactile_image(tactile_image)
     tactile_state = cv2.imread('tactile_state.png')
+    tactile_image = cv2.imread('tactile_image.png')
+    tactile_state = concat_imgs(tactile_state, tactile_image, 'horizontal')
     if vision_state is None:
         dump_robot_state(allegro_tip_pos, kinova_cart_pos)
         robot_state = cv2.imread('robot_state.png')

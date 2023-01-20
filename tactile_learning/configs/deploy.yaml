@@ -1,6 +1,6 @@
 defaults:
-  - deploy_module: run_demo
-  # - deploy_module: vinn_all
+  # - deploy_module: run_demo
+  - deploy_module: vinn_all
 
 robots: [allegro, kinova]
 visualize: true
@@ -8,4 +8,5 @@ loop: true
 frequency: 15
 # object: box_handle_lifting/box_location_changing/eval
 # data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}
-data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/gamepad/training/demonstration_1
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/gamepad/right/eval
+# demo_to_run: 2

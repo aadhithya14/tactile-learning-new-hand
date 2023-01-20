@@ -32,8 +32,9 @@ video_type: rgb # NOTE: you could remove this if you want to use both
 # this needs to be specified manually
 # object: box_handle_lifting/box_location_changing/training
 object: tactile_play_data
-experiment: ${learner_type}_bs_${batch_size}_${object}_alexnet_clamped
-data_dir: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}
+experiment: ${learner_type}_bs_${batch_size}_${object}_alexnet_set_normalization
+# data_dir: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}
+data_dir: /data/tactile_learning/play_data
 checkpoint_dir: ??? # Will be set to hydra dir inside the code
 
 # logger

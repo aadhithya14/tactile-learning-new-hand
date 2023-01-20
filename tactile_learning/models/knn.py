@@ -69,8 +69,9 @@ class ScaledKNearestNeighbors(object):
         type_l1_dist = l1_distances[:,type_based_idx[0]:type_based_idx[1]]
         type_l2_dist = np.linalg.norm(type_l1_dist, axis = 1)
 
-    # print('type: {} - type_l2_dist.shape: {}'.format(repr_type, type_l2_dist.shape))
-        type_l2_dist = type_l2_dist / (type_l2_dist.max() - type_l2_dist.min())
+        # print('type: {} - type_l2_dist.shape: {}'.format(repr_type, type_l2_dist.shape))
+        type_l2_dist = (type_l2_dist-type_l2_dist.min()) / (type_l2_dist.max() - type_l2_dist.min())
+        # print('repr_type: {}, type_l2_dist.min():{}, type_l2_dist.max(): {}'.format(repr_type, type_l2_dist.min(), type_l2_dist.max()))
         return type_l2_dist
 
     def _get_l2_distances(self, datapoint):

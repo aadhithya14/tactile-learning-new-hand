@@ -3,9 +3,9 @@ data_path: ???
 tactile_information_type: whole_hand
 img_size: 224
 # Stats for the play data
-mean_std: # These values should be found through notebook
-  - [-3.4821,  0.8840, 11.0220]
-  - [96.1595, 67.3064, 72.4123]
-min_max: 
-  - [ -5.9464, -10.1432,  -9.6585] # After clamping min and max
-  - [ 5.9450, 10.1289,  9.4191]
+# mean_std: # These values should be found through notebook
+#   - [-3.4821,  0.8840, 11.0220]
+#   - [96.1595, 67.3064, 72.4123]
+# min_max: 
+#   - [ -5.9464, -10.1432,  -9.6585] # After clamping min and max
+#   - [ 5.9450, 10.1289,  9.4191]
