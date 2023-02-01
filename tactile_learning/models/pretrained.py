@@ -3,13 +3,13 @@ import torch.nn as nn
 import torch
 
 # Script to return all pretrained models in torchvision.models module
-def resnet18(pretrained : bool):
+def resnet18(pretrained : bool, out_dim):
     encoder = models.__dict__['resnet18'](pretrained = True)
     encoder.fc = nn.Identity()
 
     return encoder
 
-def resnet34(pretrained : bool):
+def resnet34(pretrained : bool, out_dim): # These out_dims are only given for implemntation purposes
     encoder = models.__dict__['resnet34'](pretrained = True)
     encoder.fc = nn.Identity()
 

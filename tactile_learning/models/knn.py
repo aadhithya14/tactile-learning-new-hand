@@ -37,11 +37,13 @@ class ScaledKNearestNeighbors(object):
         input_values,
         output_values,
         repr_types,
-        tactile_repr_size=64
+        repr_importance,
+        tactile_repr_size=64,
     ):
         self.input_values = input_values 
         self.output_values = output_values 
         self.repr_types = repr_types
+        self.repr_importance = repr_importance
         self.tactile_repr_size = tactile_repr_size
         self._get_index_values() # Will set the beginning and ending indices for each repr type
 
@@ -71,8 +73,9 @@ class ScaledKNearestNeighbors(object):
 
         # print('type: {} - type_l2_dist.shape: {}'.format(repr_type, type_l2_dist.shape))
         type_l2_dist = (type_l2_dist-type_l2_dist.min()) / (type_l2_dist.max() - type_l2_dist.min())
-        # print('repr_type: {}, type_l2_dist.min():{}, type_l2_dist.max(): {}'.format(repr_type, type_l2_dist.min(), type_l2_dist.max()))
-        return type_l2_dist
+        repr_id = self.repr_types.index(repr_type)
+        repr_importance = self.repr_importance[repr_id]
+        return type_l2_dist * repr_importance
 
     def _get_l2_distances(self, datapoint):
         l1_distances = self.input_values - datapoint

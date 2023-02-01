@@ -10,19 +10,24 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from tactile_learning.models.custom import *
 
-def load_model(cfg, device, model_path):
+def load_model(cfg, device, model_path, bc_model_type=None):
     # Initialize the model
     print('cfg.learner_type: {}'.format(cfg.learner_type))
     if cfg.learner_type == 'bc':
-        model = TactileJointLinear(
-            input_dim=cfg.tactile_info_dim + cfg.joint_pos_dim,
-            output_dim=cfg.joint_pos_dim,
-            hidden_dim=cfg.hidden_dim
-        )
+        if bc_model_type == 'image':
+            model = hydra.utils.instantiate(cfg.encoder.image_encoder)
+        elif bc_model_type == 'tactile':
+            model = hydra.utils.instantiate(cfg.encoder.tactile_encoder)
+        elif bc_model_type == 'last_layer':
+            model = hydra.utils.instantiate(cfg.encoder.last_layer)
+
     elif 'byol' in cfg.learner_type: # load the encoder
         model = hydra.utils.instantiate(cfg.encoder) # NOTE: Wouldm't this work? 
 
     state_dict = torch.load(model_path)
+    # print('state_dict: {}, model_type: {}, model_path: {}, model: {}'.format(
+    #     state_dict, bc_model_type, model_path, model
+    # ))
     
     # Modify the state dict accordingly - this is needed when multi GPU saving was done
     new_state_dict = modify_multi_gpu_state_dict(state_dict)

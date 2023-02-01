@@ -143,31 +143,31 @@ def dump_data_indices(demo_id, root, is_byol_tactile=False, is_byol_image=False,
                 break
             metric_timestamp = image_timestamps[image_id]        
         else:
-            # pos_allegro_id = find_next_allegro_id(
-            #     allegro_kdl_solver,
-            #     allegro_positions,
-            #     allegro_id,
-            #     threshold_step_size=0.01 # When you preprocess for training, one should decrease this size - we need more data
-            # )
-            # pos_kinova_id = find_next_kinova_id(
-            #     kinova_positions,
-            #     kinova_id,
-            #     threshold_step_size=0.01 # 2 cms
-            # )
+            pos_allegro_id = find_next_allegro_id(
+                allegro_kdl_solver,
+                allegro_positions,
+                allegro_id,
+                threshold_step_size=0.012 # When you preprocess for training, one should decrease this size - we need more data
+            )
+            pos_kinova_id = find_next_kinova_id(
+                kinova_positions,
+                kinova_id,
+                threshold_step_size=0.02 # 2 cms
+            )
 
-            # # allegro_id += 5 # NOTE: You might want to change this? - But for now we don't know how it should work
-            # if pos_allegro_id >= len(allegro_positions) or pos_kinova_id >= len(kinova_positions):
-            #     break
+            # allegro_id += 5 # NOTE: You might want to change this? - But for now we don't know how it should work
+            if pos_allegro_id >= len(allegro_positions) or pos_kinova_id >= len(kinova_positions):
+                break
+            metric_timestamp = min(kinova_timestamps[pos_kinova_id], allegro_timestamps[pos_allegro_id])
 
             
-            # metric_timestamp = min(kinova_timestamps[pos_kinova_id], allegro_timestamps[pos_allegro_id])
-            metric_timestamp = find_next_robot_state_timestamp(
-                allegro_kdl_solver, allegro_positions, allegro_timestamps, allegro_id, 
-                kinova_positions, kinova_id, kinova_timestamps,
-                threshold_step_size = threshold_step_size # 0.012
-            )
-            if metric_timestamp is None:
-                break
+            # metric_timestamp = find_next_robot_state_timestamp(
+            #     allegro_kdl_solver, allegro_positions, allegro_timestamps, allegro_id, 
+            #     kinova_positions, kinova_id, kinova_timestamps,
+            #     threshold_step_size = threshold_step_size # 0.012
+            # )
+            # if metric_timestamp is None:
+            #     break
 
         # Get the ids from this metric timestamp
         allegro_id = get_closest_id(allegro_id, metric_timestamp, allegro_timestamps)

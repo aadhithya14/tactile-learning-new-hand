@@ -1,3 +1,4 @@
 _target_: tactile_learning.models.pretrained.alexnet
 pretrained: true
-out_dim: 1000 # this is only for training usage
+out_dim: 1024 # this is only for training usage
+remove_last_layer: true

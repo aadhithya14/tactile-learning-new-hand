@@ -14,137 +14,168 @@ from torchvision.datasets.folder import default_loader as loader
 from torch.utils import data
 from tqdm import tqdm
 from omegaconf import DictConfig, OmegaConf
-
-from tactile_learning.utils.constants import *
 from tactile_learning.utils.data import load_data
+from tactile_learning.utils.augmentations import crop_transform 
+from tactile_learning.utils.constants import *
+from torchvision.transforms.functional import crop
 
-# from holobot.robot.allegro.allegro_kdl import AllegroKDL
-from tactile_learning.datasets.preprocess import dump_video_to_images, dump_data_indices
-
-
-
-# Class to traverse through the data saved and get the data according to the timestamps
-# all of them should be saved with
-# TODO: Separate every data type - image, allegro, kinova, tactile 
-class TactileFullDataset(data.Dataset):
-    def __init__(self,
+class TactileVisionActionDataset(data.Dataset):
+    def __init__(
+        self,
         data_path,
-        tactile_stats=None, # Tuple of mean and std of the tactile sensor information
-        allegro_stats=None # Touple of mean and std of the allegro hand joint
+        tactile_information_type,
+        tactile_img_size,
+        vision_view_num
     ):
-
-        # Get the demonstration directories
-        self.roots = glob.glob(f'{data_path}/demonstration_*') # TODO: change this in the future
+        super().__init__()
+        self.roots = glob.glob(f'{data_path}/demonstration_*')
         self.roots = sorted(self.roots)
+        self.data = load_data(self.roots, demos_to_use=[])
+        assert tactile_information_type in ['stacked', 'whole_hand', 'single_sensor'], 'tactile_information_type can either be "stacked", "whole_hand" or "single_sensor"'
+        self.tactile_information_type = tactile_information_type
+        self.vision_view_num = vision_view_num
 
-        print('roots: {}'.format(self.roots))
+        self.tactile_transform = T.Compose([
+            T.Resize(tactile_img_size),
+            T.Lambda(self._clamp_transform), # These are for normalization
+            T.Lambda(self._scale_transform)
+        ])
+        self.vision_transform = T.Compose([
+            T.Resize((480,640)),
+            T.Lambda(self._crop_transform),
+            T.ToTensor(),
+            T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS),
+        ])
 
-        # Get the dumped indices and the positions
-        self.tactile_indices = []
-        self.tactile_values = [] 
-        self.image_indices = [] 
-        self.allegro_indices = []
-        self.allegro_positions = []
-        self.allegro_actions = []
-        for demo_id, root in enumerate(self.roots):
-            # Load the indices
-            with open(os.path.join(root, 'tactile_indices.pkl'), 'rb') as f:
-                self.tactile_indices += pickle.load(f)
-            with open(os.path.join(root, 'image_indices.pkl'), 'rb') as f:
-                self.image_indices += pickle.load(f)
-            with open(os.path.join(root, 'allegro_indices.pkl'), 'rb') as f:
-                self.allegro_indices += pickle.load(f)
+        # Set the indices for one sensor
+        if tactile_information_type == 'single_sensor':
+            self._preprocess_tactile_indices()
+    
+        # Set up the tactile image retrieval function
+        if tactile_information_type == 'single_sensor':
+            self._get_tactile_image = self._get_single_sensor_tactile_image
+        elif tactile_information_type == 'stacked':
+            self._get_tactile_image = self._get_stacked_tactile_image
+        elif tactile_information_type == 'whole_hand':
+            self._get_tactile_image = self._get_whole_hand_tactile_image
 
-            # Load the data
-            with h5py.File(os.path.join(root, 'allegro_joint_states.h5'), 'r') as f:
-                self.allegro_positions.append(f['positions'][()])
-            with h5py.File(os.path.join(root, 'allegro_commanded_joint_states.h5'), 'r') as f:
-                print(
-                    'allegro commanded joint state keys: {}'.format(
-                        f.keys()
-                    )
-                )
-                self.allegro_actions.append(f['positions'][()]) # Positions are to be learned - since this is a position control
-            with h5py.File(os.path.join(root, 'touch_sensor_values.h5'), 'r') as f:
-                self.tactile_values.append(f['sensor_values'][()])
+    def _preprocess_tactile_indices(self):
+        self.tactile_mapper = np.zeros(len(self.data['tactile']['indices'])*15).astype(int)
+        for data_id in range(len(self.data['tactile']['indices'])):
+            for sensor_id in range(15):
+                self.tactile_mapper[data_id*15+sensor_id] = data_id # Assign each finger to an index basically
 
-        self.transform = T.Compose([
-                T.Resize((480,640)),
-                T.CenterCrop((480,480)), # TODO: Burda 480,480 yap bunu
-                T.ToTensor(),
-                T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-            ])
-
-        # Get the mean and stds of the 
-        if tactile_stats is None:
-            self._tactile_mean, self._tactile_std = self._calculate_tactile_mean_std()
-            # Dump the tactile mean to the given data_path if it doesn't exist 
-            with open(os.path.join(data_path, 'tactile_stats.pkl'), 'wb') as f:
-                tactile_stats = np.stack((self._tactile_mean, self._tactile_std), axis=0)
-                pickle.dump(tactile_stats, f)
-        else:
-            self._tactile_mean, self._tactile_std = tactile_stats
+    def _get_sensor_id(self, index):
+        return index % 15
             
-        if allegro_stats is None:
-            self._allegro_mean, self._allegro_std = self._calculate_allegro_mean_std()
-            # Dump the allegro mean and std to the given data path if it doesn't exist 
-            with open(os.path.join(data_path, 'allegro_stats.pkl'), 'wb') as f:
-                allegro_stats = np.stack((self._allegro_mean, self._allegro_std), axis=0)
-                pickle.dump(allegro_stats, f)
-        else:
-            self._allegro_mean, self._allegro_std = allegro_stats
+    def _get_whole_hand_tactile_image(self, tactile_values): 
+        # tactile_values: (15,16,3) - turn it into 16,16,3 by concatenating 0z
+        tactile_image = torch.FloatTensor(tactile_values)
+        tactile_image = F.pad(tactile_image, (0,0,0,0,1,0), 'constant', 0)
+        # reshape it to 4x4
+        tactile_image = tactile_image.view(16,4,4,3)
 
+        # concat for it have its proper shape
+        tactile_image = torch.concat([
+            torch.concat([tactile_image[i*4+j] for j in range(4)], dim=0)
+            for i in range(4)
+        ], dim=1)
+
+        tactile_image = torch.permute(tactile_image, (2,0,1))
+        
+        return self.tactile_transform(tactile_image)
+    
+    def _get_stacked_tactile_image(self, tactile_values):
+        tactile_image = torch.FloatTensor(tactile_values)
+        tactile_image = tactile_image.view(15,4,4,3) # Just making sure that everything stays the same
+        tactile_image = torch.permute(tactile_image, (0,3,1,2))
+        tactile_image = tactile_image.reshape(-1,4,4) # Make 45 the channel number 
+        # print('tactile_image.shape: {}'.format(tactile_image.shape)) 
+        return self.tactile_transform(tactile_image)
+    
+    def _get_single_sensor_tactile_image(self, tactile_value):
+        tactile_image = torch.FloatTensor(tactile_value) # tactile_value.shape: (16,3)
+        tactile_image = tactile_image.view(4,4,3)
+        tactile_image = torch.permute(tactile_image, (2,0,1))
+        return self.tactile_transform(tactile_image)
+    
     def __len__(self):
-        return len(self.tactile_indices)
+        if self.tactile_information_type == 'single_sensor':
+            return len(self.tactile_mapper)
+        else: 
+            return len(self.data['tactile']['indices'])
+        
+    def _get_proper_tactile_value(self, index):
+        if self.tactile_information_type == 'single_sensor':
+            data_id = self.tactile_mapper[index]
+            demo_id, tactile_id = self.data['tactile']['indices'][data_id]
+            sensor_id = self._get_sensor_id(index)
+            tactile_value = self.data['tactile']['values'][demo_id][tactile_id][sensor_id]
+            
+            return tactile_value
+        
+        else:
+            demo_id, tactile_id = self.data['tactile']['indices'][index]
+            tactile_values = self.data['tactile']['values'][demo_id][tactile_id]
+            
+            return tactile_values
 
-    def _get_image(self, demo_id, image_id):
+    def _get_image(self, index):
+        demo_id, image_id = self.data['image']['indices'][index]
         image_root = self.roots[demo_id]
-        image_path = os.path.join(image_root, 'cam_0_rgb_images/frame_{}.png'.format(str(image_id).zfill(5)))
-
-        img = self.transform(loader(image_path))
+        image_path = os.path.join(image_root, 'cam_{}_rgb_images/frame_{}.png'.format(self.vision_view_num, str(image_id).zfill(5)))
+        img = self.vision_transform(loader(image_path))
         return torch.FloatTensor(img)
 
-    def getitem(self, id):
-        return self.__getitem__(id)
+    # Gets the kinova states and the commanded joint states for allegro
+    def _get_action(self, index):
+        demo_id, allegro_action_id = self.data['allegro_actions']['indices'][index]
+        allegro_action = self.data['allegro_actions']['values'][demo_id][allegro_action_id]
 
-    def __getitem__(self, id):
-        demo_id, tactile_id = self.tactile_indices[id]
-        _, allegro_id = self.allegro_indices[id]
-        _, image_id = self.image_indices[id]
+        _, kinova_id = self.data['kinova']['indices'][index]
+        kinova_action = self.data['kinova']['values'][demo_id][kinova_id]
+
+        total_action = np.concatenate([allegro_action, kinova_action], axis=-1)
+        return torch.FloatTensor(total_action) # These values are already quite small so we'll not normalize them
+
+    def __getitem__(self, index):
+        tactile_value = self._get_proper_tactile_value(index)
+        tactile_image = self._get_tactile_image(tactile_value)
+
+        vision_image = self._get_image(index)
+
+        action = self._get_action(index)
         
-        # Get the tactile information
-        tactile_info = self.tactile_values[demo_id][tactile_id]
-        tactile_info = (tactile_info - self._tactile_mean) / self._tactile_std
+        return tactile_image, vision_image, action
 
-        # Get the joint positions
-        allegro_pos = self.allegro_positions[demo_id][allegro_id]
-        allegro_pos = (allegro_pos - self._allegro_mean) / self._allegro_std
+    def _scale_transform(self, image): # Transform function to map the image between 0 and 1
+        image = (image - TACTILE_PLAY_DATA_CLAMP_MIN) / (TACTILE_PLAY_DATA_CLAMP_MAX - TACTILE_PLAY_DATA_CLAMP_MIN)
+        return image
 
-        # Get the actions 
-        actions = self.allegro_actions[demo_id][allegro_id]
-        # TODO: Normalize it?
+    def _clamp_transform(self, image):
+        image = torch.clamp(image, min=TACTILE_PLAY_DATA_CLAMP_MIN, max=TACTILE_PLAY_DATA_CLAMP_MAX)
+        return image
 
-        # Get the image 
-        image = self._get_image(demo_id, image_id)
+    def _crop_transform(self, image):
+        if self.vision_view_num == 0:
+            return crop(image, 0,0,480,480)
+        elif self.vision_view_num == 1:
+            return crop(image, 0,120,480,480)
 
-        return image, tactile_info, allegro_pos, actions
+if __name__ == '__main__':
+    dset = TactileVisionActionDataset(
+        data_path = '/home/irmak/Workspace/Holo-Bot/extracted_data/cup_slipping/eval',
+        tactile_information_type = 'stacked',
+        tactile_img_size=16,
+        vision_view_num=1
+    ) 
+    dataloader = data.DataLoader(dset, 
+                                batch_size  = 128, 
+                                shuffle     = True, 
+                                num_workers = 8,
+                                pin_memory  = True)
 
-    def _calculate_tactile_mean_std(self):
-        all_tactile_info = np.zeros((len(self.tactile_indices), 15,16,3))
-        for id in range(len(self.tactile_indices)):
-            demo_id, tactile_id = self.tactile_indices[id]
-            all_tactile_info[id] = self.tactile_values[demo_id][tactile_id]
-
-        tactile_mean = all_tactile_info.mean(axis=0)
-        tactile_std = all_tactile_info.std(axis=0)
-        return tactile_mean, tactile_std
-
-    def _calculate_allegro_mean_std(self):
-        all_joint_pos = np.zeros((len(self.allegro_indices), 16))
-        for id in range(len(self.allegro_indices)):
-            demo_id, allegro_id = self.allegro_indices[id]
-            all_joint_pos[id] = self.allegro_positions[demo_id][allegro_id]
-
-        allegro_mean = all_joint_pos.mean(axis=0)
-        allegro_std = all_joint_pos.std(axis=0)
-        return allegro_mean, allegro_std
+    batch = next(iter(dataloader))
+    print('batch[0].shape: {}, batch[1].shape: {}, batch[2].shape: {}'.format(
+        batch[0].shape, batch[1].shape, batch[2].shape # it should be 16 + 7 (for each joint)
+    ))

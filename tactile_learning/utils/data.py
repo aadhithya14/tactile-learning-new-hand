@@ -7,7 +7,7 @@ import torch
 from tqdm import tqdm
 
 # Method to load all the data from given roots and return arrays for it
-def load_data(roots, demos_to_use=[]):
+def load_data(roots, demos_to_use=[], duration=120): # If the total length is equal to 2 hrs - it means we want the whole data
     roots = sorted(roots)
 
     tactile_indices = [] 
@@ -51,29 +51,33 @@ def load_data(roots, demos_to_use=[]):
                 state = np.concatenate([f['positions'][()], f['orientations'][()]], axis=1)     
                 kinova_states[demo_id] = state
 
+    # Find the total lengths now
+    whole_length = len(tactile_indices)
+    desired_len = int((duration / 120) * whole_length)
+
     data = dict(
         tactile = dict(
-            indices = tactile_indices,
+            indices = tactile_indices[:desired_len],
             values = tactile_values
         ),
         allegro_joint_states = dict(
-            indices = allegro_indices, 
+            indices = allegro_indices[:desired_len], 
             values = allegro_joint_positions
         ),
         allegro_tip_states = dict(
-            indices = allegro_indices, 
+            indices = allegro_indices[:desired_len], 
             values = allegro_tip_positions
         ),
         allegro_actions = dict(
-            indices = allegro_action_indices,
+            indices = allegro_action_indices[:desired_len],
             values = allegro_actions
         ),
         kinova = dict( 
-            indices = kinova_indices, 
+            indices = kinova_indices[:desired_len], 
             values = kinova_states
         ), 
         image = dict( 
-            indices = image_indices
+            indices = image_indices[:desired_len]
         )
     )
 

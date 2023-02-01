@@ -181,11 +181,11 @@ def dump_knn_state(dump_dir, img_name, image_repr=False, add_repr_effects=False,
         
     cv2.imwrite(os.path.join(dump_dir, img_name), all_state_img)
 
-def dump_repr_effects(nn_separate_dists, viz_id_of_nns, demo_ids, representation_types): # nn_separate_dists has all the dists from the closest applicable one to the rest 
+def dump_repr_effects(nn_separate_dists, viz_id_of_nns, demo_nums, representation_types): # nn_separate_dists has all the dists from the closest applicable one to the rest 
     _, axs = plt.subplots(nrows=1,ncols=3,figsize=(10,3))
     for i in range(3):
         axs[i].set_ylim(0,1)
-        axs[i].set_title(f'{i+1}th NN - Demo ID: {demo_ids[i]} - NN ID: {viz_id_of_nns[i]}')
+        axs[i].set_title(f'Demo Num: {demo_nums[i]} - NN ID: {viz_id_of_nns[i]}')
         axs[i].bar(representation_types, nn_separate_dists[i])
 
     plt.savefig('repr_effects.png', bbox_inches='tight')
@@ -229,6 +229,6 @@ if __name__ == '__main__':
     model_path = '/home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.02/19-29_byol_bs_1028_box_handle_lifting/runs'
     run_name = 'run_tactile_kinova_10cm_forward_start_ue_True' 
     turn_images_to_video(
-        viz_dir = '/home/irmak/Workspace/Holo-Bot/deployment_data/box_handle_lifting/image_tactile_alexnet_runs/4',
+        viz_dir = '/home/irmak/Workspace/Holo-Bot/deployment_data/gamepad/right/image_tactile/nontrained/success/1',
         video_fps = 2
     )

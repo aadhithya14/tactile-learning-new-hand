@@ -65,24 +65,29 @@ class TactileSingleSensorEncoder(nn.Module):
         super().__init__()
         self.out_dim = out_dim
         self.model = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels=64, kernel_size=2),
+            nn.Conv2d(in_channels, out_channels=32, kernel_size=4),
             nn.ReLU(),
             # PrintSize(),
-            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=2),
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4),
             nn.ReLU(),
             # PrintSize(),
-            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=2),
+            nn.Conv2d(in_channels=64, out_channels=32, kernel_size=4),
             nn.ReLU(),
             # PrintSize()
         )
-        self.linear = nn.Linear(in_features=128, out_features=out_dim)
-        self.relu = nn.ReLU()
-        
+        # self.linear = nn.Linear(in_features=32*7*7, out_features=out_dim)
+        # # self.relu = nn.ReLU()
+        self.final_layer = nn.Sequential(
+           nn.Linear(in_features=32*7*7, out_features=512),
+           nn.ReLU(), 
+           nn.Linear(in_features=512, out_features=out_dim)
+        )
+
     def forward(self, x):
         x = self.model(x)
         x = torch.flatten(x, 1) # Flatten all dimensions except batch
-        x = self.linear(x)
-        return self.relu(x)
+        x = self.final_layer(x)
+        return x
 
 class TactileStackedEncoder(nn.Module): # Model for 16x3 RGB channelled images
     def __init__(
@@ -93,54 +98,63 @@ class TactileStackedEncoder(nn.Module): # Model for 16x3 RGB channelled images
         super().__init__()
         self.out_dim = out_dim
         self.model = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels=64, kernel_size=2),
+            nn.Conv2d(in_channels, out_channels=64, kernel_size=4),
             nn.ReLU(),
             # PrintSize(),
             nn.Conv2d(in_channels=64, out_channels=128, kernel_size=2),
             nn.ReLU(),
             # PrintSize(),
-            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=2),
+            nn.Conv2d(in_channels=128, out_channels=64, kernel_size=2),
             nn.ReLU(),
-            # PrintSize()
-        )
-        self.linear = nn.Linear(in_features=128, out_features=out_dim)
-        self.relu = nn.ReLU()
-        
-    def forward(self, x):
-        x = self.model(x)
-        x = torch.flatten(x, 1) # Flatten all dimensions except batch
-        x = self.linear(x)
-        return self.relu(x)
-
-class TactileImageEncoder(nn.Module):
-    def __init__(
-        self,
-        in_channels,
-        out_dim # Final dimension of the representation
-    ):
-        super().__init__()
-        self.out_dim = out_dim
-        self.model = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels=64, kernel_size=2),
-            nn.ReLU(),
-            # PrintSize(),
             nn.Conv2d(in_channels=64, out_channels=32, kernel_size=2),
             nn.ReLU(),
-            # PrintSize(),
-            nn.Conv2d(in_channels=32, out_channels=16, kernel_size=2),
-            nn.ReLU(),
+            # nn.Conv2d(in_channels=64, out_channels=64, kernel_size=2),
+            # nn.ReLU(),
             # PrintSize()
         )
-        self.linear = nn.Linear(in_features=16*5*5, out_features=out_dim)
-        self.relu = nn.ReLU()
+        self.final_layer = nn.Sequential(
+           nn.Linear(in_features=32*10*10, out_features=1024),
+           nn.ReLU(), 
+           nn.Linear(in_features=1024, out_features=out_dim)
+        )
+        # self.linear = nn.Linear(in_features=128, out_features=out_dim)
+        # self.relu = nn.ReLU()
         
     def forward(self, x):
         x = self.model(x)
         x = torch.flatten(x, 1) # Flatten all dimensions except batch
-        x = self.linear(x)
-        return self.relu(x)
+        x = self.final_layer(x)
+        return x
 
-class TactileLargeImageEncoder(nn.Module): # Encoder for the whole tactile image
+# class TactileImageEncoder(nn.Module):
+#     def __init__(
+#         self,
+#         in_channels,
+#         out_dim # Final dimension of the representation
+#     ):
+#         super().__init__()
+#         self.out_dim = out_dim
+#         self.model = nn.Sequential(
+#             nn.Conv2d(in_channels, out_channels=64, kernel_size=2),
+#             nn.ReLU(),
+#             # PrintSize(),
+#             nn.Conv2d(in_channels=64, out_channels=32, kernel_size=2),
+#             nn.ReLU(),
+#             # PrintSize(),
+#             nn.Conv2d(in_channels=32, out_channels=16, kernel_size=2),
+#             nn.ReLU(),
+#             # PrintSize()
+#         )
+#         self.linear = nn.Linear(in_features=16*5*5, out_features=out_dim)
+#         # self.relu = nn.ReLU()
+        
+#     def forward(self, x):
+#         x = self.model(x)
+#         x = torch.flatten(x, 1) # Flatten all dimensions except batch
+#         x = self.linear(x)
+#         return x
+
+class TactileWholeHandEncoder(nn.Module): # Encoder for the whole tactile image
     def __init__(
         self,
         in_channels,
@@ -162,39 +176,43 @@ class TactileLargeImageEncoder(nn.Module): # Encoder for the whole tactile image
             nn.ReLU(),
             # PrintSize()
         )
-        self.linear = nn.Linear(in_features=16*10*10, out_features=out_dim)
-        self.relu = nn.ReLU()
-        
-    def forward(self, x):
-        x = self.model(x)
-        x = torch.flatten(x, 1) # Flatten all dimensions except batch
-        x = self.linear(x)
-        return self.relu(x)
 
-class TactileStackedImageEncoder(nn.Module):
-    def __init__(
-        self,
-        in_channels,
-        out_dim # Final dimension of the representation
-    ):
-        super().__init__()
-        self.out_dim = out_dim
-        self.model = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels=64, kernel_size=2),
-            nn.ReLU(),
-            PrintSize(),
-            nn.Conv2d(in_channels=64, out_channels=32, kernel_size=2),
-            nn.ReLU(),
-            PrintSize(),
-            nn.Conv2d(in_channels=32, out_channels=16, kernel_size=2),
-            nn.ReLU(),
-            PrintSize()
+        self.final_layer = nn.Sequential(
+           nn.Linear(in_features=16*10*10, out_features=1024),
+           nn.ReLU(), 
+           nn.Linear(in_features=1024, out_features=out_dim)
         )
-        self.linear = nn.Linear(in_features=16*5*5, out_features=out_dim)
-        self.relu = nn.ReLU()
         
     def forward(self, x):
         x = self.model(x)
         x = torch.flatten(x, 1) # Flatten all dimensions except batch
-        x = self.linear(x)
-        return self.relu(x)
+        x = self.final_layer(x)
+        return x
+
+# class TactileStackedImageEncoder(nn.Module):
+#     def __init__(
+#         self,
+#         in_channels,
+#         out_dim # Final dimension of the representation
+#     ):
+#         super().__init__()
+#         self.out_dim = out_dim
+#         self.model = nn.Sequential(
+#             nn.Conv2d(in_channels, out_channels=64, kernel_size=2),
+#             nn.ReLU(),
+#             PrintSize(),
+#             nn.Conv2d(in_channels=64, out_channels=32, kernel_size=2),
+#             nn.ReLU(),
+#             PrintSize(),
+#             nn.Conv2d(in_channels=32, out_channels=16, kernel_size=2),
+#             nn.ReLU(),
+#             PrintSize()
+#         )
+#         self.linear = nn.Linear(in_features=16*5*5, out_features=out_dim)
+#         # self.relu = nn.ReLU()
+        
+#     def forward(self, x):
+#         x = self.model(x)
+#         x = torch.flatten(x, 1) # Flatten all dimensions except batch
+#         x = self.linear(x)
+#         return x

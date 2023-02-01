@@ -213,45 +213,22 @@ class TactileBYOLDataset(data.Dataset):
         self,
         data_path,
         tactile_information_type, # It could be either one of - stacked, whole_hand, single_sensor
-        img_size,
+        tactile_img_size,
+        duration=120 # Duration in minutes - the max is 120 minutes (it is considered max) - from now on the play 
         # mean_std=None, # This is a general stats for all tactile information
         # min_max=None # Minimum and maximum of the tactile dataset - if given none these values should be found by using this dataset
     ):
         super().__init__()
         self.roots = glob.glob(f'{data_path}/demonstration_*')
         self.roots = sorted(self.roots)
-        self.data = load_data(self.roots, demos_to_use=[])
+        self.data = load_data(self.roots, demos_to_use=[], duration=duration)
         assert tactile_information_type in ['stacked', 'whole_hand', 'single_sensor'], 'tactile_information_type can either be "stacked", "whole_hand" or "single_sensor"'
         self.tactile_information_type = tactile_information_type
         
         # Set the transforms accordingly
-        self.img_size = img_size
-        # self.min_max = min_max # Little change in min_max for to make it 3 dimensional
-        # self.mean_std = mean_std
-            
-        # if mean_std is None:
-        #     self.transform = T.Compose([
-        #         T.Resize(img_size),
-        #         T.Lambda(self._clamp_transform)
-        #     ])
-        # elif min_max is None:
-        #     self.transform = T.Compose([
-        #         T.Resize(img_size),
-        #         T.Lambda(self._clamp_transform),
-        #         T.Normalize(mean_std[0], mean_std[1])
-        #     ])
-        # else:
-        #     self.min_max[0] = torch.Tensor(self.min_max[0]).unsqueeze(1).unsqueeze(1)
-        #     self.min_max[1] = torch.Tensor(self.min_max[1]).unsqueeze(1).unsqueeze(1)
-        #     self.transform = T.Compose([
-        #         T.Resize(img_size),
-        #         T.Lambda(self._clamp_transform),
-        #         T.Normalize(mean_std[0], mean_std[1]),
-        #         T.Lambda(self._scale_transform)
-        #     ])
-
+        self.img_size = tactile_img_size
         self.transform = T.Compose([
-            T.Resize(img_size),
+            T.Resize(tactile_img_size),
             T.Lambda(self._clamp_transform), # These are for normalization
             T.Lambda(self._scale_transform)
         ])
@@ -267,7 +244,7 @@ class TactileBYOLDataset(data.Dataset):
             self._get_tactile_image = self._get_stacked_tactile_image
         elif tactile_information_type == 'whole_hand':
             self._get_tactile_image = self._get_whole_hand_tactile_image
-            
+
     def _preprocess_tactile_indices(self):
         self.tactile_mapper = np.zeros(len(self.data['tactile']['indices'])*15).astype(int)
         for data_id in range(len(self.data['tactile']['indices'])):
@@ -307,6 +284,7 @@ class TactileBYOLDataset(data.Dataset):
         tactile_image = tactile_image.view(15,4,4,3) # Just making sure that everything stays the same
         tactile_image = torch.permute(tactile_image, (0,3,1,2))
         tactile_image = tactile_image.reshape(-1,4,4) # Make 45 the channel number 
+        # print('tactile_image.shape: {}'.format(tactile_image.shape)) 
         return self.transform(tactile_image)
     
     def _get_single_sensor_tactile_image(self, tactile_value):
@@ -339,6 +317,7 @@ class TactileBYOLDataset(data.Dataset):
     def __getitem__(self, index):
         tactile_value = self._get_proper_tactile_value(index)
         tactile_image = self._get_tactile_image(tactile_value)
+        # print('final tactile_image.shape: {}'.format(tactile_image.shape))
         
         return tactile_image
         

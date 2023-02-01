@@ -23,9 +23,9 @@ class BYOLLearner:
     def eval(self):
         self.byol.eval()
 
-    def save(self, checkpoint_dir, model_name='byol_encoder_best.pt'):
+    def save(self, checkpoint_dir, model_type='best'):
         torch.save(self.byol.state_dict(),
-                   os.path.join(checkpoint_dir, model_name),
+                   os.path.join(checkpoint_dir, f'byol_encoder_{model_type}.pt'),
                    _use_new_zipfile_serialization=False)
 
     def train_epoch(self, train_loader):
@@ -34,14 +34,19 @@ class BYOLLearner:
         # Save the train loss
         train_loss = 0.0 
 
+        # print('len(dataloader): {}'.format(len(train_loader)))
+
         # Training loop 
         for batch in train_loader: 
-            if self.byol_type == 'tactile':
-                # image, _ = [b.to(self.device) for b in batch] # NOTE: Be careful here
-                image = batch.to(self.device) # NOTE: assumes that it uses single tactile giving dataset
-            elif self.byol_type == 'image': # TODO: For BYOL we actually should always use dataset that gives one output only
-                _, image = [b.to(self.device) for b in batch]
+            # if self.byol_type == 'tactile':
+            #     # image, _ = [b.to(self.device) for b in batch] # NOTE: Be careful here
+            #     image = batch.to(self.device) # NOTE: assumes that it uses single tactile giving dataset
+            # elif self.byol_type == 'image': # TODO: For BYOL we actually should always use dataset that gives one output only
+            #     _, image = [b.to(self.device) for b in batch]
+            image = batch.to(self.device)
             self.optimizer.zero_grad()
+
+            # print('image.shape: {}'.format(image.shape))
 
             # Get the loss by the byol            
             loss = self.byol(image)

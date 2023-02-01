@@ -54,6 +54,7 @@ TACTILE_IMAGE_STATS = {
 }
 
 # Alexnet means and stds
+# - we'll be using alexnet means and stds for other encoders as well
 TACTILE_IMAGE_MEANS = [0.485, 0.456, 0.406]
 TACTILE_IMAGE_STDS = [0.229, 0.224, 0.225]
 

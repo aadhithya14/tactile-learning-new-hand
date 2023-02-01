@@ -1,3 +1,4 @@
 _target_: tactile_learning.models.custom.TactileSingleSensorEncoder
 in_channels: 3
-out_dim: 8
+out_dim: 32
+# tactile_image_size = 16 was used

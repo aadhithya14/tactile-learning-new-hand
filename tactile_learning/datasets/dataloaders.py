@@ -11,8 +11,14 @@ def get_dataloaders(cfg : DictConfig):
     # Load dataset - splitting will be done with random splitter
     
     # dataset = TactileFullDataset(cfg.data_dir)
-    dataset = hydra.utils.instantiate(cfg.dataset,
-                                      data_path = cfg.data_dir)
+    if 'image' in cfg.learner_type:
+        dataset = hydra.utils.instantiate(cfg.dataset,
+                                          data_path = cfg.data_dir)
+    else:
+        dataset = hydra.utils.instantiate(cfg.dataset,
+                                        data_path = cfg.data_dir,
+                                        tactile_img_size = cfg.tactile_image_size) # This should be named this way 
+        
 
     train_dset_size = int(len(dataset) * cfg.train_dset_split)
     test_dset_size = len(dataset) - train_dset_size
@@ -41,10 +47,6 @@ if __name__ == "__main__":
     
 
     cfg = OmegaConf.load('/home/irmak/Workspace/tactile-learning/tactile_learning/configs/train.yaml')
-    # # cfg = OmegaConf.load('/home/irmak/Workspace/DAWGE/contrastive_learning/configs/train.yaml')
-    # dset = TactileFullDataset(
-    #     data_path = cfg.data_dir
-    # )
     print('cfg: {}'.format(cfg))
 
     train_loader, test_loader, _ = get_dataloaders(cfg)
@@ -52,17 +54,4 @@ if __name__ == "__main__":
     print('batch[0].shape: {}, batch[1].shape: {}, batch[2].shape: {}'.format(
         batch[0].shape, batch[1].shape, batch[2].shape
     ))
-
-    # action_min, action_max, corner_min, corner_max = dset.calculate_mins_maxs()
-    # print('action: [min: {}, max: {}], corners: [min: {}, max: {}]'.format(
-    #     action_min, action_max, corner_min, corner_max
-    # ))
-
-
-
-    # batch = next(iter(test_loader))
-    # pos, next_pos, action = [b for b in batch]
-    # print('pos: {}'.format(pos))
-    # print(dset.denormalize_corner(pos[0].detach().numpy()))
-    # print(dset.denormalize_action(action))
     
