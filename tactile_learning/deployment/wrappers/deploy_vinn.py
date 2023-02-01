@@ -41,7 +41,7 @@ class DeployVINN:
         # task_object,
         fix_the_thumb,
         robots = ['allegro', 'kinova'],
-        representation_types = ['image', 'tactile', 'kinova', 'allegro'],
+        representation_types = ['image', 'tactile', 'kinova', 'allegro', 'torque'], # Torque could be used
         representation_importance = [1,1,1,1], 
         use_encoder = True,
         nn_buffer_size=100,
@@ -148,11 +148,6 @@ class DeployVINN:
                     T.Resize((cfg.tactile_image_size, cfg.tactile_image_size)),
                     T.Normalize(TACTILE_IMAGE_MEANS*15, TACTILE_IMAGE_STDS*15),
                 ])
-            # elif self.alexnet_tactile:
-            #     transform = T.Compose([
-            #         T.Resize((224, 224)),
-            #         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) # These are the requirements for alexnet
-            #     ]) 
             else:
                 transform = T.Compose([
                     T.Resize((cfg.tactile_image_size, cfg.tactile_image_size)),
@@ -276,21 +271,16 @@ class DeployVINN:
     #                 kinova: kinova_states : (3,) - cartesian position of the arm end effector}
     def _get_one_representation(self, image, tactile_values, robot_states):
         for i,repr_type in enumerate(self.representation_types):
-            if repr_type == 'allegro' or repr_type == 'kinova':
-                new_repr = robot_states[repr_type]
+            if repr_type == 'allegro' or repr_type == 'kinova' or repr_type == 'torque':
+                new_repr = robot_states[repr_type] # These could be received directly from the robot states
             elif repr_type == 'tactile':
                 if self.use_encoder:
                     if self.single_sensor_tactile:
                         new_repr = self._get_tactile_representation_with_single_sensor_encoder(tactile_values).detach().cpu().numpy()
                     elif self.stacked_tactile: # - TODO
                         new_repr = self._get_tactile_representation_with_stacked_tactile_encoder(tactile_values).detach().cpu().numpy()
-                    # elif self.alexnet_tactile:
                     else:
                         new_repr = self._get_whole_hand_tactile_representation(tactile_values).detach().cpu().numpy()
-                    # else:
-                    #     tactile_image = self._get_tactile_image(tactile_values).unsqueeze(dim=0)
-                    #     new_repr = self.tactile_encoder(tactile_image)
-                    #     new_repr = new_repr.detach().cpu().numpy().squeeze()
                 else:
                     new_repr = tactile_values.flatten()
             elif repr_type == 'image':
@@ -316,6 +306,7 @@ class DeployVINN:
                 repr_dim = len(self.sensor_indices) * 16 * 3
         if 'allegro' in self.representation_types:  repr_dim += len(self.allegro_finger_indices)
         if 'kinova' in self.representation_types: repr_dim += 7
+        if 'torque' in self.representation_types: repr_dim += 16 # There are 16 joint values
         if 'image' in self.representation_types: repr_dim += self.image_cfg.encoder.out_dim # NOTE: This should be lower (or tactile should be higher) - we could use a random layer on top?
 
         self.all_representations = np.zeros((
@@ -330,15 +321,18 @@ class DeployVINN:
             _, allegro_tip_id = self.data['allegro_tip_states']['indices'][index]
             _, kinova_id = self.data['kinova']['indices'][index]
             _, image_id = self.data['image']['indices'][index]
+            _, allegro_state_id = self.data['allegro_joint_states']['indices'][index]
 
             tactile_value = self.data['tactile']['values'][demo_id][tactile_id][self.sensor_indices,:,:] # This should be (N,16,3)
             allegro_tip_position = self.data['allegro_tip_states']['values'][demo_id][allegro_tip_id] # This should be (M*3,)
+            allegro_joint_torque = self.data['allegro_joint_states']['torques'][demo_id][allegro_state_id] # This is the torque to be used
             kinova_state = self.data['kinova']['values'][demo_id][kinova_id]
             image = self._load_dataset_image(demo_id, image_id)
             
             robot_states = dict(
                 allegro = allegro_tip_position,
-                kinova = kinova_state
+                kinova = kinova_state,
+                torque = allegro_joint_torque
             )
             representation = self._get_one_representation(
                 image,
@@ -407,8 +401,6 @@ class DeployVINN:
         
         return action 
 
-    
-
     def _get_demo_action(self):
         demo_id, action_id = self.data['allegro_actions']['indices'][self.state_id] 
         allegro_action = self.data['allegro_actions']['values'][demo_id][action_id] # Get the next commanded action (commanded actions are saved in that timestamp)
@@ -437,9 +429,11 @@ class DeployVINN:
         fingertip_positions = self.kdl_solver.get_fingertip_coords(allegro_joint_state) # - fingertip position.shape: (12)
         curr_fingertip_position = fingertip_positions[self.allegro_finger_indices]
         kinova_cart_state = recv_robot_state['kinova']
+        allegro_joint_torque = recv_robot_state['torque']
         curr_robot_state = dict(
             allegro = curr_fingertip_position,
-            kinova = kinova_cart_state
+            kinova = kinova_cart_state,
+            torque = allegro_joint_torque
         )
 
         # Get the tactile image from the tactile values

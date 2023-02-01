@@ -67,10 +67,13 @@ class Deployer:
                 robot_state = self.deploy_api.get_robot_state() 
                 sensor_state = self.deploy_api.get_sensor_state()
 
+                print('robot_state[allegro].keys: {}'.format(robot_state['allegro'].keys()))
                 allegro_joint_pos = robot_state['allegro']['position']
+                allegro_joint_torque = robot_state['allegro']['effort']
                 tactile_info = sensor_state['xela']['sensor_values']
                 send_robot_state = dict(
-                    allegro = allegro_joint_pos
+                    allegro = allegro_joint_pos,
+                    torque = allegro_joint_torque
                 )
                 if 'kinova' in self.cfg.robots:
                     kinova_state = robot_state['kinova']
