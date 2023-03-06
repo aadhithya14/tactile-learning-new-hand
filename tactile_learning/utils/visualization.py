@@ -214,8 +214,8 @@ def concat_imgs(img1, img2, orientation='horizontal'): # Or it could be vertical
     concat_img = cv2.hconcat([img1, img2]) if orientation == 'horizontal' else cv2.vconcat([img1, img2])
     return concat_img
 
-def turn_images_to_video(viz_dir, video_fps):
-    video_path = os.path.join(viz_dir, 'visualization.mp4')
+def turn_images_to_video(viz_dir, video_fps, video_name='visualization.mp4'):
+    video_path = os.path.join(viz_dir, video_name)
     if os.path.exists(video_path):
         os.remove(video_path)
     os.system('ffmpeg -r {} -i {}/%*.png -vf setsar=1:1 {}'.format(
@@ -224,11 +224,21 @@ def turn_images_to_video(viz_dir, video_fps):
         video_path
     ))
 
+def turn_video_to_images(dir_path, video_name, images_dir_name, images_fps):
+    # if os.path.exists(images_dir_name):
+    #     os.remove(images_dir_name)
+    images_path = os.path.join(dir_path, images_dir_name)
+    video_path = os.path.join(dir_path, video_name)
+    os.makedirs(images_path, exist_ok=True)
+    os.system(f'ffmpeg -i {video_path} -vf fps={images_fps} {images_path}/out%d.png')
+
+
 # Example
 if __name__ == '__main__':
     model_path = '/home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.02/19-29_byol_bs_1028_box_handle_lifting/runs'
     run_name = 'run_tactile_kinova_10cm_forward_start_ue_True' 
     turn_images_to_video(
-        viz_dir = '/home/irmak/Workspace/Holo-Bot/deployment_data/gamepad/right/image_tactile/nontrained/success/1',
-        video_fps = 2
+        viz_dir = ' /data/tactile_learning/deployment_data/data/bowl_picking/demonstrations/tdex_generalization/demonstration_7/cam_0_rgb_images',
+        video_fps = 2,
+        video_name='cam_0_video.mp4'
     )

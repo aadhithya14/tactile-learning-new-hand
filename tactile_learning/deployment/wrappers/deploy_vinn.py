@@ -5,16 +5,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pickle
+import random
 import torch
 import torchvision.transforms as T
 import torch.nn.functional as F
 import torch.nn as nn
 
+from copy import deepcopy as copy
 from PIL import Image as im
 from omegaconf import OmegaConf
 from tqdm import tqdm 
 from torchvision.datasets.folder import default_loader as loader
 from torchvision import models
+from sklearn.decomposition import PCA as sklearn_PCA
 
 from holobot.constants import *
 from holobot.utils.network import ZMQCameraSubscriber
@@ -56,10 +59,13 @@ class DeployVINN:
         alexnet_nontrained=False,
         image_nontrained=False, # If we want pretrained non fine tuned models then we can just use these
         view_num = 0, # View number to use for image
-        open_loop = False
+        open_loop = False,
+        sumpool = False, 
+        pca = False, # Assert that use encoder is wrong in these experiments
+        tactile_shuffle_type = None
     ):
         os.environ["MASTER_ADDR"] = "localhost"
-        os.environ["MASTER_PORT"] = "29505"
+        os.environ["MASTER_PORT"] = "29506"
 
         torch.distributed.init_process_group(backend='gloo', rank=0, world_size=1)
         torch.cuda.set_device(0)
@@ -87,6 +93,12 @@ class DeployVINN:
         self.image_nontrained = image_nontrained
         self.view_num = view_num
         self.open_loop = open_loop
+        self.sumpool = sumpool 
+        self.pca = pca 
+        self.shuffle_type = tactile_shuffle_type
+
+        assert (sumpool and (not use_encoder)) or (not sumpool), 'If sumpool is set to true use_encoder should set to false'
+        assert (pca and (not use_encoder)) or (not pca), 'If pca is set to trye use_encoder should set to false'
 
         self.tactile_cfg, self.tactile_encoder, self.tactile_transform = self._init_encoder_info(device, tactile_out_dir, 'tactile')
         self.tactile_repr_size = self.tactile_cfg.encoder.out_dim * len(sensor_indices) if single_sensor_tactile else self.tactile_cfg.encoder.out_dim
@@ -97,12 +109,19 @@ class DeployVINN:
             T.Lambda(self._scale_transform)
         ])
 
+
         self.image_cfg, self.image_encoder, self.image_transform = self._init_encoder_info(device, image_out_dir, 'image')
         self.inv_image_transform = self._get_inverse_image_norm()
-        print('image_repr_size: {}')
+
         self.roots = sorted(glob.glob(f'{data_path}/demonstration_*'))
         self.data_path = data_path
         self.data = load_data(self.roots, demos_to_use=demos_to_use) # This will return all the desired indices and the values
+        
+        if pca: 
+            self.pca = self._fit_pca_to_play_data()
+        elif sumpool: 
+            self.sumpool_std, self.sumpool_mean = self._find_sumpool_stats()
+        
         self._get_all_representations()
         self.state_id = 0 # Increase it with each get_action
 
@@ -163,6 +182,24 @@ class DeployVINN:
             ]) 
 
         return cfg, encoder, transform
+
+
+    def _fit_pca_to_play_data(self, pca_path='/home/irmak/Workspace/tactile-learning/model_outs/pca_play_data.pkl'):
+        with open(pca_path, 'rb') as f:
+            pca = pickle.load(f)
+        return pca
+
+    def _find_sumpool_stats(self):
+        # Traverse through the self.data and find the mean and stds of the sumpooled images
+        all_sumpooled_tactile_images = torch.zeros((len(self.data['tactile']['indices'])), 45)
+        for i in tqdm(range(len(self.data['tactile']['indices']))):
+            demo_id, tactile_id = self.data['tactile']['indices'][i]
+            tactile_values = self.data['tactile']['values'][demo_id][tactile_id]
+            sumpooled_tactile_image = self._get_tactile_repr_with_sumpool(tactile_values)
+            all_sumpooled_tactile_images[i,:] = sumpooled_tactile_image[:]
+
+        std, mean = torch.std_mean(all_sumpooled_tactile_images, dim=0)   
+        return std, mean
 
     def _crop_transform(self, image): 
         if self.view_num == 0:
@@ -244,27 +281,65 @@ class DeployVINN:
 
         return curr_repr
 
-    def _get_whole_hand_tactile_representation(self, tactile_values): # This is dependent on
-        def _get_whole_hand_tactile_image(tactile_values): 
-            # tactile_values: (15,16,3) - turn it into 16,16,3 by concatenating 0z
-            tactile_image = torch.FloatTensor(tactile_values)
-            tactile_image = F.pad(tactile_image, (0,0,0,0,1,0), 'constant', 0)
-            # reshape it to 4x4
-            tactile_image = tactile_image.view(16,4,4,3)
+    def _get_whole_hand_tactile_image(self, tactile_values): 
+        # tactile_values: (15,16,3) - turn it into 16,16,3 by concatenating 0z
+        tactile_image = torch.FloatTensor(tactile_values)
+        tactile_image = F.pad(tactile_image, (0,0,0,0,1,0), 'constant', 0)
+        # reshape it to 4x4
+        tactile_image = tactile_image.view(16,4,4,3)
 
-            # concat for it have its proper shape
-            tactile_image = torch.concat([
-                torch.concat([tactile_image[i*4+j] for j in range(4)], dim=0)
-                for i in range(4)
-            ], dim=1)
+        # # concat for it have its proper shape
+        # tactile_image = torch.concat([
+        #     torch.concat([tactile_image[i*4+j] for j in range(4)], dim=0)
+        #     for i in range(4)
+        # ], dim=1)
 
-            tactile_image = torch.permute(tactile_image, (2,0,1))
+        pad_idx = list(range(16))
+        if self.shuffle_type == 'pad':
+            random.seed(10)
+            random.shuffle(pad_idx)
             
-            return self.dataset_tactile_transform(tactile_image)
+        tactile_image = torch.concat([
+            torch.concat([tactile_image[pad_idx[i*4+j]] for j in range(4)], dim=0)
+            for i in range(4)
+        ], dim=1)
+
+        if self.shuffle_type == 'whole':
+            copy_tactile_image = copy(tactile_image)
+            sensor_idx = list(range(16*16))
+            random.seed(10)
+            random.shuffle(sensor_idx)
+            for i in range(16):
+                for j in range(16):
+                    rand_id = sensor_idx[i*16+j]
+                    rand_i = int(rand_id / 16)
+                    rand_j = int(rand_id % 16)
+                    tactile_image[i,j,:] = copy_tactile_image[rand_i, rand_j, :]
+
+        tactile_image = torch.permute(tactile_image, (2,0,1))
         
-        tactile_image = _get_whole_hand_tactile_image(tactile_values)
+        return self.dataset_tactile_transform(tactile_image)
+
+    def _get_whole_hand_tactile_representation(self, tactile_values): # This is dependent on
+        
+        
+        tactile_image = self._get_whole_hand_tactile_image(tactile_values)
         tactile_image = self.tactile_transform(tactile_image)
         return self.tactile_encoder(tactile_image.unsqueeze(0)).squeeze()
+
+    def _get_tactile_repr_with_pca(self, tactile_values): 
+        transformed_tactile_values = self.pca.transform(np.expand_dims(tactile_values.flatten(), axis=0))
+        tactile_image = torch.FloatTensor(transformed_tactile_values)
+        return tactile_image.squeeze()
+        
+    def _get_tactile_repr_with_sumpool(self, tactile_values, sumpool_stats=None):
+        tactile_image = torch.FloatTensor(tactile_values)
+        tactile_image = torch.sum(tactile_image, dim=1).flatten() # Shape: 15,3
+        
+        if sumpool_stats is None:
+            return tactile_image
+        
+        return ((tactile_image - sumpool_stats[0]) / sumpool_stats[1]).flatten()
 
     # tactile_values: (N,16,3) - N: number of sensors
     # robot_states: { allegro: allegro_tip_positions: (3*M,) - 3 values for each finger M: number of fingers included,
@@ -282,7 +357,12 @@ class DeployVINN:
                     else:
                         new_repr = self._get_whole_hand_tactile_representation(tactile_values).detach().cpu().numpy()
                 else:
-                    new_repr = tactile_values.flatten()
+                    if self.pca:
+                        new_repr = self._get_tactile_repr_with_pca(tactile_values)
+                    elif self.sumpool: 
+                        new_repr = self._get_tactile_repr_with_sumpool(tactile_values, (self.sumpool_mean, self.sumpool_std))
+                    else:
+                        new_repr = tactile_values.flatten()
             elif repr_type == 'image':
                 new_repr = self.image_encoder(image.unsqueeze(dim=0)) # Add a dimension to the first axis so that it could be considered as a batch
                 new_repr = new_repr.detach().cpu().numpy().squeeze()
@@ -303,7 +383,9 @@ class DeployVINN:
             if self.use_encoder:
                 repr_dim = self.tactile_repr_size
             else:
-                repr_dim = len(self.sensor_indices) * 16 * 3
+                if self.pca: repr_dim = 100
+                elif self.sumpool: repr_dim = 45
+                else: repr_dim = len(self.sensor_indices) * 16 * 3
         if 'allegro' in self.representation_types:  repr_dim += len(self.allegro_finger_indices)
         if 'kinova' in self.representation_types: repr_dim += 7
         if 'torque' in self.representation_types: repr_dim += 16 # There are 16 joint values
@@ -542,28 +624,28 @@ class DeployVINN:
         )
 
     def _get_tactile_image_for_visualization(self, tactile_values):
-        def _get_whole_hand_tactile_image(tactile_values): 
-            # tactile_values: (15,16,3) - turn it into 16,16,3 by concatenating 0z
-            tactile_image = torch.FloatTensor(tactile_values)
-            tactile_image = F.pad(tactile_image, (0,0,0,0,1,0), 'constant', 0)
-            # reshape it to 4x4
-            tactile_image = tactile_image.view(16,4,4,3)
+        # def _get_whole_hand_tactile_image(tactile_values): 
+        #     # tactile_values: (15,16,3) - turn it into 16,16,3 by concatenating 0z
+        #     tactile_image = torch.FloatTensor(tactile_values)
+        #     tactile_image = F.pad(tactile_image, (0,0,0,0,1,0), 'constant', 0)
+        #     # reshape it to 4x4
+        #     tactile_image = tactile_image.view(16,4,4,3)
 
-            # concat for it have its proper shape
-            tactile_image = torch.concat([
-                torch.concat([tactile_image[i*4+j] for j in range(4)], dim=0)
-                for i in range(4)
-            ], dim=1)
+        #     # concat for it have its proper shape
+        #     tactile_image = torch.concat([
+        #         torch.concat([tactile_image[i*4+j] for j in range(4)], dim=0)
+        #         for i in range(4)
+        #     ], dim=1)
 
-            tactile_image = torch.permute(tactile_image, (2,0,1))
-            pre_tactile_transform = T.Compose([
-                T.Resize((16,16)),
-                T.Lambda(self._clamp_transform),
-                T.Lambda(self._scale_transform)
-            ])
-            return pre_tactile_transform(tactile_image)
+        #     tactile_image = torch.permute(tactile_image, (2,0,1))
+        #     pre_tactile_transform = T.Compose([
+        #         T.Resize((16,16)),
+        #         T.Lambda(self._clamp_transform),
+        #         T.Lambda(self._scale_transform)
+        #     ])
+        #     return pre_tactile_transform(tactile_image)
 
-        tactile_image = _get_whole_hand_tactile_image(tactile_values)
+        tactile_image = self._get_whole_hand_tactile_image(tactile_values)
         tactile_image = T.Resize(224)(tactile_image) # Don't need another normalization
         tactile_image = (tactile_image - tactile_image.min()) / (tactile_image.max() - tactile_image.min())
         return tactile_image    

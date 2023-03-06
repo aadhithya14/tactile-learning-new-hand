@@ -63,6 +63,9 @@ class ScaledKNearestNeighbors(object):
             elif repr_type == 'allegro':
                 self.index_values['allegro'] = [last_index, last_index+12]
                 last_index += 12
+            elif repr_type == 'torque':
+                self.index_values['torque'] = [last_index, last_index+16]
+                last_index += 16
 
         print('SCALED KNN - self.index_values: {}'.format(self.index_values))
 

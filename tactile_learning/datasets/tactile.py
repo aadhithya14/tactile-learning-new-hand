@@ -1,15 +1,13 @@
 from copy import deepcopy
 import glob
-import h5py
-import math
 import matplotlib.pyplot as plt
 import numpy as np
-import os
-import pickle
+import random
 import torch
 import torchvision.transforms as T 
 import torch.nn.functional as F
 
+from copy import deepcopy as copy
 from torchvision.datasets.folder import default_loader as loader 
 from torch.utils import data
 from tqdm import tqdm
@@ -214,7 +212,8 @@ class TactileBYOLDataset(data.Dataset):
         data_path,
         tactile_information_type, # It could be either one of - stacked, whole_hand, single_sensor
         tactile_img_size,
-        duration=120 # Duration in minutes - the max is 120 minutes (it is considered max) - from now on the play 
+        duration=120, # Duration in minutes - the max is 120 minutes (it is considered max) - from now on the play 
+        shuffle_type=None
         # mean_std=None, # This is a general stats for all tactile information
         # min_max=None # Minimum and maximum of the tactile dataset - if given none these values should be found by using this dataset
     ):
@@ -224,6 +223,7 @@ class TactileBYOLDataset(data.Dataset):
         self.data = load_data(self.roots, demos_to_use=[], duration=duration)
         assert tactile_information_type in ['stacked', 'whole_hand', 'single_sensor'], 'tactile_information_type can either be "stacked", "whole_hand" or "single_sensor"'
         self.tactile_information_type = tactile_information_type
+        self.shuffle_type = shuffle_type
         
         # Set the transforms accordingly
         self.img_size = tactile_img_size
@@ -270,10 +270,33 @@ class TactileBYOLDataset(data.Dataset):
         tactile_image = tactile_image.view(16,4,4,3)
 
         # concat for it have its proper shape
+        pad_idx = list(range(16))
+        if self.shuffle_type == 'pad':
+            random.seed(10)
+            random.shuffle(pad_idx)
+            
         tactile_image = torch.concat([
-            torch.concat([tactile_image[i*4+j] for j in range(4)], dim=0)
+            torch.concat([tactile_image[pad_idx[i*4+j]] for j in range(4)], dim=0)
             for i in range(4)
         ], dim=1)
+
+        if self.shuffle_type == 'whole':
+            copy_tactile_image = copy(tactile_image)
+            sensor_idx = list(range(16*16))
+            random.seed(10)
+            random.shuffle(sensor_idx)
+            for i in range(16):
+                for j in range(16):
+                    rand_id = sensor_idx[i*16+j]
+                    rand_i = int(rand_id / 16)
+                    rand_j = int(rand_id % 16)
+                    tactile_image[i,j,:] = copy_tactile_image[rand_i, rand_j, :]
+
+        # else:
+        #     tactile_image = torch.concat([
+        #         torch.concat([tactile_image[i*4+j] for j in range(4)], dim=0)
+        #         for i in range(4)
+        #     ], dim=1)
 
         tactile_image = torch.permute(tactile_image, (2,0,1))
         

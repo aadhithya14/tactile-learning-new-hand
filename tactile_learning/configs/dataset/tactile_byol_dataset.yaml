@@ -3,6 +3,7 @@ data_path: ???
 tactile_information_type: whole_hand # whole_hand, stacked, single_sensor
 tactile_img_size: ???
 duration: 120 # All durations: 5, 10, 20, 40, 60, 80, 100, 120
+# shuffle_type: pad
 # Stats for the play data
 # mean_std: # These values should be found through notebook
 #   - [-3.4821,  0.8840, 11.0220]

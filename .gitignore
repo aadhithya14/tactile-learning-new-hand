@@ -9,4 +9,6 @@ wandb/*
 *.png
 
 notebooks/*.pt
+notebooks/generated_gifs/*
+notebooks/*.gif
 notebooks/.ipynb_checkpoints/*
