@@ -626,12 +626,59 @@ class DeployVINN:
         tactile_image = T.Resize(224)(tactile_image) # Don't need another normalization
         tactile_image = (tactile_image - tactile_image.min()) / (tactile_image.max() - tactile_image.min())
         return tactile_image    
+
+    def _get_data_with_id(self, id, visualize=False):
+        demo_id, tactile_id = self.data['tactile']['indices'][id]
+        _, allegro_tip_id = self.data['allegro_tip_states']['indices'][id]
+        _, kinova_id = self.data['kinova']['indices'][id]
+        _, image_id = self.data['image']['indices'][id]
+        _, allegro_state_id = self.data['allegro_joint_states']['indices'][id]
+
+        tactile_value = self.data['tactile']['values'][demo_id][tactile_id] # This should be (N,16,3)
+        allegro_tip_position = self.data['allegro_tip_states']['values'][demo_id][allegro_tip_id] # This should be (M*3,)
+        kinova_state = self.data['kinova']['values'][demo_id][kinova_id]
+        image = self._load_dataset_image(demo_id, image_id)
+        
+        if visualize:
+
+            tactile_image = self._get_tactile_image_for_visualization(tactile_value) 
+            kinova_cart_pos = kinova_state[:3]
+            vis_image = self.inv_image_transform(image).numpy().transpose(1,2,0)
+            vis_image = cv2.cvtColor(vis_image*255, cv2.COLOR_RGB2BGR)
+
+            visualization_data = dict(
+                image = vis_image,
+                kinova = kinova_cart_pos, 
+                allegro = allegro_tip_position, 
+                tactile_values = tactile_value,
+                tactile_image = tactile_image
+            )
+
+            return visualization_data
+
+        else:
             
+            allegro_joint_torque = self.data['allegro_joint_states']['torques'][demo_id][allegro_state_id] # This is the torque to be used
+            robot_states = dict(
+                allegro = allegro_tip_position,
+                kinova = kinova_state,
+                torque = allegro_joint_torque
+            )
+
+            data = dict(
+                image = image,
+                tactile_value = tactile_value, 
+                robot_states = robot_states
+            )
+
+            return data
+
     def _get_data_with_id_for_visualization(self, id):
         demo_id, tactile_id = self.data['tactile']['indices'][id]
         _, allegro_tip_id = self.data['allegro_tip_states']['indices'][id]
         _, kinova_id = self.data['kinova']['indices'][id]
         _, image_id = self.data['image']['indices'][id]
+
         tactile_values = self.data['tactile']['values'][demo_id][tactile_id]
         tactile_image = self._get_tactile_image_for_visualization(tactile_values)
         allegro_finger_tip_pos = self.data['allegro_tip_states']['values'][demo_id][allegro_tip_id]
