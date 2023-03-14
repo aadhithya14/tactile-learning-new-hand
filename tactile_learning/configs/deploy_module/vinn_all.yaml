@@ -64,12 +64,12 @@ tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/202
 # bottle cap opening
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.29/19-44_image_byol_bs_32_bottle_cap_opening_alexnet
 # cup picking
-# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.30/13-36_image_byol_bs_32_cup_picking_resnet
+image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.30/13-36_image_byol_bs_32_cup_picking_resnet
 # bowl picking
-image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.31/16-56_image_byol_bs_32_bowl_picking
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.31/16-56_image_byol_bs_32_bowl_picking
 
-nn_buffer_size: 12
-nn_k: 12
+nn_buffer_size: 15
+nn_k: 15
 # task_object: cup_slipping
 fix_the_thumb: true
 sensor_indices: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]
@@ -78,9 +78,9 @@ allegro_finger_indices: [0,1,2,3]
 robots: ['allegro', 'kinova']
 representation_types: ['image', 'tactile'] # observations used in the representations - should add torque here
 use_encoder: true
-representation_importance: [1,1] # We will multiply the distances with these given numbers when using in scaled nearest neighbors
+representation_importance: [1,2] # We will multiply the distances with these given numbers when using in scaled nearest neighbors
 # deployment_run_name: cup_slipping/cup_left/image_tactile/stacked_/2 # Maybe the other view is better 
-deployment_run_name: bowl_picking/demo_images/honda_demo/1 # 20 min was not saved 5/9
+deployment_run_name: phd_demos/4 # 20 min was not saved 5/9
 # deployment_run_name: book_opening/image/3
 # demos_to_use: [19,20,21,22,23,24,26] - cup slipping
 # demos_to_use: [9,12,18,19,20] # - bottle cap opening
@@ -88,8 +88,8 @@ deployment_run_name: bowl_picking/demo_images/honda_demo/1 # 20 min was not save
 # demos_to_use: [2,3,5,6,7,8] # gamepad joystick down
 # demos_to_use: [1,4,9,11,15,17] # box handle lifting
 # demos_to_use: [1,4,5,8,9,11] # bottle cap opening
-# demos_to_use: [2,3,5,7,8] # cup picking
-demos_to_use: [2,5,7,9,15,23] # bowl picking
+demos_to_use: [2,3,5,6,7,8] # cup picking
+# demos_to_use: [2,5,7,9,15,23] # bowl picking
 run_the_demo: false # Boolean to indicate if one should only run the demo or deploy vinn or not
 single_sensor_tactile: false
 stacked_tactile: false

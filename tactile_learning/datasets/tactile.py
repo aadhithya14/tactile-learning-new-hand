@@ -292,12 +292,6 @@ class TactileBYOLDataset(data.Dataset):
                     rand_j = int(rand_id % 16)
                     tactile_image[i,j,:] = copy_tactile_image[rand_i, rand_j, :]
 
-        # else:
-        #     tactile_image = torch.concat([
-        #         torch.concat([tactile_image[i*4+j] for j in range(4)], dim=0)
-        #         for i in range(4)
-        #     ], dim=1)
-
         tactile_image = torch.permute(tactile_image, (2,0,1))
         
         return self.transform(tactile_image)
@@ -307,7 +301,6 @@ class TactileBYOLDataset(data.Dataset):
         tactile_image = tactile_image.view(15,4,4,3) # Just making sure that everything stays the same
         tactile_image = torch.permute(tactile_image, (0,3,1,2))
         tactile_image = tactile_image.reshape(-1,4,4) # Make 45 the channel number 
-        # print('tactile_image.shape: {}'.format(tactile_image.shape)) 
         return self.transform(tactile_image)
     
     def _get_single_sensor_tactile_image(self, tactile_value):

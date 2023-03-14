@@ -225,8 +225,6 @@ def turn_images_to_video(viz_dir, video_fps, video_name='visualization.mp4'):
     ))
 
 def turn_video_to_images(dir_path, video_name, images_dir_name, images_fps):
-    # if os.path.exists(images_dir_name):
-    #     os.remove(images_dir_name)
     images_path = os.path.join(dir_path, images_dir_name)
     video_path = os.path.join(dir_path, video_name)
     os.makedirs(images_path, exist_ok=True)

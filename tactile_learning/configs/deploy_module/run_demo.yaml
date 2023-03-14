@@ -3,4 +3,4 @@ data_path: ???
 apply_allegro_states: false # For fingers touching yourself this should be true
 robots: ['allegro', 'kinova']
 # demo_to_run: 23 # 23 works after 62nd state (or maybe still could be a good candidate to have it bw the demos tbh)
-demo_to_run: 8
+demo_to_run: 2

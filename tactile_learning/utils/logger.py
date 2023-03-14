@@ -5,7 +5,6 @@ import logging
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.tensorboard import SummaryWriter
 
-# TODO: maybe add logger from logging library?
 class Logger:
     def __init__(self, cfg : DictConfig, exp_name:str, out_dir:str) -> None:
         # Initialize the wandb experiment

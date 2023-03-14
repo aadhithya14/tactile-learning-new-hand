@@ -11,7 +11,6 @@ dependencies:
   - pytorch=1.12
   - torchvision=0.13
   - opencv=4.6
-  # - pycocotools=2.0.6
   - pyyaml=6.0
   - pytorch-lightning=1.7.7
   - einops=0.4.1
@@ -27,7 +26,3 @@ dependencies:
   - wandb
   - hydra-core
   - ipdb
-  # - yacs=0.1.8
-  # - detectron2=0.5
-  # - mmcv-full=1.7
-  # - mmdet=2.25

@@ -321,8 +321,6 @@ class DeployVINN:
         return self.dataset_tactile_transform(tactile_image)
 
     def _get_whole_hand_tactile_representation(self, tactile_values): # This is dependent on
-        
-        
         tactile_image = self._get_whole_hand_tactile_image(tactile_values)
         tactile_image = self.tactile_transform(tactile_image)
         return self.tactile_encoder(tactile_image.unsqueeze(0)).squeeze()
@@ -434,7 +432,6 @@ class DeployVINN:
         ))
         with open(os.path.join(self.deployment_dump_dir, 'deployment_info.pkl'), 'wb') as f:
             pickle.dump(self.deployment_info, f)
-
 
     def get_action(self, tactile_values, recv_robot_state, visualize=False):
         if self.run_the_demo:
@@ -624,26 +621,6 @@ class DeployVINN:
         )
 
     def _get_tactile_image_for_visualization(self, tactile_values):
-        # def _get_whole_hand_tactile_image(tactile_values): 
-        #     # tactile_values: (15,16,3) - turn it into 16,16,3 by concatenating 0z
-        #     tactile_image = torch.FloatTensor(tactile_values)
-        #     tactile_image = F.pad(tactile_image, (0,0,0,0,1,0), 'constant', 0)
-        #     # reshape it to 4x4
-        #     tactile_image = tactile_image.view(16,4,4,3)
-
-        #     # concat for it have its proper shape
-        #     tactile_image = torch.concat([
-        #         torch.concat([tactile_image[i*4+j] for j in range(4)], dim=0)
-        #         for i in range(4)
-        #     ], dim=1)
-
-        #     tactile_image = torch.permute(tactile_image, (2,0,1))
-        #     pre_tactile_transform = T.Compose([
-        #         T.Resize((16,16)),
-        #         T.Lambda(self._clamp_transform),
-        #         T.Lambda(self._scale_transform)
-        #     ])
-        #     return pre_tactile_transform(tactile_image)
 
         tactile_image = self._get_whole_hand_tactile_image(tactile_values)
         tactile_image = T.Resize(224)(tactile_image) # Don't need another normalization
