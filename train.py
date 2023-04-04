@@ -18,10 +18,10 @@ from tqdm import tqdm
 
 # Custom imports 
 from tactile_learning.utils.logger import Logger
-from tactile_learning.datasets.dataloaders import get_dataloaders
-from tactile_learning.models.learners.learner_inits import init_learner
-from tactile_learning.utils.parsers import *
-from tactile_learning.datasets.preprocess import *
+from tactile_learning.datasets_old.dataloaders import get_dataloaders
+from tactile_learning.models_old.learners.learner_inits import init_learner
+from tactile_learning.utils_old.parsers import *
+from tactile_learning.datasets_old.preprocess import *
 
 class Workspace:
     def __init__(self, cfg : DictConfig) -> None:

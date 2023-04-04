@@ -100,7 +100,7 @@ class VINN(Deployer):
             cfg = OmegaConf.create({'encoder':{'out_dim':512}, 'tactile_image_size':224})
         
         elif encoder_type =='image' and out_dir is None: # Load the pretrained encoder 
-            encoder = resnet18(pretrain=True, out_dim=512) # These values are set
+            encoder = resnet18(pretrained=True, out_dim=512) # These values are set
             cfg = OmegaConf.create({"encoder":{"out_dim":512}})
         
         else:
@@ -112,7 +112,7 @@ class VINN(Deployer):
         if encoder_type == 'image':
             transform = T.Compose([
                 T.Resize((480,640)),
-                T.Lambda(crop_transform),
+                T.Lambda(self._crop_transform),
                 T.Resize(480),
                 T.ToTensor(),
                 T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS),
@@ -122,6 +122,9 @@ class VINN(Deployer):
 
         return cfg, encoder, transform
     
+    def _crop_transform(self, image):
+        return crop_transform(image, camera_view=self.view_num)
+
     def _load_dataset_image(self, demo_id, image_id):
         dset_img = load_dataset_image(self.data_path, demo_id, image_id, self.view_num)
         img = self.image_transform(dset_img)
@@ -188,6 +191,7 @@ class VINN(Deployer):
         else:
             action = self._get_knn_action(tactile_values, recv_robot_state, visualize)
         
+        print(f'STATE ID: {self.state_id}')
         return  action
     
     def _get_open_loop_action(self, tactile_values, visualize):
@@ -297,7 +301,7 @@ class VINN(Deployer):
         # Get the current image 
         curr_image = self.inv_image_transform(self._get_curr_image()).numpy().transpose(1,2,0)
         curr_image_cv2 = cv2.cvtColor(curr_image*255, cv2.COLOR_RGB2BGR)
-        curr_tactile_image = tactile_image = self.tactile_img.get_tactile_image_for_visualization(curr_tactile_values) 
+        curr_tactile_image = self.tactile_img.get_tactile_image_for_visualization(curr_tactile_values) 
 
         nn_id = nn_idxs[id_of_nn]
         # Get the next visualization data

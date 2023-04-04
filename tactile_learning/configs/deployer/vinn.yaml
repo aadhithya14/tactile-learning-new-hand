@@ -2,14 +2,15 @@ _target_: tactile_learning.deployers.VINN
 data_path: ???
 
 # Directories to change by the user depending on where they saved the data
-deployment_dump_dir: /home/irmak/Workspace/tactile-learning/deployment_data/cup_picking/after_rss/1
+deployment_dump_dir: /home/irmak/Workspace/tactile-learning/deployment_data/cup_picking/after_rss/8
 tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
-image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.03/18-43_image_byol_bs_32_cup_picking_after_rss
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.03/18-43_image_byol_bs_32_cup_picking_after_rss
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.30/13-36_image_byol_bs_32_cup_picking_resnet
 
-nn_buffer_size: 20
-nn_k: 20
+nn_buffer_size: 15
+nn_k: 15
 representation_types: ['image', 'tactile'] # Observations used in the representations
-representation_importance: [1,1] # We will multiply the distances with these given numbers when using in scaled nearest neighbors
-demos_to_use: [] # Leave empty to use all the demos in the evaluation
+representation_importance: [1,1.5] # We will multiply the distances with these given numbers when using in scaled nearest neighbors
+demos_to_use: [13,14,15,16,17,18] # Leave empty to use all the demos in the evaluation
 view_num: 1
 open_loop: false

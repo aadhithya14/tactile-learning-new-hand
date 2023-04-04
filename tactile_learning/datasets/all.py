@@ -1,23 +1,14 @@
-from copy import deepcopy
 import glob
-import h5py
-import math
-import matplotlib.pyplot as plt
 import numpy as np
 import os
-import pickle
 import torch
 import torchvision.transforms as T 
-import torch.nn.functional as F
 
-from torchvision.datasets.folder import default_loader as loader 
 from torch.utils import data
-from tqdm import tqdm
-from omegaconf import DictConfig, OmegaConf
-from tactile_learning.utils.data import load_data
-from tactile_learning.utils.augmentations import crop_transform 
-from tactile_learning.utils.constants import *
-from torchvision.transforms.functional import crop
+from torchvision.datasets.folder import default_loader as loader 
+
+from tactile_learning.tactile_data import TactileImage
+from tactile_learning.utils import load_data, crop_transform, VISION_IMAGE_MEANS, VISION_IMAGE_STDS
 
 class TactileVisionActionDataset(data.Dataset):
     def __init__(
@@ -35,11 +26,6 @@ class TactileVisionActionDataset(data.Dataset):
         self.tactile_information_type = tactile_information_type
         self.vision_view_num = vision_view_num
 
-        self.tactile_transform = T.Compose([
-            T.Resize(tactile_img_size),
-            T.Lambda(self._clamp_transform), # These are for normalization
-            T.Lambda(self._scale_transform)
-        ])
         self.vision_transform = T.Compose([
             T.Resize((480,640)),
             T.Lambda(self._crop_transform),
@@ -51,13 +37,13 @@ class TactileVisionActionDataset(data.Dataset):
         if tactile_information_type == 'single_sensor':
             self._preprocess_tactile_indices()
     
-        # Set up the tactile image retrieval function
-        if tactile_information_type == 'single_sensor':
-            self._get_tactile_image = self._get_single_sensor_tactile_image
-        elif tactile_information_type == 'stacked':
-            self._get_tactile_image = self._get_stacked_tactile_image
-        elif tactile_information_type == 'whole_hand':
-            self._get_tactile_image = self._get_whole_hand_tactile_image
+        self.tactile_img = TactileImage(
+            tactile_image_size = tactile_img_size,
+            shuffle_type = None
+        )
+
+    def _crop_transform(self, image):
+        return crop_transform(image, self.vision_view_num)
 
     def _preprocess_tactile_indices(self):
         self.tactile_mapper = np.zeros(len(self.data['tactile']['indices'])*15).astype(int)
@@ -67,37 +53,6 @@ class TactileVisionActionDataset(data.Dataset):
 
     def _get_sensor_id(self, index):
         return index % 15
-            
-    def _get_whole_hand_tactile_image(self, tactile_values): 
-        # tactile_values: (15,16,3) - turn it into 16,16,3 by concatenating 0z
-        tactile_image = torch.FloatTensor(tactile_values)
-        tactile_image = F.pad(tactile_image, (0,0,0,0,1,0), 'constant', 0)
-        # reshape it to 4x4
-        tactile_image = tactile_image.view(16,4,4,3)
-
-        # concat for it have its proper shape
-        tactile_image = torch.concat([
-            torch.concat([tactile_image[i*4+j] for j in range(4)], dim=0)
-            for i in range(4)
-        ], dim=1)
-
-        tactile_image = torch.permute(tactile_image, (2,0,1))
-        
-        return self.tactile_transform(tactile_image)
-    
-    def _get_stacked_tactile_image(self, tactile_values):
-        tactile_image = torch.FloatTensor(tactile_values)
-        tactile_image = tactile_image.view(15,4,4,3) # Just making sure that everything stays the same
-        tactile_image = torch.permute(tactile_image, (0,3,1,2))
-        tactile_image = tactile_image.reshape(-1,4,4) # Make 45 the channel number 
-        # print('tactile_image.shape: {}'.format(tactile_image.shape)) 
-        return self.tactile_transform(tactile_image)
-    
-    def _get_single_sensor_tactile_image(self, tactile_value):
-        tactile_image = torch.FloatTensor(tactile_value) # tactile_value.shape: (16,3)
-        tactile_image = tactile_image.view(4,4,3)
-        tactile_image = torch.permute(tactile_image, (2,0,1))
-        return self.tactile_transform(tactile_image)
     
     def __len__(self):
         if self.tactile_information_type == 'single_sensor':
@@ -127,6 +82,12 @@ class TactileVisionActionDataset(data.Dataset):
         img = self.vision_transform(loader(image_path))
         return torch.FloatTensor(img)
 
+    def _get_tactile_image(self, tactile_values):
+        return self.tactile_img.get(
+            type = self.tactile_information_type,
+            tactile_values = tactile_values
+        )
+
     # Gets the kinova states and the commanded joint states for allegro
     def _get_action(self, index):
         demo_id, allegro_action_id = self.data['allegro_actions']['indices'][index]
@@ -147,35 +108,3 @@ class TactileVisionActionDataset(data.Dataset):
         action = self._get_action(index)
         
         return tactile_image, vision_image, action
-
-    def _scale_transform(self, image): # Transform function to map the image between 0 and 1
-        image = (image - TACTILE_PLAY_DATA_CLAMP_MIN) / (TACTILE_PLAY_DATA_CLAMP_MAX - TACTILE_PLAY_DATA_CLAMP_MIN)
-        return image
-
-    def _clamp_transform(self, image):
-        image = torch.clamp(image, min=TACTILE_PLAY_DATA_CLAMP_MIN, max=TACTILE_PLAY_DATA_CLAMP_MAX)
-        return image
-
-    def _crop_transform(self, image):
-        if self.vision_view_num == 0:
-            return crop(image, 0,0,480,480)
-        elif self.vision_view_num == 1:
-            return crop(image, 0,90,480,480)
-
-if __name__ == '__main__':
-    dset = TactileVisionActionDataset(
-        data_path = '/home/irmak/Workspace/Holo-Bot/extracted_data/cup_slipping/eval',
-        tactile_information_type = 'stacked',
-        tactile_img_size=16,
-        vision_view_num=1
-    ) 
-    dataloader = data.DataLoader(dset, 
-                                batch_size  = 128, 
-                                shuffle     = True, 
-                                num_workers = 8,
-                                pin_memory  = True)
-
-    batch = next(iter(dataloader))
-    print('batch[0].shape: {}, batch[1].shape: {}, batch[2].shape: {}'.format(
-        batch[0].shape, batch[1].shape, batch[2].shape # it should be 16 + 7 (for each joint)
-    ))

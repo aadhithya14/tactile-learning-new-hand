@@ -1,0 +1,10 @@
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss
+process_single_demo: false
+dump_after: -1 # demo id to dump after this demo id (sued if there are things that are wrong in the demonstrations - not to lose time)
+vision_byol: false
+tactile_byol: false
+dump_images: true
+dump_data_indices: true 
+dump_fingertips: true
+threshold_step_size: 0.02 # it was 0.012
+view_num: 1
