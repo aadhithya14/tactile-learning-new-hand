@@ -1,7 +1,6 @@
-import torch
-import torch.nn as nn
-
 from torchvision import models
+import torch.nn as nn
+import torch
 
 # Script to return all pretrained models in torchvision.models module
 def resnet18(pretrained : bool, out_dim):
@@ -19,8 +18,9 @@ def resnet34(pretrained : bool, out_dim): # These out_dims are only given for im
 
 def alexnet(pretrained, out_dim, remove_last_layer=False):
     encoder = torch.hub.load('pytorch/vision:v0.10.0', 'alexnet', pretrained=pretrained)
+
     if remove_last_layer:
-        # Remove and recreate the last layer of alexnet - these values are taken from the alexnet implementation
+        # Remove and recreate the last layer of alexnet - should be 
         encoder.classifier = nn.Sequential(
             nn.Dropout(p=0.5, inplace=False),
             nn.Linear(9216, out_features=4096, bias=True),

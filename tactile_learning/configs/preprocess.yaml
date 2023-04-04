@@ -1,17 +1,10 @@
-# data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/box_handle_lifting/box_location_changing/training
-# data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/box_handle_lifting/box_location_changing/eval
-# data_path: /home/irmak/Workspace/Holo-Bot/deployment_data/box_handle_lifting
-# data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/gamepad/down/eval
-# data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/bowl_picking/eval
-# data_path: /data/tactile_learning/deployment_data/data/bowl_picking/demonstrations/image_generalization
-data_path: /data/tactile_learning/play_data
-# data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/tactile_play_data/demonstration_hand_touching_itself_record_2
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss
 process_single_demo: false
-dump_after: 15 # demo id to dump after this demo id (sued if there are things that are wrong in the demonstrations - not to lose time)
+dump_after: -1 # demo id to dump after this demo id (sued if there are things that are wrong in the demonstrations - not to lose time)
 vision_byol: false
 tactile_byol: false
 dump_images: true
 dump_data_indices: true 
 dump_fingertips: true
 threshold_step_size: 0.02 # it was 0.012
-view_num: 0
+view_num: 1

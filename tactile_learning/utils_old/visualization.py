@@ -38,6 +38,33 @@ def plot_tactile_sensor(ax, sensor_values, use_img=False, img=None, title='Tip P
 
     return img, frame_axis
 
+# def plot_fingertip_position(ax, tip_position, finger_index): 
+#     # Tip position: (3,) - (x,y,z) positions of the tip
+#     # finger_index: 0 or 1
+#     types = ['X', 'Y', 'Z']
+#     values = tip_position 
+ 
+#     ax.set_ylim(-0.05, 0.15)
+#     if finger_index == 0: # The index finger 
+#         ax.bar(types, values, color='darkolivegreen')
+#         ax.set_title('Index Finger Tip Position')
+#     elif finger_index == 1:
+#         ax.bar(types, values, color='mediumturquoise')
+#         ax.set_title('Middle Finger Tip Position')
+
+# TODO: Make these more general
+# def dump_small_tactile_state(tactile_value, allegro_tip_pos, title='Nearest Neighbor'): # Or Current State
+#     # tactile_value: (2,16,3)
+#     # allegro_tip_pos: (6,)
+#     fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(10,10))
+#     plot_tactile_sensor(axs[0,0], tactile_value[0,:,:], title='Index Tip Tactile Sensors')
+#     plot_tactile_sensor(axs[0,1], tactile_value[1,:,:], title='Middle Tip Tactile Sensors')
+#     plot_fingertip_position(axs[1,0], allegro_tip_pos[0:3], 0)
+#     plot_fingertip_position(axs[1,1], allegro_tip_pos[3:], 1)
+#     fig.suptitle(title)
+#     fig.savefig(f'{title}.png') # And we will imshow them during deployment
+#     fig.clf()
+
 def dump_camera_image(host='172.24.71.240', image_stream_port=10005):
     image_subscriber = ZMQCameraSubscriber(
         host = host,
@@ -46,6 +73,23 @@ def dump_camera_image(host='172.24.71.240', image_stream_port=10005):
     )
     image, _ = image_subscriber.recv_rgb_image()
     cv2.imwrite('camera_image.png', image)
+
+# def dump_knn_state(dump_dir, img_name):
+#     os.makedirs(dump_dir, exist_ok=True)
+#     curr_state = cv2.imread('Current State.png')
+#     knn_state = cv2.imread('Nearest Neighbor.png')
+#     camera_img = cv2.imread('Camera Image.png')
+
+#     state_img = cv2.hconcat([curr_state, knn_state])
+#     width_scale = camera_img.shape[1] / state_img.shape[1]
+#     state_img = cv2.resize(
+#         state_img, 
+#         (int(state_img.shape[1] * width_scale),
+#          int(state_img.shape[0] * width_scale))
+#     )
+
+#     all_state_img = cv2.vconcat([camera_img, state_img])
+#     cv2.imwrite(os.path.join(dump_dir, img_name), all_state_img)
 
 def plot_xyz_position(ax, position, title, color='blue', ylims=None):
     types = ['X', 'Y', 'Z']
@@ -73,6 +117,7 @@ def dump_tactile_state(tactile_values):
     plt.close()
 
 def dump_tactile_image(tactile_image):
+    # plot and dumpy the image
     npimg = tactile_image.numpy()
     plt.axis('off')
     plt.imsave('tactile_image.png', np.transpose(npimg, (1,2,0)))
@@ -184,3 +229,14 @@ def turn_video_to_images(dir_path, video_name, images_dir_name, images_fps):
     video_path = os.path.join(dir_path, video_name)
     os.makedirs(images_path, exist_ok=True)
     os.system(f'ffmpeg -i {video_path} -vf fps={images_fps} {images_path}/out%d.png')
+
+
+# Example
+if __name__ == '__main__':
+    model_path = '/home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.02/19-29_byol_bs_1028_box_handle_lifting/runs'
+    run_name = 'run_tactile_kinova_10cm_forward_start_ue_True' 
+    turn_images_to_video(
+        viz_dir = ' /data/tactile_learning/deployment_data/data/bowl_picking/demonstrations/tdex_generalization/demonstration_7/cam_0_rgb_images',
+        video_fps = 2,
+        video_name='cam_0_video.mp4'
+    )

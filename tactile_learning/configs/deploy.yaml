@@ -1,15 +1,7 @@
 defaults:
-  - deploy_module: run_demo
-  # - deploy_module: vinn_all
-  # - deploy_module: bc
+  - deployer: vinn
 
-robots: [allegro, kinova]
 visualize: true
 loop: true
 frequency: 15
-# object: box_handle_lifting/box_location_changing/eval
-# data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}
-# data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/gamepad/down/eval
-data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/eval
-# data_path: /data/tactile_learning/bowl_picking/eval
-# demo_to_run: 2
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss # User should fill this

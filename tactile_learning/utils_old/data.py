@@ -1,11 +1,9 @@
-import glob
 import h5py
 import numpy as np
 import os
 import pickle
 import torch
 
-from torchvision.datasets.folder import default_loader as loader
 from tqdm import tqdm
 
 # Method to load all the data from given roots and return arrays for it
@@ -27,7 +25,9 @@ def load_data(roots, demos_to_use=[], duration=120): # If the total length is eq
 
     for demo_id,root in enumerate(roots): 
         demo_num = int(root.split('/')[-1].split('_')[-1])
+        # print(f'len(demos_to_use): {len(demos_to_use)}')
         if (len(demos_to_use) > 0 and demo_num in demos_to_use) or (len(demos_to_use) == 0): # If it's empty then it will be ignored
+            # print(f'USING DEMO: {demo_num} [DEMO_ID: {demo_id} - IN ROOT: {root}')
             with open(os.path.join(root, 'tactile_indices.pkl'), 'rb') as f:
                 tactile_indices += pickle.load(f)
             with open(os.path.join(root, 'allegro_indices.pkl'), 'rb') as f:
@@ -107,12 +107,4 @@ def get_image_stats(len_image_dataset, image_loader):
     # output
     print('mean: '  + str(total_mean))
     print('std:  '  + str(total_std))
-
-def load_dataset_image(data_path, demo_id, image_id, view_num):
-    roots = glob.glob(f'{data_path}/demonstration_*')
-    roots = sorted(roots)
-    image_root = roots[demo_id]
-    image_path = os.path.join(image_root, 'cam_{}_rgb_images/frame_{}.png'.format(view_num, str(image_id).zfill(5)))
-    img = loader(image_path)
-    return img
         

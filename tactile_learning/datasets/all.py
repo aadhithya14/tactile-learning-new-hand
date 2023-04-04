@@ -160,7 +160,7 @@ class TactileVisionActionDataset(data.Dataset):
         if self.vision_view_num == 0:
             return crop(image, 0,0,480,480)
         elif self.vision_view_num == 1:
-            return crop(image, 0,120,480,480)
+            return crop(image, 0,90,480,480)
 
 if __name__ == '__main__':
     dset = TactileVisionActionDataset(
