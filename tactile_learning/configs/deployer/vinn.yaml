@@ -7,6 +7,7 @@ deployment_dump_dir: ???
 tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.03/18-43_image_byol_bs_32_cup_picking_after_rss
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.30/13-36_image_byol_bs_32_cup_picking_resnet
+image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
 
 nn_buffer_size: 15
 nn_k: 15

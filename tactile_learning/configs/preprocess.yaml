@@ -2,7 +2,7 @@ data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss
 process_single_demo: false
 
 # Preprocessing for different types - if both false then preprocessing is done for deployment
-vision_byol: true
+vision_byol: false
 tactile_byol: false
 
 subsample_separately: true
@@ -11,3 +11,9 @@ dump_data_indices: true
 dump_fingertips: true
 threshold_step_size: 0.012 # Step size to be used in subsampling
 view_num: 1 # Camera ID to dump the images
+
+repr_preprocesser:
+  apply: true
+  tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
+  image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
+  demos_to_use: [13,14,15,16,17,18]

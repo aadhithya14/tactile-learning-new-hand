@@ -29,6 +29,16 @@ def main(cfg : DictConfig) -> None:
             dump_video_to_images(root, view_num=cfg.view_num, dump_all=True) # If dump_all == False then it will use the desired images only
         elif cfg.dump_images:
             dump_video_to_images(root, view_num=cfg.view_num, dump_all=False)
+        
+        if cfg.repr_preprocesser.apply:
+            preprocesser = RepresentationPreprocessor(
+                data_path = cfg.data_path,
+                tactile_out_dir = cfg.repr_preprocessor.tactile_out_dir, 
+                image_out_dir = cfg.repr_preprocessor.image_out_dir,
+                view_num = cfg.view_num,
+                demos_to_use = cfg.repr_preprocessor.demos_to_use
+            )
+
         print('-----')    
 
 if __name__ == '__main__':
