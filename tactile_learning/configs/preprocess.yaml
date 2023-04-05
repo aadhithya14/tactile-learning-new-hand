@@ -2,7 +2,7 @@ data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss
 process_single_demo: false
 
 # Preprocessing for different types - if both false then preprocessing is done for deployment
-vision_byol: false
+vision_byol: true
 tactile_byol: false
 
 subsample_separately: true

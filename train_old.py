@@ -1,6 +1,10 @@
 # Main training script - trains distributedly accordi
+
+import glob
 import os
 import hydra
+import logging
+import wandb
 
 import torch
 import torch.distributed as dist
@@ -8,13 +12,16 @@ import torch.multiprocessing as mp
 
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
+from torch.nn.parallel import DistributedDataParallel as DDP
 from tqdm import tqdm 
 
+
 # Custom imports 
-from tactile_learning.datasets import get_dataloaders
-from tactile_learning.learners import init_learner
-from tactile_learning.datasets import *
-from tactile_learning.utils import *
+from tactile_learning.utils.logger import Logger
+from tactile_learning.datasets_old.dataloaders import get_dataloaders
+from tactile_learning.models_old.learners.learner_inits import init_learner
+from tactile_learning.utils_old.parsers import *
+from tactile_learning.datasets_old.preprocess import *
 
 class Workspace:
     def __init__(self, cfg : DictConfig) -> None:
@@ -29,6 +36,8 @@ class Workspace:
         
         # Set the world size according to the number of gpus
         cfg.num_gpus = torch.cuda.device_count()
+        print(f"cfg.num_gpus: {cfg.num_gpus}")
+        print()
         cfg.world_size = cfg.world_size * cfg.num_gpus
 
         # Set device and config
@@ -42,11 +51,13 @@ class Workspace:
         # Set the device
         torch.cuda.set_device(rank)
         device = torch.device(f'cuda:{rank}')
+        print(f"INSIDE train: rank: {rank} - device: {device}")
 
         # It looks at the datatype type and returns the train and test loader accordingly
         train_loader, test_loader, _ = get_dataloaders(self.cfg)
 
         # Initialize the learner - looks at the type of the agent to be initialized first
+        print('device: {}, rank: {}'.format(device, rank))
         learner = init_learner(self.cfg, device, rank)
 
         best_loss = torch.inf 
@@ -109,12 +120,26 @@ class Workspace:
 
 @hydra.main(version_base=None,config_path='tactile_learning/configs', config_name = 'train')
 def main(cfg : DictConfig) -> None:
-    # We are only training everything distributedly
+    # TODO: check this and make it work when it's not distributed as well
+    # preprocess_opt = choose_preprocess()
+    print('CFG.PREPROCESS: {}'.format(cfg.preprocess))
     assert cfg.distributed is True, "Use script only to train distributed"
     workspace = Workspace(cfg)
 
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "29503"
+
+    # if cfg.preprocess:
+    #     roots = glob.glob(f'{cfg.data_dir}/demonstration_*') 
+    #     roots = sorted(roots)
+    #     for demo_id, root in enumerate(roots):
+    #         # dump_video_to_images(root)
+    #         dump_fingertips(root)
+    #         if cfg.learner_type == 'byol': # If it is byol then there are more tactile images
+    #             dump_data_indices(demo_id, root, is_byol=True)
+    #         else:
+    #             dump_data_indices(demo_id, root, is_byol=False)
+    #         print('----------------')
     
     print("Distributed training enabled. Spawning {} processes.".format(workspace.cfg.world_size))
     mp.spawn(workspace.train, nprocs=workspace.cfg.world_size)

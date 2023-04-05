@@ -27,9 +27,8 @@ def dump_video_to_images(root: str, video_type: str ='rgb', view_num: int=0, dum
     success, image = vidcap.read()
     frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    if not dump_all:
-        with open(os.path.join(root, 'image_indices.pkl'), 'rb') as f:
-            desired_indices = pickle.load(f)
+    with open(os.path.join(root, 'image_indices.pkl'), 'rb') as f:
+        desired_indices = pickle.load(f)
 
     frame_id = 0
     desired_img_id = 0
