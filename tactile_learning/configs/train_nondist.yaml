@@ -1,28 +1,23 @@
 defaults:
-    # - encoder: resnet18 # alexnet
     - learner: bet
-    - dataset: vision_dataset # tactile_tdex_dataset
-    # - optimizer: adam
+    - dataset: bet # tactile_tdex_dataset
 
 seed: 42
 device: cuda
 
-learner_type: image_byol # Can be image_byol, tactile_stacked_byol # tactile_stacked_byol tactile_linear_byol, bc, tactile_byol
+learner_type: bet # Can be bet, image_byol, tactile_stacked_byol # tactile_stacked_byol tactile_linear_byol, bc, tactile_byol
 self_supervised: true
 
 # Hyperparameters to be used everywhere
 batch_size: 32
 tactile_image_size: 224 # This could be changed for stacked or shared architectures
 vision_image_size: 480
-hidden_dim: 64
 train_epochs: 1000
 save_frequency: 10
-train_dset_split: 0.95
+train_dset_split: 0.90
 
-distributed: true
+distributed: false
 num_workers: 4
-world_size: 1
-num_gpus: 4
 
 # Data path to be set
 object: cup_picking

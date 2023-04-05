@@ -5,11 +5,12 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from .byol import BYOLLearner
 from .vicreg import VICRegLearner
 from .behavior_cloning import ImageTactileBC
+from .bet import BETLearner
 
 from tactile_learning.utils import *
-from tactile_learning.models import BYOL, VICReg, create_fc 
+from tactile_learning.models import BYOL, VICReg, create_fc
 
-def init_learner(cfg, device, rank):
+def init_learner(cfg, device, rank=0):
     if cfg.learner_type == 'bc':
         return init_bc(cfg, device, rank)
     elif 'tactile' in cfg.learner_type:
@@ -32,7 +33,30 @@ def init_learner(cfg, device, rank):
             std_coef=cfg.learner.std_coef,
             cov_coef=cfg.learner.cov_coef)
     
+    elif cfg.learner_type == 'bet':
+        return init_bet_learner(
+            cfg,
+            device
+        )
+    
     return None
+
+def init_bet_learner(cfg, device):
+    bet_model = hydra.utils.instantiate(cfg.learner.model).to(device)
+
+    optimizer = bet_model.configure_optimizers(
+        weight_decay=cfg.learner.optim.weight_decay,
+        learning_rate=cfg.learner.optim.lr,
+        betas=cfg.learner.optim.betas
+    )
+
+    learner = BETLearner(
+        bet_model = bet_model,
+        optimizer = optimizer
+    )
+    learner.to(device)
+
+    return learner
 
 def init_tactile_vicreg(cfg, device, rank, sim_coef, std_coef, cov_coef):
 

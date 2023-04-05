@@ -35,9 +35,8 @@ class BetDataset(data.Dataset):
 
         tactile_cfg, tactile_encoder, _ = self._init_encoder_info(device, tactile_out_dir, 'tactile')
         self.tactile_img = TactileImage(
-            tactile_image_size = tactile_cfg.tactile_image_size, 
-            shuffle_type = tactile_shuffle_type
-        )\]
+            tactile_image_size = tactile_cfg.tactile_image_size,
+        )
         self.tactile_repr = TactileRepresentation(
             encoder_out_dim = tactile_cfg.encoder.out_dim,
             tactile_encoder = tactile_encoder,

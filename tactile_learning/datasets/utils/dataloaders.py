@@ -8,13 +8,17 @@ from omegaconf import DictConfig
 def get_dataloaders(cfg : DictConfig):
     # Load dataset - splitting will be done with random splitter
     
-    if 'image' in cfg.learner_type:
-        dataset = hydra.utils.instantiate(cfg.dataset,
-                                          data_path = cfg.data_dir)
+    if 'tactile' in cfg.learner_type:
+        dataset = hydra.utils.instantiate(
+            cfg.dataset,
+            data_path = cfg.data_dir,
+            tactile_img_size = cfg.tactile_image_size
+        ) # This should be named this way 
     else:
-        dataset = hydra.utils.instantiate(cfg.dataset,
-                                        data_path = cfg.data_dir,
-                                        tactile_img_size = cfg.tactile_image_size) # This should be named this way 
+        dataset = hydra.utils.instantiate(
+            cfg.dataset,
+            data_path = cfg.data_dir
+        )
         
 
     train_dset_size = int(len(dataset) * cfg.train_dset_split)

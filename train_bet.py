@@ -11,12 +11,8 @@ from omegaconf import OmegaConf
 
 import wandb
 
-from tactile_learning.datasets.dataloaders import get_dataloaders
-
-
-# if "MUJOCO_GL" not in os.environ:
-#     os.environ["MUJOCO_GL"] = "egl"
-
+from tactile_learning.datasets import get_dataloaders
+from tactile_learning.learners import init_learner
 
 def seed_everything(random_seed: int):
     np.random.seed(random_seed)
@@ -30,31 +26,8 @@ def main(cfg):
     print(OmegaConf.to_yaml(cfg))
     seed_everything(cfg.seed)
 
-    dataset = hydra.utils.instantiate(
-        cfg.dataset,
-        data_path = cfg.data_dir,
-        tactile_img_size = cfg.tactile_image_size
-    )
-
     train_loader, test_loader = get_dataloaders(cfg)
-    cbet_model = hydra.utils.instantiate(cfg.model).to(cfg.device)
-
-    # train_data, test_data = hydra.utils.instantiate(cfg.data)
-    # train_loader = torch.utils.data.DataLoader(
-    #     train_data, batch_size=cfg.batch_size, shuffle=True, pin_memory=True
-    # )
-    # test_loader = torch.utils.data.DataLoader(
-    #     test_data, batch_size=cfg.batch_size, shuffle=False, pin_memory=True
-    # )
-    cbet_model = hydra.utils.instantiate(cfg.model).to(cfg.device)
-
-    if cfg.load_path:
-        cbet_model.load_model(Path(cfg.load_path))
-    optimizer = cbet_model.configure_optimizers(
-        weight_decay=cfg.optim.weight_decay,
-        learning_rate=cfg.optim.lr,
-        betas=cfg.optim.betas,
-    )
+    
     # goal_fn = hydra.utils.instantiate(cfg.goal_fn)
     # env = hydra.utils.instantiate(cfg.env.gym)
     run = wandb.init(
@@ -114,15 +87,15 @@ def main(cfg):
             loss.backward()
             optimizer.step()
 
-        if epoch % cfg.save_every == 0:
-            cbet_model.save_model(save_path)
+    #     if epoch % cfg.save_every == 0:
+    #         cbet_model.save_model(save_path)
 
-    avg_reward = eval_on_env(
-        cfg,
-        num_evals=cfg.num_final_evals,
-        num_eval_per_goal=cfg.num_final_eval_per_goal,
-    )
-    wandb.log({"final_eval_on_env": avg_reward})
+    # avg_reward = eval_on_env(
+    #     cfg,
+    #     num_evals=cfg.num_final_evals,
+    #     num_eval_per_goal=cfg.num_final_eval_per_goal,
+    # )
+    # wandb.log({"final_eval_on_env": avg_reward})
     return avg_reward
 
 
