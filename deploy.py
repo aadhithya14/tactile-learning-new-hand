@@ -74,7 +74,8 @@ def main(cfg : DictConfig) -> None:
 
     deployer = hydra.utils.instantiate(
         cfg.deployer,
-        data_path = cfg.data_path
+        data_path = cfg.data_path,
+        deployment_dump_dir = cfg.deployment_dump_dir
     )
     deploy = Deploy(cfg, deployer)
     deploy.solve()
