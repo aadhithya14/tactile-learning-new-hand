@@ -1,0 +1,12 @@
+_target_: tactile_learning.deployers.BET
+data_path: ??? 
+deployment_dump_dir: ???
+tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
+image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
+# bet_model_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/13-43_bet_bs_32_cup_picking_after_rss
+bet_model_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/15-47_bet_bs_32_cup_picking_after_rss
+
+seq_length: 3
+representation_types: ['image', 'tactile', 'kinova', 'allegro'] # Observations used in the representations
+demos_to_use: [13,14,15,16,17,18] # Leave empty to use all the demos in the evaluation
+view_num: 1

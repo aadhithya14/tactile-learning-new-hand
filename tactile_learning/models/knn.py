@@ -2,7 +2,7 @@ import numpy as np
 
 from copy import deepcopy as copy
 
-from tactile_dexterity.utils import *
+from tactile_learning.utils import *
 
 # Custom nearest neighbor implementation
 class KNearestNeighbors(object):
@@ -75,8 +75,8 @@ class ScaledKNearestNeighbors(object):
                 self.index_values['tactile'] = [last_index, last_index+self.tactile_repr_size]
                 last_index += self.tactile_repr_size
             elif repr_type == 'kinova':
-                self.index_values['kinova'] = [last_index, last_index+KINOVA_JOINT_NUM]
-                last_index += KINOVA_JOINT_NUM
+                self.index_values['kinova'] = [last_index, last_index+KINOVA_CARTESIAN_POS_SIZE]
+                last_index += KINOVA_CARTESIAN_POS_SIZE
             elif repr_type == 'allegro':
                 self.index_values['allegro'] = [last_index, last_index+ALLEGRO_EE_REPR_SIZE]
                 last_index += ALLEGRO_EE_REPR_SIZE

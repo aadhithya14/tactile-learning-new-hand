@@ -28,6 +28,10 @@ def main(cfg):
 
     train_loader, test_loader = get_dataloaders(cfg)
     
+    # cbet_model = hydra.utils.instantiate(cfg.model).to(cfg.device)
+    # if cfg.load_path:
+    #     cbet_model.load_model(Path(cfg.load_path))
+
     # goal_fn = hydra.utils.instantiate(cfg.goal_fn)
     # env = hydra.utils.instantiate(cfg.env.gym)
     run = wandb.init(

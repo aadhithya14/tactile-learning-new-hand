@@ -93,7 +93,10 @@ def load_model(cfg, device, model_path, bc_model_type=None):
     model.load_state_dict(new_state_dict)
 
     # Turn it into DDP - it was saved that way 
-    model = DDP(model.to(device), device_ids=[0])
+    if cfg.distributed:
+        model = DDP(model.to(device), device_ids=[0])
+    else:
+        model = model.to(device)
 
     return model
 

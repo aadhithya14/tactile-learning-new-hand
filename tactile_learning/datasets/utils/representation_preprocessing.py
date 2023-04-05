@@ -29,6 +29,7 @@ class RepresentationPreprocessor: # It should only take image and tactile inout 
         data_path, # It will dump the representations to the given data path
         tactile_out_dir=None, # If these are None then it's considered we'll use non trained encoders
         image_out_dir=None,
+        representation_types = ['image', 'tactile', 'kinova', 'allegro', 'torque'],
         view_num = 0, # View number to use for image
         demos_to_use = []
     ):
@@ -37,6 +38,7 @@ class RepresentationPreprocessor: # It should only take image and tactile inout 
 
         device = torch.device('cuda:0')
         self.view_num = view_num
+        self.representation_types = representation_types
 
         tactile_cfg, tactile_encoder, _ = self._init_encoder_info(device, tactile_out_dir, 'tactile')
         self.tactile_img = TactileImage(
@@ -55,19 +57,6 @@ class RepresentationPreprocessor: # It should only take image and tactile inout 
         self.roots = sorted(glob.glob(f'{data_path}/demonstration_*'))
         self.data_path = data_path
         self.data = load_data(self.roots, demos_to_use=demos_to_use) # This will return all the desired indices and the values
-
-        # self.get_all_representations()
-        # self.state_id = 0 # Increase it with each get_action
-
-        # os.makedirs(self.data_path, exist_ok=True)
-        # self.deployment_info = dict(
-        #     all_representations = self.all_representations,
-        #     curr_representations = [], # representations will be appended to this list
-        #     closest_representations = [],
-        #     neighbor_ids = [],
-        #     images = [], 
-        #     tactile_values = []
-        # )
 
     def set_up_env(self):
         os.environ["MASTER_ADDR"] = "localhost"
@@ -115,9 +104,11 @@ class RepresentationPreprocessor: # It should only take image and tactile inout 
     # tactile_values: (N,16,3) - N: Number of sensors
     # robot_states: { allegro: allegro_tip_positions: 12 - 3*4, End effector cartesian position for each finger tip
     #                 kinova: kinova_states : (3,) - Cartesian position of the arm end effector}
-    def _get_one_representation(self, image, tactile_values):
-        for i,repr_type in enumerate(['image','tactile']):
-            if repr_type == 'tactile':
+    def _get_one_representation(self, image, tactile_values, robot_states):
+        for i,repr_type in enumerate(self.representation_types):
+            if repr_type == 'allegro' or repr_type == 'kinova' or repr_type == 'torque':
+                new_repr = robot_states[repr_type] # These could be received directly from the robot states
+            elif repr_type == 'tactile':
                 new_repr = self.tactile_repr.get(tactile_values)
             elif repr_type == 'image':
                 new_repr = self.image_encoder(image.unsqueeze(dim=0)) # Add a dimension to the first axis so that it could be considered as a batch
@@ -132,7 +123,12 @@ class RepresentationPreprocessor: # It should only take image and tactile inout 
     
     def get_all_representations(self):
         print('Getting all representations')
-        repr_dim = self.tactile_repr.size + self.image_cfg.encoder.out_dim
+        repr_dim = 0
+        if 'tactile' in self.representation_types: repr_dim += self.tactile_repr.size
+        if 'allegro' in self.representation_types:  repr_dim += ALLEGRO_EE_REPR_SIZE
+        if 'kinova' in self.representation_types: repr_dim += KINOVA_CARTESIAN_POS_SIZE
+        if 'torque' in self.representation_types: repr_dim += ALLEGRO_JOINT_NUM # There are 16 joint values
+        if 'image' in self.representation_types: repr_dim += self.image_cfg.encoder.out_dim
 
         self.all_representations = np.zeros((
             len(self.data['tactile']['indices']), repr_dim
@@ -145,39 +141,67 @@ class RepresentationPreprocessor: # It should only take image and tactile inout 
 
             representation = self._get_one_representation(
                 repr_data['image'],
-                repr_data['tactile_value']
+                repr_data['tactile_value'],
+                repr_data['robot_states']
             )
             self.all_representations[index, :] = representation[:]
             pbar.update(1)
 
         pbar.close()
 
-    def dump_all_representations(self):
-        dumping_file_path = os.path.join(self.data_path, 'all_representations.pkl')
+    def dump_all_representations(self, file_name='all_representations.pkl'):
+        dumping_file_path = os.path.join(self.data_path, file_name)
         with open(dumping_file_path, 'wb') as f:
             pickle.dump(self.all_representations, f)
 
     def _get_data_with_id(self, id):
         demo_id, tactile_id = self.data['tactile']['indices'][id]
+        _, allegro_tip_id = self.data['allegro_tip_states']['indices'][id]
+        _, kinova_id = self.data['kinova']['indices'][id]
         _, image_id = self.data['image']['indices'][id]
+        _, allegro_state_id = self.data['allegro_joint_states']['indices'][id]
 
         tactile_value = self.data['tactile']['values'][demo_id][tactile_id] # This should be (N,16,3)
+        allegro_tip_position = self.data['allegro_tip_states']['values'][demo_id][allegro_tip_id] # This should be (M*3,)
+        kinova_state = self.data['kinova']['values'][demo_id][kinova_id]
         image = self._load_dataset_image(demo_id, image_id)
+
+        allegro_joint_torque = self.data['allegro_joint_states']['torques'][demo_id][allegro_state_id] # This is the torque to be used
+        robot_states = dict(
+            allegro = allegro_tip_position,
+            kinova = kinova_state,
+            torque = allegro_joint_torque
+        )
 
         data = dict(
             image = image,
-            tactile_value = tactile_value
+            tactile_value = tactile_value,
+            robot_states = robot_states
         )
         return data
     
 if __name__ == '__main__':
+    # preprocessor = RepresentationPreprocessor(
+    #     data_path='/home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss',
+    #     tactile_out_dir='/home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120',
+    #     image_out_dir='/home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss',
+    #     view_num=1,
+    #     demos_to_use=[17], #[13,14,15,16,17,18],
+    #     representation_types=['image','tactile','kinova','allegro']
+    # )
+    # preprocessor.get_all_representations()
+    # print(f'Dumping - all_representations.shape: {preprocessor.all_representations.shape}')
+    # preprocessor.dump_all_representations(file_name='test_representations.pkl')
+
     preprocessor = RepresentationPreprocessor(
         data_path='/home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss',
         tactile_out_dir='/home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120',
         image_out_dir='/home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss',
         view_num=1,
-        demos_to_use=[13,14,15,16,17,18],
+        demos_to_use=[13,14,15,16,18],
+        representation_types=['image','tactile','kinova','allegro']
     )
     preprocessor.get_all_representations()
-    preprocessor.dump_all_representations()
+    print(f'Dumping - all_representations.shape: {preprocessor.all_representations.shape}')
+    preprocessor.dump_all_representations(file_name='train_representations.pkl')
 

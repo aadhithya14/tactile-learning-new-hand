@@ -1,4 +1,10 @@
-_target_: tactile_learning.datasets.SequentialRepresentationsActions
-seq_length: 10 
-data_path: ???
-demos_to_use: [13,14,15,16,17,18] # NOTE: This should be the same as the representation preprocessor!
+dataset:
+  _target_: tactile_learning.datasets.SequentialRepresentationsActions
+  seq_length: 3
+  data_path: ???
+  demos_to_use: ???
+  dset_type: ???
+
+all_demos_to_use: [13,14,15,16,17,18] # NOTE: This should be the same as the representation preprocessor!
+framebased: false
+demobased: true

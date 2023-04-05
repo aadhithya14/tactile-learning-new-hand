@@ -18,7 +18,8 @@ class SequentialRepresentationsActions(data.Dataset):
         self,
         seq_length,
         data_path,
-        demos_to_use
+        demos_to_use,
+        dset_type='all'
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -29,8 +30,8 @@ class SequentialRepresentationsActions(data.Dataset):
 
         # Make sure that there is a file named all_representations.pkl in the
         # data_path, if not this class should complain
-        all_representations_path = os.path.join(data_path, 'all_representations.pkl')
-        assert os.path.exists(all_representations_path), 'all_representations.pkl should exist first, run python preprocess.py repr_preprocessor.apply=true'
+        all_representations_path = os.path.join(data_path, f'{dset_type}_representations.pkl')
+        assert os.path.exists(all_representations_path), f'{dset_type}_representations.pkl should exist first, run python preprocess.py repr_preprocessor.apply=true'
 
         with open(all_representations_path, 'rb') as f:
             self.all_representations = pickle.load(f)
@@ -44,7 +45,7 @@ class SequentialRepresentationsActions(data.Dataset):
             allegro_action = self.data['allegro_actions']['values'][demo_id][allegro_action_id]
 
             _, kinova_id = self.data['kinova']['indices'][curr_id]
-            kinova_action = self.data['kinova']['values'][demo_id][kinova_id]
+            kinova_action = self.data['kinova']['values'][demo_id][kinova_id+1]
 
             total_action = np.concatenate([allegro_action, kinova_action], axis=-1)
             return torch.FloatTensor(total_action)

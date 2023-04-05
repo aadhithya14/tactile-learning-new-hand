@@ -104,7 +104,7 @@ class BETDataset(data.Dataset):
         repr_dim = 0
         if 'tactile' in self.representation_types: repr_dim += self.tactile_repr.size
         if 'allegro' in self.representation_types:  repr_dim += ALLEGRO_EE_REPR_SIZE
-        if 'kinova' in self.representation_types: repr_dim += KINOVA_JOINT_NUM
+        if 'kinova' in self.representation_types: repr_dim += KINOVA_CARTESIAN_POS_SIZE
         if 'torque' in self.representation_types: repr_dim += ALLEGRO_JOINT_NUM # There are 16 joint values
         if 'image' in self.representation_types: repr_dim += self.image_cfg.encoder.out_dim
 
