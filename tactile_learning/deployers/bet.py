@@ -190,8 +190,8 @@ class BET(Deployer):
 
         action = dict(
             # allegro = action_values[0,-1,:16],
-            allegro = action_values[-1,:16],
-            kinova = action_values[-1,-7:] # Apply the last learned action
+            allegro = action_values[-1,:ALLEGRO_JOINT_NUM],
+            kinova = action_values[-1,-KINOVA_CARTESIAN_POS_SIZE:] # Apply the last learned action
         )
         print('action: {}'.format(action))
         

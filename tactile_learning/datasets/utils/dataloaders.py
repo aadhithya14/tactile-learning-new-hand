@@ -7,10 +7,10 @@ from omegaconf import DictConfig
 
 # Script to return dataloaders
 def get_dataloaders(cfg : DictConfig):
-    if cfg.dataset.framebased:
-        return get_framebased_shuffled_dataloader(cfg)
-    if cfg.dataset.demobased:
+    if 'demobased' in cfg.dataset and cfg.dataset.demobased:
         return get_demobased_shuffled_dataloader(cfg)
+    else:
+        return get_framebased_shuffled_dataloader(cfg)
 
     return None, None, None
 
@@ -51,7 +51,6 @@ def get_demobased_shuffled_dataloader(cfg):
     all_demos_to_use = cfg.dataset.all_demos_to_use
     # Get a random demo numbers to shuffle
     test_demo = random.choice(all_demos_to_use)
-    print('test_demo: {}'.format(test_demo))
     test_dset = hydra.utils.instantiate(
         cfg.dataset.dataset,
         data_path = cfg.data_dir,

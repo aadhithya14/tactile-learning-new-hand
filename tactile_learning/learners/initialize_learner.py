@@ -6,13 +6,16 @@ from .byol import BYOLLearner
 from .vicreg import VICRegLearner
 from .behavior_cloning import ImageTactileBC
 from .bet import BETLearner
+from .bc_gmm import BCGMM
 
 from tactile_learning.utils import *
-from tactile_learning.models import BYOL, VICReg, create_fc
+from tactile_learning.models import BYOL, VICReg, create_fc, init_encoder_info
 
 def init_learner(cfg, device, rank=0):
     if cfg.learner_type == 'bc':
         return init_bc(cfg, device, rank)
+    elif cfg.learner_type == 'bc_gmm':
+        return init_bc_gmm(cfg, device, rank)
     elif 'tactile' in cfg.learner_type:
         return init_tactile_byol(
             cfg,
@@ -188,4 +191,42 @@ def init_bc(cfg, device, rank):
     )
     learner.to(device) 
     
+    return learner
+
+def init_bc_gmm(cfg, device, rank):
+    # For this model we'll use already trained image and tactile encoders
+    # Initialize image encoder
+    _, image_encoder, _ = init_encoder_info(
+        device, out_dir = cfg.learner.image_out_dir, encoder_type='image', view_num=cfg.learner.view_num
+    ) # These are passed to the gpu device in load_model
+    # image_encoder = image_encoder.to(device)
+    image_encoder = DDP(image_encoder, device_ids=[rank], output_device=rank, broadcast_buffers=False)
+
+    # Initialize the tactile encoder 
+    _, tactile_encoder, _ = init_encoder_info(
+        device, out_dir = cfg.learner.tactile_out_dir, encoder_type='tactile', view_num=cfg.learner.view_num
+    ) # These are passed to the gpu device in load_model
+    tactile_encoder = DDP(tactile_encoder, device_ids=[rank], output_device=rank, broadcast_buffers=False)
+
+    # Initialize the gmm layer to guess the logits, mu and sigmas
+    gmm_layer = hydra.utils.instantiate(
+        cfg.learner.gmm_layer
+    ).to(device)
+    gmm_layer = DDP(gmm_layer, device_ids=[rank], output_device=rank, broadcast_buffers=False)
+
+    optim_params = list(gmm_layer.parameters())
+    if not cfg.learner.freeze_encoders:
+        optim_params += list(image_encoder.parameters()) + list(tactile_encoder.parameters())
+    optimizer = hydra.utils.instantiate(cfg.optimizer, params = optim_params)
+
+    learner = BCGMM(
+        image_encoder = image_encoder,
+        tactile_encoder = tactile_encoder,
+        last_layer = gmm_layer,
+        optimizer = optimizer,
+        representation_type = cfg.learner.representation_type,
+        freeze_encoders = cfg.learner.freeze_encoders
+    )
+    learner.to(device)
+
     return learner

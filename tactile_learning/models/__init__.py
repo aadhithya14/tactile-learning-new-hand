@@ -1,3 +1,4 @@
+from .gmm import GMMLayer
 from .knn import *
 from .pretrained import *
 from .tactile_encoders import *

@@ -39,7 +39,7 @@ def create_fc(input_dim, output_dim, hidden_dims, use_batchnorm=False, dropout=N
         layers.append(nn.BatchNorm1d(hidden_dims[-1], affine=False))
     return nn.Sequential(*layers)
 
-def init_encoder_info(device, out_dir, encoder_type='tactile'): # encoder_type: either image or tactile
+def init_encoder_info(device, out_dir, encoder_type='tactile', view_num=1): # encoder_type: either image or tactile
         if encoder_type == 'tactile' and  out_dir is None:
             encoder = alexnet(pretrained=True, out_dim=512, remove_last_layer=True)
             cfg = OmegaConf.create({'encoder':{'out_dim':512}, 'tactile_image_size':224})
@@ -55,9 +55,12 @@ def init_encoder_info(device, out_dir, encoder_type='tactile'): # encoder_type: 
         encoder.eval() 
         
         if encoder_type == 'image':
+            def viewed_crop_transform(image):
+                return crop_transform(image, camera_view=view_num)
+            
             transform = T.Compose([
                 T.Resize((480,640)),
-                T.Lambda(crop_transform),
+                T.Lambda(viewed_crop_transform),
                 T.Resize(480),
                 T.ToTensor(),
                 T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS),
@@ -81,7 +84,7 @@ def load_model(cfg, device, model_path, bc_model_type=None):
     elif 'byol' in cfg.learner_type: # load the encoder
         model = hydra.utils.instantiate(cfg.encoder)  
 
-    state_dict = torch.load(model_path)
+    state_dict = torch.load(model_path) # All the parameters by default gets installed to cuda 0
     
     # Modify the state dict accordingly - this is needed when multi GPU saving was done
     new_state_dict = modify_multi_gpu_state_dict(state_dict)
@@ -90,13 +93,9 @@ def load_model(cfg, device, model_path, bc_model_type=None):
         new_state_dict = modify_byol_state_dict(new_state_dict)
 
     # Load the new state dict to the model 
+    # print('new_state_dict: {}'.format(new_state_dict))
     model.load_state_dict(new_state_dict)
-
-    # Turn it into DDP - it was saved that way 
-    if cfg.distributed:
-        model = DDP(model.to(device), device_ids=[0])
-    else:
-        model = model.to(device)
+    model = model.to(device)
 
     return model
 
@@ -104,7 +103,7 @@ def modify_multi_gpu_state_dict(state_dict):
     new_state_dict = OrderedDict()
     for k, v in state_dict.items():
         name = k[7:]
-        new_state_dict[name] = v 
+        new_state_dict[name] = v
     return new_state_dict
 
 def modify_byol_state_dict(state_dict):
