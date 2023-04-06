@@ -25,9 +25,6 @@ def load_model(cfg, device, model_path, bc_model_type=None):
         model = hydra.utils.instantiate(cfg.encoder) # NOTE: Wouldm't this work? 
 
     state_dict = torch.load(model_path)
-    # print('state_dict: {}, model_type: {}, model_path: {}, model: {}'.format(
-    #     state_dict, bc_model_type, model_path, model
-    # ))
     
     # Modify the state dict accordingly - this is needed when multi GPU saving was done
     new_state_dict = modify_multi_gpu_state_dict(state_dict)

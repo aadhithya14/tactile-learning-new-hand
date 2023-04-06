@@ -199,7 +199,6 @@ def init_bc_gmm(cfg, device, rank):
     _, image_encoder, _ = init_encoder_info(
         device, out_dir = cfg.learner.image_out_dir, encoder_type='image', view_num=cfg.learner.view_num
     ) # These are passed to the gpu device in load_model
-    # image_encoder = image_encoder.to(device)
     image_encoder = DDP(image_encoder, device_ids=[rank], output_device=rank, broadcast_buffers=False)
 
     # Initialize the tactile encoder 

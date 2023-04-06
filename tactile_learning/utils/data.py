@@ -115,4 +115,24 @@ def load_dataset_image(data_path, demo_id, image_id, view_num):
     image_path = os.path.join(image_root, 'cam_{}_rgb_images/frame_{}.png'.format(view_num, str(image_id).zfill(5)))
     img = loader(image_path)
     return img
-        
+
+# Taken from https://github.com/NYU-robot-learning/multimodal-action-anticipation/utils/__init__.py#L90
+def batch_indexing(input, idx):
+    """
+    Given an input with shape (*batch_shape, k, *value_shape),
+    and an index with shape (*batch_shape) with values in [0, k),
+    index the input on the k dimension.
+    Returns: (*batch_shape, *value_shape)
+    """
+    batch_shape = idx.shape
+    dim = len(idx.shape)
+    value_shape = input.shape[dim + 1 :]
+    N = batch_shape.numel()
+    assert input.shape[:dim] == batch_shape, "Input batch shape must match index shape"
+    assert len(value_shape) > 0, "No values left after indexing"
+
+    # flatten the batch shape
+    input_flat = input.reshape(N, *input.shape[dim:])
+    idx_flat = idx.reshape(N)
+    result = input_flat[np.arange(N), idx_flat]
+    return result.reshape(*batch_shape, *value_shape) 

@@ -20,18 +20,11 @@ from holobot.constants import *
 from holobot.utils.network import ZMQCameraSubscriber
 from holobot.robot.allegro.allegro_kdl import AllegroKDL
 
-# from tactile_learning.deployment.load_models import load_model
-# from tactile_learning.deployment.nn_buffer import NearestNeighborBuffer
-# from tactile_learning.models.knn import KNearestNeighbors, ScaledKNearestNeighbors
-# from tactile_learning.utils.augmentations import crop_transform
-# from tactile_learning.utils.constants import *
-# from tactile_learning.utils.data import load_data
-# from tactile_learning.utils.tactile_image import get_tactile_image
-# from tactile_learning.utils.visualization import *
 from torchvision.transforms.functional import crop
 
+from tactile_learning.models import load_model
 from tactile_learning.utils import *
-from tactile_dexterity.tactile_data import *
+from tactile_learning.tactile_data import *
 
 from .deployer import Deployer
 

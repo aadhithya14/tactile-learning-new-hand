@@ -21,6 +21,7 @@ class TactileRepresentation:
         tactile_encoder,
         tactile_image,
         representation_type, # raw, shared, stacked, tdex, sumpool, pca
+        device='cuda:0'
     ):
         # self.size = cfg.encoder.out_dim * 15 if representation_type == 'shared' else cfg.encoder.out_dim
         self.tactile_image = tactile_image
@@ -29,6 +30,7 @@ class TactileRepresentation:
             T.Normalize(TACTILE_IMAGE_MEANS, TACTILE_IMAGE_STDS)
         ])
         self.encoder = tactile_encoder
+        self.device = torch.device(device)
 
         if representation_type == 'tdex':
             self.get = self._get_tdex_repr
@@ -60,19 +62,19 @@ class TactileRepresentation:
 
     def _get_tdex_repr(self, tactile_values):
         img = self.tactile_image.get_whole_hand_tactile_image(tactile_values)
-        img = self.transform(img)
+        img = self.transform(img).to(self.device)
         return self.encoder(img.unsqueeze(0)).squeeze().detach().cpu().numpy()
     
     def _get_stacked_repr(self, tactile_values):
         img = self.tactile_image.get_stacked_tactile_image(tactile_values)
-        img = self.transform(img)
+        img = self.transform(img).to(self.device)
         return self.encoder(img.unsqueeze(0)).squeeze().detach().cpu().numpy()
     
     def _get_shared_repr(self, tactile_values):
         for sensor_id in range(len(tactile_values)):
             curr_tactile_value = tactile_values[sensor_id]
             curr_tactile_image = self.tactile_image.get_single_tactile_image(curr_tactile_value).unsqueeze(0) # To make it as if it's a batch
-            curr_tactile_image = self.transform(curr_tactile_image)
+            curr_tactile_image = self.transform(curr_tactile_image).to(self.device)
             if sensor_id == 0:
                 curr_repr = self.encoder(curr_tactile_image).squeeze() # shape: (64)
             else:

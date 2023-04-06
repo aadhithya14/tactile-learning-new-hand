@@ -73,6 +73,7 @@ def init_encoder_info(device, out_dir, encoder_type='tactile', view_num=1): # en
 
 def load_model(cfg, device, model_path, bc_model_type=None):
     # Initialize the model
+    # TODO: Make all these initialization more general - init_learner and load_model!
     if cfg.learner_type == 'bc':
         if bc_model_type == 'image':
             model = hydra.utils.instantiate(cfg.encoder.image_encoder)
@@ -80,7 +81,8 @@ def load_model(cfg, device, model_path, bc_model_type=None):
             model = hydra.utils.instantiate(cfg.encoder.tactile_encoder)
         elif bc_model_type == 'last_layer':
             model = hydra.utils.instantiate(cfg.encoder.last_layer)
-
+    elif cfg.learner_type == 'bc_gmm':
+        model = hydra.utils.instantiate(cfg.learner.gmm_layer)
     elif 'byol' in cfg.learner_type: # load the encoder
         model = hydra.utils.instantiate(cfg.encoder)  
 
@@ -95,6 +97,10 @@ def load_model(cfg, device, model_path, bc_model_type=None):
     # Load the new state dict to the model 
     # print('new_state_dict: {}'.format(new_state_dict))
     model.load_state_dict(new_state_dict)
+    # if cfg.distributed and eval: # Load the models to evaluate
+    #     model = DDP(model.to(device), device_ids=[0])
+    # else:
+    #     model = model.to(device)
     model = model.to(device)
 
     return model

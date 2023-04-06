@@ -8,5 +8,5 @@ gmm_layer:
 tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
 image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
 freeze_encoders: true
-representation_type: t-dex
+representation_type: tdex
 view_num: 1

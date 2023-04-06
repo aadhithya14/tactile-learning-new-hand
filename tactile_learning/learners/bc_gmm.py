@@ -14,7 +14,7 @@ class BCGMM(Learner):
         tactile_encoder,
         last_layer,
         optimizer,
-        representation_type='t-dex',  # We will use image and tactile images for now 
+        representation_type='tdex',  # We will use image and tactile images for now 
         freeze_encoders=True # We will try both of them
     ):
         self.image_encoder = image_encoder 
@@ -63,7 +63,7 @@ class BCGMM(Learner):
             tactile_repr = self.tactile_encoder(tactile_image)
             vision_repr = self.image_encoder(vision_image)
         
-        if self.representation_type == 't-dex':
+        if self.representation_type == 'tdex':
             all_repr = torch.concat((tactile_repr, vision_repr), dim=-1)
             return all_repr
         if self.representation_type == 'tactile':

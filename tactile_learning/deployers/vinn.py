@@ -45,11 +45,11 @@ class VINN(Deployer):
         self.representation_types = representation_types
         self.demos_to_use = demos_to_use
 
-        device = torch.device('cuda:0')
+        self.device = torch.device('cuda:0')
         self.view_num = view_num
         self.open_loop = open_loop
 
-        tactile_cfg, tactile_encoder, _ = self._init_encoder_info(device, tactile_out_dir, 'tactile')
+        tactile_cfg, tactile_encoder, _ = self._init_encoder_info(self.device, tactile_out_dir, 'tactile')
         self.tactile_img = TactileImage(
             tactile_image_size = tactile_cfg.tactile_image_size, 
             shuffle_type = tactile_shuffle_type
@@ -61,7 +61,7 @@ class VINN(Deployer):
             representation_type = tactile_repr_type
         )
 
-        self.image_cfg, self.image_encoder, self.image_transform = self._init_encoder_info(device, image_out_dir, 'image')
+        self.image_cfg, self.image_encoder, self.image_transform = self._init_encoder_info(self.device, image_out_dir, 'image')
         self.inv_image_transform = get_inverse_image_norm()
 
         self.roots = sorted(glob.glob(f'{data_path}/demonstration_*'))
@@ -108,7 +108,7 @@ class VINN(Deployer):
             model_path = os.path.join(out_dir, 'models/byol_encoder_best.pt')
             encoder = load_model(cfg, device, model_path)
         encoder.eval() 
-        
+
         if encoder_type == 'image':
             transform = T.Compose([
                 T.Resize((480,640)),
@@ -138,9 +138,10 @@ class VINN(Deployer):
             if repr_type == 'allegro' or repr_type == 'kinova' or repr_type == 'torque':
                 new_repr = robot_states[repr_type] # These could be received directly from the robot states
             elif repr_type == 'tactile':
+                # tactile_values = torch.FloatTensor(tactile_values).to(self.device)
                 new_repr = self.tactile_repr.get(tactile_values)
             elif repr_type == 'image':
-                new_repr = self.image_encoder(image.unsqueeze(dim=0)) # Add a dimension to the first axis so that it could be considered as a batch
+                new_repr = self.image_encoder(image.unsqueeze(dim=0).to(self.device)) # Add a dimension to the first axis so that it could be considered as a batch
                 new_repr = new_repr.detach().cpu().numpy().squeeze()
 
             if i == 0:
