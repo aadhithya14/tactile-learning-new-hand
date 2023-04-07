@@ -17,3 +17,15 @@ ALLEGRO_EE_REPR_SIZE = 12
 
 # Play data path - should be changed 
 PLAY_DATA_PATH = '/data/tactile_learning/play_data'
+
+# Constants for the IBC training
+THUMB_JOINT_LIMITS = [
+    [0,1.5], [-0.1,1], [-0.1,1.3], [-0.1,1.3]
+]
+FINGER_JOINT_LIMITS = [
+    [-0.2, 0.2],[-0.1, 1.3],[-0.1,1.3],[-0.1,1.3]
+]
+KINOVA_JOINT_LIMITS = [
+    [-0.48, -0.55],[0.15,0.25], [0.3,0.45], # X,Y,Z
+    [-0.1,0.1], [-0.7,-0.5],[0.0,0.1],[0.6,0.8] 
+]

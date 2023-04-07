@@ -1,8 +1,8 @@
 defaults:
-  - deployer: bc_gmm
+  - deployer: ibc
 
 visualize: true
 loop: true
 frequency: 15
-deployment_dump_dir: /home/irmak/Workspace/tactile-learning/deployment_data/cup_picking/after_rss/bc_gmm/2
+deployment_dump_dir: /home/irmak/Workspace/tactile-learning/deployment_data/cup_picking/after_rss/ibc/1
 data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss # User should fill this

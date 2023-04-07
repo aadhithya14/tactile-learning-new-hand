@@ -1,3 +1,4 @@
+from .ebm import EBMMLP
 from .gmm import GMMLayer
 from .knn import *
 from .pretrained import *

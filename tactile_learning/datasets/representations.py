@@ -10,8 +10,7 @@ import torchvision.transforms as T
 from torch.utils import data
 from torchvision.datasets.folder import default_loader as loader 
 
-from tactile_dexterity.tactile_data import TactileImage
-from tactile_dexterity.utils import VISION_IMAGE_MEANS, VISION_IMAGE_STDS, load_data, crop_transform
+from tactile_learning.utils import load_data
 
 class SequentialRepresentationsActions(data.Dataset):
     def __init__(

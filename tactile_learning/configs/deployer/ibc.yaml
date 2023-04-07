@@ -1,0 +1,20 @@
+_target_: tactile_learning.deployers.IBC
+data_path: ???
+deployment_dump_dir: ??? 
+tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
+image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
+representation_types: [image, tactile, kinova, allegro]
+ibc_config:
+  ebm_model_path: /home/irmak/Workspace/ibc/experiments/tactile_implicit_ebm_10/checkpoints/ckpt_34000.ckpt
+  ebm_model:
+    # _target_: tactile_learning.models.EBMMLP - NOTE: Learn how to next target
+    input_dim: 1578
+    hidden_dim: 128
+    output_dim: 1
+    hidden_depth: 2
+    dropout_prob: 0
+
+  noise_scale: 0.33
+  noise_shrink: 0.5
+  iters: 3
+  inference_samples: 32
