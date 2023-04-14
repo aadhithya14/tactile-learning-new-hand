@@ -219,26 +219,6 @@ class IBC(Deployer):
         curr_repr = torch.FloatTensor(curr_repr).unsqueeze(0).to(self.device)
         print('curr_repr.shape: {}'.format(curr_repr.shape))
         infer_action = self.infer(curr_repr).detach().cpu().numpy().squeeze()
-        print('infer_aciton shape: {}'.format(infer_action.shape))
-        # curr_repr = torch.FloatTensor(curr_repr).unsqueeze(0).unsqueeze(0).to(self.device)
-
-        # if self.state_id == 0:
-        #     self.temporal_representations = curr_repr.repeat(1, self.seq_length, 1) # Batch Number, Sequence, Repr Dimension
-        # else:
-        #     self.temporal_representations = torch.roll(self.temporal_representations, shifts=(0,-1,0), dims=(0,1,2)) # Shift all the old representations to earlier
-        #     self.temporal_representations[-1] = curr_repr # Add the current representation as the last representation
-
-        # print('curr_repr.shape: {}'.format(curr_repr.shape))
-        # print('self.temporal_representations.mean(-1): {}'.format(
-        #     self.temporal_representations.mean(-1)
-        # ))
-
-        # Infer actions from the model
-        # action_values, _, _ = self.bet_model(self.temporal_representations, None, None)
-        # action_values = action_values.detach().cpu().numpy().squeeze()
-        # print('action_values.shape: {}'.format(
-        #     action_values.shape
-        # ))
 
         action = dict(
             allegro = infer_action[:ALLEGRO_JOINT_NUM],
