@@ -4,7 +4,7 @@ import torch
 from abc import ABC, abstractmethod
 from PIL import Image as im
 
-from tactile_dexterity.utils import *
+from tactile_learning.utils import *
 
 # Base class for all deployment modules
 class Deployer(ABC):

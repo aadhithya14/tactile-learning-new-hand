@@ -4,7 +4,7 @@ import glob
 from holobot.constants import *
 
 from .deployer import Deployer
-from tactile_dexterity.utils import load_data
+from tactile_learning.utils import load_data
 
 class OpenLoop(Deployer):
     def __init__(

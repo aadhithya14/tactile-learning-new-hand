@@ -8,7 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 class Logger:
     def __init__(self, cfg : DictConfig, exp_name:str, out_dir:str) -> None:
         # Initialize the wandb experiment
-        self.wandb_logger = wandb.init(project="tactile_dexterity", 
+        self.wandb_logger = wandb.init(project="tactile_learning", 
                                        name=exp_name,
                                        config = OmegaConf.to_container(cfg, resolve=True), 
                                        settings=wandb.Settings(start_method="thread"))
