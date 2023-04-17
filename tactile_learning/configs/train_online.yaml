@@ -1,0 +1,7 @@
+defaults:
+  - env: cup_unstacking
+  - agent: fish # Optimizer will be initialized inside the agent
+  - dataset: fish_all_replay_buffer
+
+seed: 42 
+device: cuda

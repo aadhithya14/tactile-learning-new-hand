@@ -4,6 +4,7 @@ import torch
 from abc import ABC, abstractmethod
 from PIL import Image as im
 
+from holobot.utils.network import ZMQCameraSubscriber
 from tactile_learning.utils import *
 
 # Base class for all deployment modules
@@ -24,7 +25,7 @@ class Deployer(ABC):
         pass 
 
     def _get_curr_image(self, host='172.24.71.240', port=10005):
-        image_subscriber = ZMQCameraSubscriber(
+        image_subscriber = ZMQCameraSubscriber( # TODO: Change this such that it will create a subscriber only once
             host = host,
             port = port + self.view_num,
             topic_type = 'RGB'

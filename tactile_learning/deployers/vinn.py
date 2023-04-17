@@ -7,12 +7,12 @@ import pickle
 import torch
 import torchvision.transforms as T
 
-from PIL import Image as im
+
 from omegaconf import OmegaConf
 from tqdm import tqdm 
 
 from holobot.constants import *
-from holobot.utils.network import ZMQCameraSubscriber
+
 from holobot.robot.allegro.allegro_kdl import AllegroKDL
 
 from tactile_learning.models import load_model, resnet18, alexnet, ScaledKNearestNeighbors 
