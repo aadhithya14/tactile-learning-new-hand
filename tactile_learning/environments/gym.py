@@ -88,7 +88,7 @@ class TactileReprAsObservationWrapper(dm_env.Environment):
 		self._obs_spec['tactile'] = specs.Array(
 			shape = self._tactile_size,
 			dtype=np.float32, # NOTE: is this a problem?
-			name = 'tactile_repr' # We will receive the representation directly
+			name = 'tactile' # We will receive the representation directly
 		)
 
 	def reset(self, **kwargs):
@@ -189,7 +189,7 @@ class FrameStackWrapper(dm_env.Environment):
 		self._obs_spec['tactile'] = specs.Array(
 			shape = (num_frames, tactile_shape),
 			dtype = np.float32, 
-			name = 'tactile_repr'
+			name = 'tactile'
 		)
 
 	def _transform_observation(self, time_step):
@@ -304,6 +304,7 @@ class ExtendedTimeStepWrapper(dm_env.Environment):
 		time_step = self._env.reset()
 		return self._augment_time_step(time_step)
 
+	# TODO: Modify this as the base act!!
 	def step(self, action, vinn_action):
 		time_step = self._env.step(action)
 		return self._augment_time_step(time_step, action, vinn_action)

@@ -32,6 +32,7 @@ class DexterityEnv(gym.Env):
                 required_data={"rgb_idxs": [camera_num], "depth_idxs": []}
             )
 
+            self.min_action, self.max_action = -5, 5 # To clip the action
             self.home_state = dict(
                 allegro = np.array([
                     -0.0658244726801581, 0.11152991296986751, 0.036465840916854717, 0.29693057660614736, # Index
@@ -43,6 +44,9 @@ class DexterityEnv(gym.Env):
             )
 
             self._robot = AllegroKDL()
+            self.action_space = spaces.Box(low = np.array([-1]*19,dtype=np.float32), # Actions are 12 + 7
+                                           high = np.array([1]*19,dtype=np.float32),
+                                           dtype = np.float32)
 
             device = torch.device('cuda:0')
             tactile_cfg, tactile_encoder, _ = init_encoder_info(device, tactile_model_dir, 'tactile')
@@ -97,7 +101,7 @@ class DexterityEnv(gym.Env):
 
         def step(self, action):
             print('action.shape: {}'.format(action.shape))
-            action *= (1.0/5) 
+            action *= (1.0/5) # This is to make the training more stable 
             try: 
                 hand_joint_action = self._robot.get_joint_state_from_coord(
                     action[0:3], action[3:6], action[6:9], action[9:12],
@@ -122,7 +126,6 @@ class DexterityEnv(gym.Env):
 
             return obs, 0, False, {'is_success': False} #obs, reward, done, infos
 
-
         def render(self, mode='rbg_array', width=0, height=0):
             return self._get_curr_image()
     
@@ -136,7 +139,6 @@ class DexterityEnv(gym.Env):
             tactile_values = sensor_state['xela']['sensor_values']
             obs['tactile'] = self.tactile_repr.get(tactile_values)
             return obs
-
 
         def get_reward():
             pass
