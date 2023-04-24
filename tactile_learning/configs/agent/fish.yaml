@@ -1,0 +1,29 @@
+# @package agent
+_target_: tactile_learning.agents.FISHAgent
+demo_num: ${expert_demo_num} # Demo to get the base action from
+mock_demo_nums: ${mock_demo_nums} # Demo that will be moved mockly
+data_path: ${data_path} # Path to hold all the preprocessed demos
+image_out_dir: ${image_out_dir}
+tactile_out_dir: ${tactile_out_dir}
+
+action_shape: ??? # 12 + 7 TODO: to be specified later in the environment (when we add the environment) but for now we're specifiying here 
+device: ${device}
+lr: 1e-4
+feature_dim:  512 # 16(Allegro) + 7(kinova) - TODO: Check this not sure what's happening lol 
+# use_tb: ${use_tb}
+hidden_dim: 64
+critic_target_tau: 0.01
+num_expl_steps: 0
+update_every_steps: 2
+stddev_schedule: 0.1
+stddev_clip: 0.3
+augment: True # Parameter to check if we augment the image in training
+rewards: sinkhorn_cosine
+sinkhorn_rew_scale: 200
+update_target_every: 100000
+auto_rew_scale: True
+auto_rew_scale_factor: 10
+bc_weight_type: 'qfilter'
+bc_weight_schedule: 'linear(1.0,0.1,20000)'
+offset_scale_factor: 0.2
+offset_mask: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0] # TODO: What is this?

@@ -108,12 +108,15 @@ def get_image_stats(len_image_dataset, image_loader):
     print('mean: '  + str(total_mean))
     print('std:  '  + str(total_std))
 
-def load_dataset_image(data_path, demo_id, image_id, view_num):
+def load_dataset_image(data_path, demo_id, image_id, view_num, transform=None):
     roots = glob.glob(f'{data_path}/demonstration_*')
     roots = sorted(roots)
     image_root = roots[demo_id]
     image_path = os.path.join(image_root, 'cam_{}_rgb_images/frame_{}.png'.format(view_num, str(image_id).zfill(5)))
     img = loader(image_path)
+    if not transform is None:
+        img = transform(img)
+        img = torch.FloatTensor(img)
     return img
 
 # Taken from https://github.com/NYU-robot-learning/multimodal-action-anticipation/utils/__init__.py#L90

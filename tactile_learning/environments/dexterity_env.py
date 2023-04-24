@@ -1,4 +1,7 @@
 # Main script for hand interractions 
+# TODO: This should be registered as an environment when we're running this!!
+# Similar to hand-env/hand_envs/__init__.py - when they get registered if you run gym.make
+# with the given task name then it becomes possible to run them
 import cv2 
 import gym
 import numpy as np

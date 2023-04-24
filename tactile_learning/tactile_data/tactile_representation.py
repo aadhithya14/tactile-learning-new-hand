@@ -60,11 +60,13 @@ class TactileRepresentation:
             self.get = self._get_raw_repr
             self.size = 15 * 16 * 3
 
-    def _get_tdex_repr(self, tactile_values):
+    def _get_tdex_repr(self, tactile_values, detach=True):
         img = self.tactile_image.get_whole_hand_tactile_image(tactile_values)
         img = self.transform(img).to(self.device)
-        return self.encoder(img.unsqueeze(0)).squeeze().detach().cpu().numpy()
-    
+        if detach:
+            return self.encoder(img.unsqueeze(0)).squeeze().detach().cpu().numpy()
+        return self.encoder(img.unsqueeze(0)).squeeze()
+
     def _get_stacked_repr(self, tactile_values):
         img = self.tactile_image.get_stacked_tactile_image(tactile_values)
         img = self.transform(img).to(self.device)

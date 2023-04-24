@@ -1,7 +1,28 @@
 defaults:
-  - env: cup_unstacking
+  # - suite: gym - TODO
   - agent: fish # Optimizer will be initialized inside the agent
-  - dataset: fish_all_replay_buffer
+  # - dataset: fish_all_replay_buffer - TODO
+
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss
+image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
+tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
 
 seed: 42 
 device: cuda
+
+num_train_frames: 5000 # Total training numbers
+num_seed_frames: 20
+eval_every_frames: 100
+
+expert_demo_num: 15
+mock_demo_nums: [1,13,15] # 15 is the expert demo in the agent
+
+bc_regularize: False # TODO: Do we really need this?
+
+experiment: fish_rewards_mock_demo_checks
+
+# hydra configuration - should be received separately
+hydra:
+    run:
+        dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/${now:%Y.%m.%d}/${now:%H-%M}_${experiment}
+

@@ -20,9 +20,9 @@ from tactile_learning.tactile_data import *
 
 class FISHAgent:
 	def __init__(self,
-	 	data_path, demo_num, mock_demo_num,
+	 	data_path, demo_num, mock_demo_nums,
 		image_out_dir, tactile_out_dir, # This is used to get the tactile representation size
-		obs_shape, action_shape, device, lr, feature_dim, use_tb,
+		action_shape, device, lr, feature_dim,
 		hidden_dim, critic_target_tau, num_expl_steps,
 		update_every_steps, stddev_schedule, stddev_clip, augment,
 		rewards, sinkhorn_rew_scale, update_target_every,
@@ -34,7 +34,7 @@ class FISHAgent:
 		self.lr = lr
 		self.critic_target_tau = critic_target_tau
 		self.update_every_steps = update_every_steps
-		self.use_tb = use_tb
+		# self.use_tb = use_tb
 		self.num_expl_steps = num_expl_steps
 		self.stddev_schedule = stddev_schedule
 		self.stddev_clip = stddev_clip
@@ -58,7 +58,7 @@ class FISHAgent:
 		self.data = load_data(self.roots, demos_to_use=[demo_num])
 
 		# Set the mock data
-		self.mock_data = load_data(self.roots, demos_to_use=[mock_demo_num]) # TODO: Delete this
+		self.mock_data = load_data(self.roots, demos_to_use=mock_demo_nums) # TODO: Delete this
 
         # TODO: Load the encoders - both the normal ones and the target ones
 		image_cfg, self.image_encoder, self.image_transform = init_encoder_info(self.device, image_out_dir, 'image')
@@ -75,7 +75,7 @@ class FISHAgent:
 			tactile_image = tactile_img,
 			representation_type = 'tdex'
 		)
-		self.view_num = 0
+		self.view_num = 1
 	
 		# Freeze the encoders
 		self.image_encoder.eval()
@@ -112,10 +112,6 @@ class FISHAgent:
 		# Openloop tracker
 		self.curr_step = 0
 
-		# Make directory called matches
-		if not os.path.exists('matches'):
-			os.makedirs('matches')
-
 
 	def __repr__(self):
 		return "fish_agent"
@@ -130,10 +126,16 @@ class FISHAgent:
 		for step_id in range(len(self.data['image']['indices'])): 
 			demo_id, tactile_id = self.data['tactile']['indices'][step_id]
 			tactile_value = self.data['tactile']['values'][demo_id][tactile_id]
-			tactile_repr = self.tactile_repr.get(tactile_value)
+			tactile_repr = self.tactile_repr.get(tactile_value, detach=False)
 
 			_, image_id = self.data['image']['indices'][step_id]
-			image = self._load_dataset_image(demo_id, image_id)
+			image = load_dataset_image(
+				data_path = self.data_path, 
+				demo_id = demo_id, 
+				image_id = image_id,
+				view_num = self.view_num,
+				transform = self.image_transform
+			)
 
 			if step_id == 0:
 				tactile_reprs = tactile_repr.unsqueeze(0)
@@ -144,42 +146,13 @@ class FISHAgent:
 
 		self.expert_demo = dict(
 			image_obs = image_obs, 
-			tactile_reprs = tactile_reprs
+			tactile_repr = tactile_reprs
 		)
 		
 	def _load_dataset_image(self, demo_id, image_id):
 		dset_img = load_dataset_image(self.data_path, demo_id, image_id, self.view_num)
 		img = self.image_transform(dset_img)
 		return torch.FloatTensor(img) 
-
-	def vinn_act(self, obs):
-		image = obs.clone()
-		vinn_obs = torch.as_tensor(obs, device=self.device).float()
-		if self.encoder_type != 'r3m':
-			vinn_obs = self.normalize(vinn_obs/255.0) if self.normalize else vinn_obs
-		vinn_obs = self.encoder_vinn(vinn_obs) if self.use_encoder else obs
-
-		# KNN computation
-		vinn_obs = vinn_obs.unsqueeze(1)
-		reps = self.representations.unsqueeze(0)
-		dist = torch.norm(vinn_obs - reps, dim=-1)
-		topk = torch.topk(dist, k=self.k_buffer, dim=-1, largest=False)
-		weights = F.softmax(-topk.values, dim=-1)
-		
-		# compute action
-		topk_actions = self.actions[topk.indices]
-
-		if obs.shape[0] == 1:
-			if self.count == 0:
-				self.curr_step = topk.indices[0][0].item()
-				self.curr_step = 0  
-			action = torch.Tensor(self.actions[min(self.curr_step, self.actions.shape[0]-1)])
-			self.count += 1
-			self.curr_step += 1
-			return action.unsqueeze(0)
-		else:
-			action = (weights.unsqueeze(-1) * topk_actions).sum(dim=1)
-			return action 
 		
 	# Will give the next action in the step
 	def base_act(self, obs): # Returns the action for the base policy
@@ -228,7 +201,7 @@ class FISHAgent:
 		return action.cpu().numpy()[0], base_action.cpu().numpy()[0]
 	
 	# Method that returns the next action in the mock data
-	def mock_act(self, obs): # Returns the action for the base policy
+	def mock_act(self, obs): # Returns the action for the base policy - TODO: This will be used after we have the environment
 		if self.count == 0:
 			self.curr_step = 0
 		
@@ -272,11 +245,11 @@ class FISHAgent:
 		critic_loss.backward()
 		self.critic_opt.step()
 
-		if self.use_tb:
-			metrics['critic_target_q'] = target_Q.mean().item()
-			metrics['critic_q1'] = Q1.mean().item()
-			metrics['critic_q2'] = Q2.mean().item()
-			metrics['critic_loss'] = critic_loss.item()
+		# if self.use_tb:
+		metrics['critic_target_q'] = target_Q.mean().item()
+		metrics['critic_q1'] = Q1.mean().item()
+		metrics['critic_q2'] = Q2.mean().item()
+		metrics['critic_loss'] = critic_loss.item()
 			
 		return metrics
 
@@ -329,19 +302,19 @@ class FISHAgent:
 		self.actor_opt.zero_grad(set_to_none=True)
 		actor_loss.backward()
 		self.actor_opt.step()
-		if self.use_tb:
-			metrics['actor_loss'] = actor_loss.item()
-			metrics['actor_logprob'] = log_prob.mean().item()
-			metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
-			metrics['actor_q'] = Q.mean().item()
-			if bc_regularize and self.bc_weight_type == "qfilter":
-				metrics['actor_qf'] = Q_qf.mean().item()
-			metrics['bc_weight'] = bc_weight
-			metrics['regularized_rl_loss'] = -Q.mean().item()* (1-bc_weight)
-			metrics['rl_loss'] = -Q.mean().item()
-			if bc_regularize:
-				metrics['regularized_bc_loss'] = - log_prob_expert.mean().item()*bc_weight*0.03
-				metrics['bc_loss'] = - log_prob_expert.mean().item()*0.03
+		# if self.use_tb:
+		metrics['actor_loss'] = actor_loss.item()
+		metrics['actor_logprob'] = log_prob.mean().item()
+		metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
+		metrics['actor_q'] = Q.mean().item()
+		if bc_regularize and self.bc_weight_type == "qfilter":
+			metrics['actor_qf'] = Q_qf.mean().item()
+		metrics['bc_weight'] = bc_weight
+		metrics['regularized_rl_loss'] = -Q.mean().item()* (1-bc_weight)
+		metrics['rl_loss'] = -Q.mean().item()
+		if bc_regularize:
+			metrics['regularized_bc_loss'] = - log_prob_expert.mean().item()*bc_weight*0.03
+			metrics['bc_loss'] = - log_prob_expert.mean().item()*0.03
 			
 		return metrics
 
@@ -407,8 +380,8 @@ class FISHAgent:
 			action_expert = None
 			vinn_action_expert = None
 
-		if self.use_tb:
-			metrics['batch_reward'] = reward.mean().item()
+		# if self.use_tb:
+		metrics['batch_reward'] = reward.mean().item()
 
 		# update critic
 		metrics.update(
@@ -427,16 +400,27 @@ class FISHAgent:
 		
 		# TODO: Get the observations separately - instead of putting them directly we'll need
 		# to have them separately - so the observations will be observations[pixels] and observations[tactile]
-		image_obs = torch.tensor(self.image_transform(episode_obs['pixels'])).to(self.device).float() # This will give all the image observations of one episode
-		image_reprs = self.image_encoder(image_obs)
-		tactile_reprs = torch.tensor(episode_obs['tactile']).to(self.device).float() # This will give all the representations of one episode
+		
+		# TODO: Get the image obs like this when we
+		# image_obs = torch.tensor(self.image_transform(episode_obs['image_obs'])).to(self.device).float() # This will give all the image observations of one episode
+		# image_reprs = self.image_encoder(image_obs)
+		# tactile_reprs = torch.tensor(episode_obs['tactile_repr']).to(self.device).float() # This will give all the representations of one episode
 
-		expert_image_reprs = torch.tensor(self.image_encoder(self.expert_demo['image_obs'])).to(self.device).float()
-		expert_tactile_reprs = torch.tensor(self.expert_demo['tactile_reprs']).to(self.device).float()
+		print('EPISODE OBS IN OT REWARDER: Keys: {}, Shapes: Image Obs: {}, Tactile Repr: {}'.format(
+			episode_obs.keys(), episode_obs['image_obs'].shape, episode_obs['tactile_repr'].shape
+		))
+
+		image_reprs = self.image_encoder(episode_obs['image_obs'].to(self.device)).float()
+		tactile_reprs = torch.tensor(episode_obs['tactile_repr']).to(self.device).float()
+
+		expert_image_reprs = self.image_encoder(self.expert_demo['image_obs'].to(self.device)).float()
+		expert_tactile_reprs = torch.tensor(self.expert_demo['tactile_repr']).to(self.device).float()
 
 		# Concatenate everything now
 		obs = torch.concat([image_reprs, tactile_reprs], dim=-1).detach()
 		exp = torch.concat([expert_image_reprs, expert_tactile_reprs], dim=-1).detach()
+
+		print('obs.shape: {}, exp.shape: {}'.format(obs.shape, exp.shape))
 			
 		if self.rewards == 'sinkhorn_cosine':
 			cost_matrix = cosine_distance(
