@@ -1,5 +1,5 @@
 defaults:
-  # - suite: gym - TODO
+  - suite: gym
   - agent: fish # Optimizer will be initialized inside the agent
   # - dataset: fish_all_replay_buffer - TODO
 
@@ -15,10 +15,10 @@ num_seed_frames: 20
 eval_every_frames: 100
 
 expert_demo_num: 15
-mock_demo_nums: [1,13,15] # 15 is the expert demo in the agent
+mock_demo_nums: [13,15,2,7] # 15 is the expert demo in the agent
 
-bc_regularize: False # TODO: Do we really need this?
-
+log: False
+bc_regularize: False
 experiment: fish_rewards_mock_demo_checks
 
 # hydra configuration - should be received separately

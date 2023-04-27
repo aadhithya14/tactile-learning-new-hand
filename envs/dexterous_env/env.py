@@ -104,7 +104,7 @@ class DexterityEnv(gym.Env):
 
         def step(self, action):
             print('action.shape: {}'.format(action.shape))
-            # action *= (1.0/5) # This is to make the training more stable 
+            action *= (1.0/5) # This is to make the training more stable 
             try: 
                 hand_joint_action = self._robot.get_joint_state_from_coord(
                     action[0:3], action[3:6], action[6:9], action[9:12],
@@ -127,7 +127,7 @@ class DexterityEnv(gym.Env):
             tactile_values = sensor_state['xela']['sensor_values']
             obs['tactile'] = self.tactile_repr.get(tactile_values)
 
-            return obs, 0, False, {'is_success': False} # obs, reward, done, infos
+            return obs, 0, False, {'is_success': False} #obs, reward, done, infos
 
         def render(self, mode='rbg_array', width=0, height=0):
             return self._get_curr_image()

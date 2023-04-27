@@ -32,15 +32,17 @@ class Workspace:
         self.hydra_dir = HydraConfig.get().run.dir
 
         # Run the setup - this should start the replay buffer and the environment
-        self._env_setup()
-        self._encoder_setup(cfg) # Get the image and tactile encoder/representation module
+        tactile_repr_dim = self._encoder_setup(cfg) # Get the image and tactile encoder/representation module
+        self._env_setup(tactile_repr_dim) # Should be set here
 
         # Get the mock environment observations and the tactile representations - this will
         # be changed as we use the actual environment
         self.data_path = cfg.data_path
         self.roots = sorted(glob.glob(f'{cfg.data_path}/demonstration_*'))
+        # print('self.roots: {}'.format(self.roots))
         self.mock_data = load_data(self.roots, demos_to_use=cfg.mock_demo_nums)
-        self._set_mock_demos() # Get the mock demo observation and representations
+        self._set_mock_demos
+        () # Get the mock demo observation and representations
         self.mock_env = MockEnv(self.mock_episodes)
 
         # self.agent = hydra.utils.instantiate(cfg.agent)
@@ -59,8 +61,9 @@ class Workspace:
         self.agent = hydra.utils.instantiate(self.cfg.agent)
 
     def _set_logger(self, cfg):
-        wandb_exp_name = '-'.join(self.hydra_dir.split('/')[-2:])
-        self.logger = Logger(cfg, wandb_exp_name, out_dir=self.hydra_dir)
+        if self.cfg.log:
+            wandb_exp_name = '-'.join(self.hydra_dir.split('/')[-2:])
+            self.logger = Logger(cfg, wandb_exp_name, out_dir=self.hydra_dir)
 
     def _encoder_setup(self, cfg):
         image_cfg, self.image_encoder, self.image_transform = init_encoder_info(self.device, cfg.image_out_dir, 'image')
@@ -87,12 +90,34 @@ class Workspace:
         for param in self.tactile_encoder.parameters():
             param.requires_grad = False
 
-    def _env_setup(self):
-        pass # TODO - here set the data_specs and everything
+        return tactile_cfg.encoder.out_dim # Should return the tactile representation dimension
+
+    def _env_setup(self, tactile_repr_dim):
+        self.train_env = hydra.utils.call(
+            self.cfg.suite.task_make_fn,
+            tactile_dim = tactile_repr_dim
+        )
+
+        # Create replay buffer - TODO - data_specs and everything
+        data_specs = [
+            self.train_env.observation_spec(),
+            self.train_env.action_spec(),
+        ]
+
+        # pass # TODO - here set the data_specs and everything
 
     def _set_mock_demos(self):
         # We'll stack the tactile repr and the image observations
         end_of_demos = np.zeros(len(self.mock_data['image']['indices']))
+        demo_nums = []
+
+        # Add the number of demos for informational logging
+        demo_id, _ = self.mock_data['tactile']['indices'][0]
+        root = self.roots[demo_id]
+        demo_num = int(root.split('/')[-1].split('_')[-1])
+        # print('demo_id: {}, demo_num: {}'.format(demo_id, demo_num))
+        demo_nums.append(demo_num)
+
         for step_id in range(len(self.mock_data['image']['indices'])): 
             demo_id, tactile_id = self.mock_data['tactile']['indices'][step_id]
 
@@ -100,6 +125,9 @@ class Workspace:
             if step_id > 1:
                 if demo_id != prev_demo_id:
                     end_of_demos[step_id-1] = 1 # 1 for steps where it's the end of an episode
+                    root = self.roots[demo_id]
+                    demo_num = int(root.split('/')[-1].split('_')[-1])
+                    demo_nums.append(demo_num)
 
             tactile_value = self.mock_data['tactile']['values'][demo_id][tactile_id]
             tactile_repr = self.tactile_repr.get(tactile_value, detach=False)
@@ -123,12 +151,17 @@ class Workspace:
             prev_demo_id = demo_id
 
         end_of_demos[-1] = 1
+        # root = self.roots[demo_id]
+        # demo_num = int(root.split('/')[-1].split('_')[-1])
+        # demo_nums.append(demo_num)
         
         self.mock_episodes = dict(
             image_obs = image_obs, 
             tactile_reprs = tactile_reprs,
-            end_of_demos = end_of_demos # end_of_demos[time_step] will be 1 if this is end of an episode  
+            end_of_demos = end_of_demos, # end_of_demos[time_step] will be 1 if this is end of an episode  
+            demo_nums = demo_nums
         )
+        # print('MOCK DEMO NUMS: {}'.format(demo_nums))
 
     @property
     def global_step(self):
@@ -154,12 +187,17 @@ class Workspace:
             image_obs = list(),
             tactile_repr = list()
         )
-        time_step = self.mock_env.reset() # TODO: turn this into actual environment
+        time_step = self.train_env.reset()
+        # time_step = self.mock_env.reset() # TODO: turn this into actual environment
         
+        self.episode_id = 0
+
         # print(f'RESETTED TIME_STEP: {time_step}')
+        print('RESET TIMESTEP: {}'.format(time_step))
+        
         time_steps.append(time_step)
-        for obs_type in time_step.observation.keys():
-            observations[obs_type].append(time_step.observation[obs_type])
+        observations['image_obs'].append(torch.FloatTensor(time_step.observation['pixels']))
+        observations['tactile_repr'].append(torch.FloatTensor(time_step.observation['tactile']))
 
         if self.agent.auto_rew_scale:
             self.agent.sinkhorn_rew_scale = 1. # This will be set after the first episode
@@ -167,9 +205,10 @@ class Workspace:
         # metrics = None - TODO: Log these afterwards
         while train_until_step(self.global_step): # We're going to behave as if we act and the observations and the representations are coming from the mock_demo but all the rest should be the same
             
+            # print('TIMESTEP: {}'.format(time_step))
+
             # At the end of an episode actions
-            if time_step.last(): # TODO: This could require more checks in the real world
-                
+            if time_step.last() or ((self.global_step % self.train_env.spec.max_episode_steps == 0) and self.global_step > 0): # TODO: This could require more checks in the real world
                 self._global_episode += 1 # Episode has been finished
                 
                 # Make each element in the observations to be a new array
@@ -180,7 +219,6 @@ class Workspace:
                     episode_obs = observations
                 )
                 new_rewards_sum = np.sum(new_rewards)
-                print(f'REWARD = {new_rewards_sum}')
 
                 # Scale the rewards to -10 for the first demo
                 if self.agent.auto_rew_scale:
@@ -191,6 +229,10 @@ class Workspace:
                             episode_obs = observations
                         )
                         new_rewards_sum = np.sum(new_rewards)
+                # print(f'EPISODE_ID = {self.episode_id}, DEMO_NUM = {self.mock_episodes["demo_nums"][self.episode_id]} REWARD = {new_rewards_sum}')
+                
+                print(f'REWARD = {new_rewards_sum}')
+                self.episode_id = (self.episode_id+1) % len(self.mock_episodes['demo_nums'])
 
                 # Update the reward in the timesteps accordingly
                 for i, elt in enumerate(time_steps):
@@ -201,14 +243,15 @@ class Workspace:
                     # TODO: Replay Buffer should be used here - replay_storage.add should happen right here
 
                 # Log
-                self.logger.log({
-                    'episode': self.global_episode,
-                    'episode_reward': episode_reward 
-                }) 
-                self.logger.log({ # NOTE: This basically will be the only important reward lol
-                    'episode': self.global_episode,
-                    'imitation_reward': new_rewards_sum
-                })
+                if self.cfg.log:
+                    self.logger.log({
+                        'episode': self.global_episode,
+                        'episode_reward': episode_reward 
+                    }) 
+                    self.logger.log({ # NOTE: This basically will be the only important reward lol
+                        'episode': self.global_episode,
+                        'imitation_reward': new_rewards_sum
+                    })
                 
 
                 # Reset the environment at the end of the episode
@@ -220,20 +263,29 @@ class Workspace:
 
                 x = input("Press Enter to continue... after reseting env")
 
-                time_step = self.mock_env.reset()
+                # time_step = self.mock_env.reset()
+                time_step = self.train_env.reset()
                 time_steps.append(time_step)
-                for obs_type in time_step.observation.keys():
-                    observations[obs_type].append(time_step.observation[obs_type])
+                observations['image_obs'].append(torch.FloatTensor(time_step.observation['pixels']))
+                observations['tactile_repr'].append(torch.FloatTensor(time_step.observation['tactile']))
 
                 episode_step, episode_reward = 0, 0
 
             # Get the action - TODO: This will be actual sampled action in the real running
-            # with torch.no_grad(), utils.eval_mode(self.agent):
-            #     action, base_action = self.agent.act(
-            #         time_step.observation[self.cfg.obs_type],
-            #         self.global_step,
-            #         eval_mode=False
-            # )
+            with torch.no_grad(): # TODO: Add utils.eval_mode(self.agent)
+                action, base_action = self.agent.mock_act(
+                    time_step.observation,
+                    step = self.global_step,
+                    max_step = self.train_env.spec.max_episode_steps
+                    # self.global_step,
+                    # eval_mode=False
+            )
+                
+            print('ACTION: {}, BASE ACTION: {}, STEP: {}, TIME_STEP_OBS>SHAPE: {}, {}'.format(
+                action, base_action, self.global_step,
+                time_step.observation['tactile'].shape,
+                time_step.observation['pixels'].shape
+            ))
 
             # Training - updating the agents - TODO: For now we're not running this
             if not seed_until_step(self.global_step):
@@ -244,16 +296,13 @@ class Workspace:
                 # self.logger.log_metrics(...) -> TODO: Implement this for wandb
              
             # Take the environment steps    
-            time_step = self.mock_env.step(action=None) # TODO: Give an actual action
-            # Print the time_step action
-            # print('Episode Step: {}, Time Step: {}'.format(
-            #     episode_step, time_step
-            # ))
+            # time_step = self.mock_env.step(action=None) # TODO: Give an actual action
+            time_step = self.train_env.step(action, base_action)
             episode_reward += time_step.reward
 
             time_steps.append(time_step)
-            for obs_type in time_step.observation.keys():
-                    observations[obs_type].append(time_step.observation[obs_type])
+            observations['image_obs'].append(torch.FloatTensor(time_step.observation['pixels']))
+            observations['tactile_repr'].append(torch.FloatTensor(time_step.observation['tactile']))
 
             episode_step += 1
             self._global_step += 1 

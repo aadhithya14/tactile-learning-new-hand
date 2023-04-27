@@ -4,7 +4,7 @@ from collections import deque
 from typing import Any, NamedTuple
 
 import gym
-# import hand_envs
+import dexterous_env
 from gym import  spaces
 
 import dm_env
@@ -24,6 +24,7 @@ class RGBArrayAsObservationWrapper(dm_env.Environment):
 		self._width = width
 		self._height = height
 		self._env.reset()
+
 		dummy_obs = self._env.render(mode="rgb_array", width=self._width, height=self._height)
 		self.observation_space  = spaces.Box(low=0, high=255, shape=(height, width, 3), dtype=dummy_obs.dtype)
 		self.action_space = self._env.action_space
@@ -56,9 +57,9 @@ class RGBArrayAsObservationWrapper(dm_env.Environment):
 		return obs
 
 	def step(self, action):
-		observation, reward, done, info = self._env.step(action)
-		obs = {}
-		obs['pixels'] = observation['pixels'].astype(np.uint8)
+		obs, reward, done, _, info = self._env.step(action) # It's returning truncated
+		# obs = {}
+		obs['pixels'] = obs['pixels'].astype(np.uint8)
 		# We will be receiving 
 		obs['goal_achieved'] = info['is_success']
 		return obs, reward, done, info
@@ -86,8 +87,8 @@ class TactileReprAsObservationWrapper(dm_env.Environment):
 		# Add the tactile obs_spec
 		self._obs_spec = self._env.observation_spec()
 		self._obs_spec['tactile'] = specs.Array(
-			shape = self._tactile_size,
-			dtype=np.float32, # NOTE: is this a problem?
+			shape = (self._tactile_size,),
+			dtype = np.float32, # NOTE: is this a problem?
 			name = 'tactile' # We will receive the representation directly
 		)
 
@@ -98,9 +99,8 @@ class TactileReprAsObservationWrapper(dm_env.Environment):
 		return obs
 
 	def step(self, action):
-		observation, reward, done, info = self._env.step(action)
-		obs = observation
-		obs['tactile'] = observation['tactile'].astype(np.float32)	
+		obs, reward, done, info = self._env.step(action)
+		obs['tactile'] = obs['tactile'].astype(np.float32)	
 		return obs, reward, done, info
 
 	def observation_spec(self):
@@ -121,7 +121,7 @@ class ExtendedTimeStep(NamedTuple):
 	discount: Any
 	observation: Any
 	action: Any
-	expert_action: Any
+	base_action: Any
 
 	def first(self):
 		return self.step_type == StepType.FIRST
@@ -186,8 +186,9 @@ class FrameStackWrapper(dm_env.Environment):
 											name='observation')
 		
 		tactile_shape = wrapped_obs_spec['tactile'].shape
+		print('tactile_shape: {}, num_frames: {}'.format(tactile_shape, num_frames))
 		self._obs_spec['tactile'] = specs.Array(
-			shape = (num_frames, tactile_shape),
+			shape = (num_frames * tactile_shape[0],),
 			dtype = np.float32, 
 			name = 'tactile'
 		)
@@ -210,7 +211,7 @@ class FrameStackWrapper(dm_env.Environment):
 	
 	def _extract_tactile_repr(self, time_step):
 		tactile_repr = time_step.observation['tactile']
-		return np.expand_dims(tactile_repr, 0) # Add a new dimension as the `batch` for frame stacking
+		return tactile_repr # Add a new dimension as the `batch` for frame stacking
 
 	def reset(self):
 		time_step = self._env.reset()
@@ -305,19 +306,19 @@ class ExtendedTimeStepWrapper(dm_env.Environment):
 		return self._augment_time_step(time_step)
 
 	# TODO: Modify this as the base act!!
-	def step(self, action, vinn_action):
+	def step(self, action, base_action): # NOTE: Here this is only for returning the base action as a part of the implementation as well
 		time_step = self._env.step(action)
-		return self._augment_time_step(time_step, action, vinn_action)
+		return self._augment_time_step(time_step, action, base_action)
 
-	def _augment_time_step(self, time_step, action=None, vinn_action=None):
+	def _augment_time_step(self, time_step, action=None, base_action=None):
 		if action is None:
 			action_spec = self.action_spec()
 			action = np.zeros(action_spec.shape, dtype=action_spec.dtype)
-			vinn_action = np.zeros(action_spec.shape, dtype=action_spec.dtype)
+			base_action = np.zeros(action_spec.shape, dtype=action_spec.dtype)
 		return ExtendedTimeStep(observation=time_step.observation,
 								step_type=time_step.step_type,
 								action=action,
-								vinn_action=vinn_action,
+								base_action=base_action,
 								reward=time_step.reward or 0.0,
 								discount=time_step.discount or 1.0)
 
@@ -326,8 +327,8 @@ class ExtendedTimeStepWrapper(dm_env.Environment):
 			observation = time_step.observation
 		if action is None:
 			action = time_step.action
-		if vinn_action is None:
-			vinn_action = time_step.vinn_action
+		if base_action is None:
+			base_action = time_step.base_action
 		if vinn_next_action is None:
 			vinn_next_action = time_step.vinn_next_action
 		if reward is None:
@@ -351,11 +352,11 @@ class ExtendedTimeStepWrapper(dm_env.Environment):
 		return getattr(self._env, name)
 
 
-def make(name, robot_name, host_address, camera_num, height, width, tactile_dim, frame_stack, action_repeat, seed):
-	env = gym.make(name, robot_name=robot_name, host_address=host_address, camera_num=camera_num)
-	env.seed(seed)
+def make(name, tactile_out_dir, host_address, camera_num, height, width, tactile_dim, frame_stack, action_repeat):
+	env = gym.make(name, tactile_out_dir = tactile_out_dir, host_address=host_address, camera_num=camera_num, height=height, width=width)
+	# env.seed(seed)
 	
-	# add wrappers
+	# # add wrappers
 	env = RGBArrayAsObservationWrapper(env, width=width, height=height)
 	env = TactileReprAsObservationWrapper(env, tactile_embedding_dim=tactile_dim)
 	env = ActionDTypeWrapper(env, np.float32)
@@ -363,3 +364,54 @@ def make(name, robot_name, host_address, camera_num, height, width, tactile_dim,
 	env = FrameStackWrapper(env, frame_stack)
 	env = ExtendedTimeStepWrapper(env)
 	return env
+
+if __name__ == '__main__':
+	env = make(
+		name = 'CupUnstacking-v1',
+		tactile_out_dir = '/home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120',
+		host_address = '172.24.71.240',
+		camera_num = 1, 
+		height = 224, 
+		width = 224,
+		tactile_dim=1024, 
+		frame_stack=1,
+		action_repeat=1,
+		# seed=42
+	)
+
+	import random
+	import glob
+	
+	from tactile_learning.utils import load_data
+	from holobot.robot.allegro.allegro_kdl import AllegroKDL
+	from holobot.utils.timer import FrequencyTimer
+
+	roots = sorted(glob.glob('/home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss/demonstration_*'))
+	data = load_data(roots=roots, demos_to_use=[2,7,13,15])
+	kdl_solver = AllegroKDL()
+	current_step = 0
+	timer = FrequencyTimer(15)
+	while (True):
+		timer.start_loop()
+
+		# Get a random action and apply it to see the step function works
+		demo_id, allegro_action_id = data['allegro_actions']['indices'][current_step]
+		allegro_joint_action = data['allegro_actions']['values'][demo_id][allegro_action_id]
+		allegro_fingertip_action = kdl_solver.get_fingertip_coords(allegro_joint_action)
+
+		# demo_id, allegro_id = data['allegro_tip_states']['indices'][current_step]
+		# allegro_fingertip_action = data['allegro_tip_states']['values'][demo_id][allegro_id]
+
+		_, kinova_id = data['kinova']['indices'][current_step]
+		kinova_action = data['kinova']['values'][demo_id][kinova_id]
+
+		action = np.concatenate([allegro_fingertip_action, kinova_action], 0)
+
+		# _ = input(
+		# 	f'Press keyboard to apply the action {action}'
+		# )
+
+		env.step(action=action, base_action=np.zeros(19))
+		current_step += 1
+
+		timer.end_loop()

@@ -36,7 +36,7 @@ class MockEnv(dm_env.Environment):
 			name ='tactile_repr' # We will receive the representation directly
 		)
 
-        print('episodes: {}'.format(episodes['end_of_demos']))
+        # print('episodes: {}'.format(episodes['end_of_demos']))
 
         # print(f'EPISODES IN MOCKENV: {episodes['end_of_demos']}')
 
@@ -59,6 +59,9 @@ class MockEnv(dm_env.Environment):
 
     def _find_closest_next_demo(self):
         offset_step = 0
+        if self.current_step == 0:
+            return self.current_step
+        
         while self.episodes['end_of_demos'][(self.current_step+offset_step) % len(self.episodes['end_of_demos'])] != 1:
             offset_step += 1
 

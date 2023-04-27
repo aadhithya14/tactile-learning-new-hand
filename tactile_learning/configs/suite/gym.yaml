@@ -1,12 +1,13 @@
 # @package suite
 defaults:
   - _self_
-  - handgym_task@_global_: cardslide
+  - task: cup_unstacking
 
+suite: dexterousgym
+name: 'dexterous_gym'
+task_name: ${suite.task.task_name} # Is received from the Cup Unstacking 
 
-suite: handgym
-name: 'handgym'
-task_name: ${task_name}
+# TODO: Check if we're going to be using these - not use if not
 # task settings
 frame_stack: 1
 action_repeat: 1
@@ -24,14 +25,15 @@ eval_every_frames: 700
 num_eval_episodes: 10
 
 task_make_fn:
-  _target_: suite.handgym.make
-  name: ${task_name}
-  robot_name: 'allegro'
-  host_address: '172.24.71.211'
+  _target_: tactile_learning.environments.make
+  name: ${suite.task_name}
+  tactile_out_dir: ${tactile_out_dir}
+  host_address: '172.24.71.240'
   camera_num: 1
-  height: 84
-  width: 84
+  height: 224
+  width: 224
+  tactile_dim: ??? # This will be set by the train_online.make_agent code
   frame_stack: ${suite.frame_stack}
   action_repeat: ${suite.action_repeat}
-  seed: ${seed}
+  # seed: ${seed}
   

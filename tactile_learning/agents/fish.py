@@ -18,6 +18,8 @@ from tactile_learning.models import *
 from tactile_learning.utils import *
 from tactile_learning.tactile_data import *
 
+from holobot.robot.allegro.allegro_kdl import AllegroKDL
+
 class FISHAgent:
 	def __init__(self,
 	 	data_path, demo_num, mock_demo_nums,
@@ -59,10 +61,12 @@ class FISHAgent:
 
 		# Set the mock data
 		self.mock_data = load_data(self.roots, demos_to_use=mock_demo_nums) # TODO: Delete this
+		self.kdl_solver = AllegroKDL()
 
         # TODO: Load the encoders - both the normal ones and the target ones
 		image_cfg, self.image_encoder, self.image_transform = init_encoder_info(self.device, image_out_dir, 'image')
 		self.inv_image_transform = get_inverse_image_norm() 
+		self.image_normalize = T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
 	
 		tactile_cfg, self.tactile_encoder, _ = init_encoder_info(self.device, tactile_out_dir, 'tactile')
 		tactile_img = TactileImage(
@@ -125,6 +129,12 @@ class FISHAgent:
 		# We'll stack the tactile repr and the image observations
 		for step_id in range(len(self.data['image']['indices'])): 
 			demo_id, tactile_id = self.data['tactile']['indices'][step_id]
+
+			# demo_id, _ = self.data['tactile']['indices'][0]
+			# root = self.roots[demo_id]
+			# demo_num = int(root.split('/')[-1].split('_')[-1])
+			# print('expert demo_id: {}, demo_num: {}'.format(demo_id, demo_num))
+
 			tactile_value = self.data['tactile']['values'][demo_id][tactile_id]
 			tactile_repr = self.tactile_repr.get(tactile_value, detach=False)
 
@@ -156,8 +166,8 @@ class FISHAgent:
 		
 	# Will give the next action in the step
 	def base_act(self, obs): # Returns the action for the base policy
-		if self.count == 0:
-			self.curr_step = 0
+		# if self.count == 0:
+			# self.curr_step = 0
 		
 		# Get the action in the current step
 		demo_id, action_id = self.data['allegro_actions']['indices'][self.curr_step]
@@ -200,28 +210,49 @@ class FISHAgent:
 
 		return action.cpu().numpy()[0], base_action.cpu().numpy()[0]
 	
+	def _find_closest_mock_step(self, curr_step):
+		offset_step = 0
+		if curr_step == 0:
+			return curr_step
+
+		curr_demo_id, _ = self.mock_data['allegro_actions']['indices'][curr_step]
+		next_demo_id, _ = self.mock_data['allegro_actions']['indices'][curr_step+offset_step]
+		while curr_demo_id == next_demo_id:
+			offset_step += 1
+			next_demo_id, _ = self.mock_data['allegro_actions']['indices'][curr_step+offset_step]
+			
+
+		next_demo_step = (curr_step+offset_step) % len(self.mock_data['allegro_actions']['indices'])
+		return next_demo_step
+
 	# Method that returns the next action in the mock data
-	def mock_act(self, obs): # Returns the action for the base policy - TODO: This will be used after we have the environment
-		if self.count == 0:
-			self.curr_step = 0
+	def mock_act(self, obs, step, max_step): # Returns the action for the base policy - TODO: This will be used after we have the environment
+		# if self.count == 0:
+		# 	self.curr_step = 0
+		if step > 0 and step % max_step == 0:
+			self.curr_step = self._find_closest_mock_step(self.curr_step)
 		
 		# Get the action in the current step
 		demo_id, action_id = self.mock_data['allegro_actions']['indices'][self.curr_step]
-		allegro_action = self.mock_data['allegro_actions']['values'][demo_id][action_id]
+		allegro_joint_action = self.mock_data['allegro_actions']['values'][demo_id][action_id]
+		allegro_fingertip_action = self.kdl_solver.get_fingertip_coords(allegro_joint_action)
+
 
 		# NOTE: Set the thumb to the states so far - this should be removed as we fix the thumb calibration
-		_, allegro_state_id = self.mock_data['allegro_joint_states']['indices'][self.curr_step]
-		allegro_state = self.mock_data['allegro_joint_states']['values'][demo_id][allegro_state_id]
-		allegro_action[-4:] = allegro_state[-4:]
+		# _, allegro_state_id = self.mock_data['allegro_joint_states']['indices'][self.curr_step]
+		# allegro_state = self.mock_data['allegro_joint_states']['values'][demo_id][allegro_state_id]
+		# allegro_action[-4:] = allegro_state[-4:]
 		
 		# Get the kinova action 
 		_, kinova_id = self.mock_data['kinova']['indices'][self.curr_step]
 		kinova_action = self.mock_data['kinova']['values'][demo_id][kinova_id]
 
 		# Concatenate the actions 
-		demo_action = np.concatenate([allegro_action, kinova_action], axis=-1).unsqueeze(0)
+		demo_action = np.concatenate([allegro_fingertip_action, kinova_action], axis=-1)
 
-		return demo_action
+		self.curr_step = (self.curr_step+1) % (len(self.mock_data['allegro_actions']['indices']))
+
+		return demo_action, np.zeros(19) # Base action will be 0s only for now
 
 	def update_critic(self, obs, action, base_next_action, reward, discount, next_obs, step):
 		metrics = dict()
@@ -402,19 +433,21 @@ class FISHAgent:
 		# to have them separately - so the observations will be observations[pixels] and observations[tactile]
 		
 		# TODO: Get the image obs like this when we
-		# image_obs = torch.tensor(self.image_transform(episode_obs['image_obs'])).to(self.device).float() # This will give all the image observations of one episode
-		# image_reprs = self.image_encoder(image_obs)
-		# tactile_reprs = torch.tensor(episode_obs['tactile_repr']).to(self.device).float() # This will give all the representations of one episode
+		image_obs = self.image_normalize(episode_obs['image_obs']).to(self.device) # This will give all the image observations of one episode
+		image_reprs = self.image_encoder(image_obs)
+		tactile_reprs = episode_obs['tactile_repr'].to(self.device) # This will give all the representations of one episode
 
-		print('EPISODE OBS IN OT REWARDER: Keys: {}, Shapes: Image Obs: {}, Tactile Repr: {}'.format(
-			episode_obs.keys(), episode_obs['image_obs'].shape, episode_obs['tactile_repr'].shape
+		# print('image_reprs.device: {}, tactile_reprs.device: {}, image_encoder.device')
+
+		# image_reprs = self.image_encoder(episode_obs['image_obs'].to(self.device)).float()
+		# tactile_reprs = torch.tensor(episode_obs['tactile_repr']).to(self.device).float()
+
+		expert_image_reprs = self.image_encoder(self.expert_demo['image_obs'].to(self.device))
+		expert_tactile_reprs = self.expert_demo['tactile_repr'].to(self.device)
+
+		print('image_reprs.shape: {}, tactile_reprs.shape: {}, expert_image_repre.shape: {}, expr_tactile.shape: {}'.format(
+			image_reprs.shape, tactile_reprs.shape, expert_image_reprs.shape, expert_tactile_reprs.shape
 		))
-
-		image_reprs = self.image_encoder(episode_obs['image_obs'].to(self.device)).float()
-		tactile_reprs = torch.tensor(episode_obs['tactile_repr']).to(self.device).float()
-
-		expert_image_reprs = self.image_encoder(self.expert_demo['image_obs'].to(self.device)).float()
-		expert_tactile_reprs = torch.tensor(self.expert_demo['tactile_repr']).to(self.device).float()
 
 		# Concatenate everything now
 		obs = torch.concat([image_reprs, tactile_reprs], dim=-1).detach()

@@ -19,15 +19,17 @@ from tactile_learning.tactile_data import TactileImage, TactileRepresentation
 from tactile_learning.models import init_encoder_info
 from tactile_learning.utils import *
 
-class DexterityEnv(gym.Env):
+class CupUnstackingEnv(gym.Env):
         def __init__(self, # We will use both the hand and the arm
-            tactile_model_dir,
+            tactile_out_dir,
             host_address = "172.24.71.240",
-            camera_num = 0
+            camera_num = 1,
+            height = 224,
+            width = 224
         ):
             # print(camera_num, "CAMERA_NUM")
-            self.width = 224
-            self.height = 224
+            self.width = width
+            self.height = height
             self.view_num = camera_num
 
             self.deploy_api = DeployAPI(
@@ -47,12 +49,11 @@ class DexterityEnv(gym.Env):
             )
 
             self._robot = AllegroKDL()
-            self.action_space = spaces.Box(low = np.array([-1]*19,dtype=np.float32), # Actions are 12 + 7
-                                           high = np.array([1]*19,dtype=np.float32),
-                                           dtype = np.float32)
+            # NOTE: Since the tactile observation is going to be representations it can still be
+            # considered lower than 255
 
             device = torch.device('cuda:0')
-            tactile_cfg, tactile_encoder, _ = init_encoder_info(device, tactile_model_dir, 'tactile')
+            tactile_cfg, tactile_encoder, _ = init_encoder_info(device, tactile_out_dir, 'tactile')
             tactile_img = TactileImage(
                 tactile_image_size = tactile_cfg.tactile_image_size, 
                 shuffle_type = None
@@ -64,12 +65,23 @@ class DexterityEnv(gym.Env):
                 representation_type = 'tdex'
             )
 
+            self.action_space = spaces.Box(low = np.array([-1]*19,dtype=np.float32), # Actions are 12 + 7
+                                           high = np.array([1]*19,dtype=np.float32),
+                                           dtype = np.float32)
+            # self.observation_space = spaces.Box(low = np.array([0,0],dtype=np.float32), high = np.array([255,255],dtype=np.float32), dtype = np.float32)
+            self.observation_space = spaces.Dict(dict(
+                pixels = spaces.Box(low = np.array([0,0],dtype=np.float32), high = np.array([255,255], dtype=np.float32), dtype = np.float32),
+                tactile = spaces.Box(low = np.array([-1]*tactile_cfg.encoder.out_dim, dtype=np.float32),
+                                     high = np.array([1]*tactile_cfg.encoder.out_dim, dtype=np.float32),
+                                     dtype = np.float32)
+            ))
+            
             self.image_subscriber = ZMQCameraSubscriber(
                 host = host_address,
                 port = 10005 + self.view_num,
                 topic_type = 'RGB'
             )
-            self.image_transform = T.Compose([
+            self.image_transform = T.Compose([ # No normalization just simple cropping
                 T.Resize((480,640)),
                 T.Lambda(self._crop_transform),
                 T.Resize((self.height, self.width))
@@ -87,12 +99,12 @@ class DexterityEnv(gym.Env):
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             image = im.fromarray(image)
             img = self.image_transform(image)
-            return img
+            return np.asarray(img)
 
         def _crop_transform(self, image):
             return crop_transform(image, camera_view=self.view_num)
 
-        def init_hand(self):
+        def init_hand(self): # TODO: You should have dexterity_env as the base environment and then all the rest parametric
             # while True: 
             #     try:
             #         self.deploy_api.send_robot_action(self.home_state)
@@ -119,7 +131,7 @@ class DexterityEnv(gym.Env):
             
             # Get the observations
             obs = {}
-            obs['features'] = self.deploy_api.get_robot_state() # NOTE: having the features should be better and faster as well
+            # obs['features'] = self.deploy_api.get_robot_state() # TODO: having the features should be better and faster as well
             obs['pixels'] = self._get_curr_image()
             # obs['depth'] = self.hand.get_depth_images() - NOTE we're not using depth for now
             
@@ -127,7 +139,12 @@ class DexterityEnv(gym.Env):
             tactile_values = sensor_state['xela']['sensor_values']
             obs['tactile'] = self.tactile_repr.get(tactile_values)
 
-            return obs, 0, False, {'is_success': False} # obs, reward, done, infos
+            reward, done, infos = 0, False, {'is_success': False}
+            # print(f'RETURNING AFTER STEP: {obs},{reward},{done},{infos} ')   
+
+            print('obs[tactile].shape: {}'.format(obs['tactile'].shape))
+
+            return obs, reward, done, infos #obs, reward, done, infos
 
         def render(self, mode='rbg_array', width=0, height=0):
             return self._get_curr_image()
