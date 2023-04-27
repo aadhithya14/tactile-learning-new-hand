@@ -5,14 +5,14 @@ data_path: ???
 # deployment_dump_dir: /home/irmak/Workspace/tactile-learning/deployment_data/cup_picking/after_rss/10
 deployment_dump_dir: ???
 tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
-# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.03/18-43_image_byol_bs_32_cup_picking_after_rss
-# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.30/13-36_image_byol_bs_32_cup_picking_resnet
 image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
 
 nn_buffer_size: 15
 nn_k: 15
 representation_types: ['image', 'tactile'] # Observations used in the representations
-representation_importance: [1,2] # We will multiply the distances with these given numbers when using in scaled nearest neighbors
+representation_importance: [1,1.5] # We will multiply the distances with these given numbers when using in scaled nearest neighbors
 demos_to_use: [13,14,15,16,17,18] # Leave empty to use all the demos in the evaluation
 view_num: 1
 open_loop: false
+
+dump_deployment_info: false

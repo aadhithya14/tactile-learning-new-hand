@@ -38,6 +38,7 @@ class VINN(Deployer):
         demos_to_use=[0],
         view_num = 0, # View number to use for image
         open_loop = False, # Open loop vinn means that we'll run the demo after getting the first frame from KNN
+        dump_deployment_info = False
     ):
         
         self.set_up_env() 
@@ -84,13 +85,24 @@ class VINN(Deployer):
 
         self.deployment_dump_dir = deployment_dump_dir
         os.makedirs(self.deployment_dump_dir, exist_ok=True)
-        self.deployment_info = dict(
-            all_representations = self.all_representations,
-            curr_representations = [], # representations will be appended to this list
-            closest_representations = [],
-            neighbor_ids = [],
+        self.dump_deployment_info = dump_deployment_info
+        if dump_deployment_info:
+            self.deployment_info = dict(
+                all_representations = self.all_representations,
+                curr_representations = [], # representations will be appended to this list
+                closest_representations = [],
+                neighbor_ids = [],
+                images = [], 
+                tactile_values = []
+            )
+
+        self.visualization_info = dict(
+            state_ids = [],
             images = [], 
-            tactile_values = []
+            tactile_values = [],
+            id_of_nns = [], 
+            nn_idxs = [], 
+            nn_dists = []
         )
 
     
@@ -180,8 +192,27 @@ class VINN(Deployer):
         pbar.close()
 
     def save_deployment(self):
-        with open(os.path.join(self.deployment_dump_dir, 'deployment_info.pkl'), 'wb') as f:
-            pickle.dump(self.deployment_info, f)
+        if self.dump_deployment_info:
+            with open(os.path.join(self.deployment_dump_dir, 'deployment_info.pkl'), 'wb') as f:
+                pickle.dump(self.deployment_info, f)
+
+        with open(os.path.join(self.deployment_dump_dir, 'visualization_info.pkl'), 'wb') as f:
+            pickle.dump(self.visualization_info, f)
+
+        # Visualize
+        if len(self.visualization_info['state_ids']) > 0: # It was asked to visualize
+            for i,state_id in enumerate(self.visualization_info['state_ids']):
+
+                self._visualize_state(
+                    curr_tactile_values = self.visualization_info['tactile_values'][i],
+                    curr_fingertip_position = None, # We are not dumping state for now
+                    curr_kinova_cart_pos = None,
+                    id_of_nn = self.visualization_info['id_of_nns'][i],
+                    nn_idxs = self.visualization_info['nn_idxs'][i],
+                    nn_separate_dists = self.visualization_info['nn_dists'][i],
+                    image = self.visualization_info['images'][i], 
+                    state_id = state_id
+                )
 
     def get_action(self, tactile_values, recv_robot_state, visualize=False):
         if self.open_loop:
@@ -249,16 +280,9 @@ class VINN(Deployer):
             curr_robot_state
         )
 
-        # Save everything to deployment_info
-        self.deployment_info['curr_representations'].append(curr_representation)
-        _, nn_idxs, nn_separate_dists = self.knn.get_k_nearest_neighbors(curr_representation, k=self.nn_k)
-        closest_representation = self.all_representations[nn_idxs[0]]
-        self.deployment_info['images'].append(image)
-        self.deployment_info['tactile_values'].append(curr_tactile_values)
-        self.deployment_info['neighbor_ids'].append(nn_idxs[0])
-        self.deployment_info['closest_representations'].append(closest_representation)
 
         # Choose the action with the buffer 
+        _, nn_idxs, nn_separate_dists = self.knn.get_k_nearest_neighbors(curr_representation, k=self.nn_k)
         id_of_nn = self.buffer.choose(nn_idxs)
         nn_id = nn_idxs[id_of_nn]
         if nn_id+1 >= len(self.data['allegro_actions']['indices']): # If the chosen action is the action after the last action
@@ -280,16 +304,24 @@ class VINN(Deployer):
         nn_kinova_action = self.data['kinova']['values'][demo_id][kinova_id]
         nn_action['kinova'] = nn_kinova_action
 
+        # Save everything to deployment_info
+        if self.dump_deployment_info:
+            self.deployment_info['curr_representations'].append(curr_representation)
+            self.deployment_info['images'].append(image)
+            self.deployment_info['tactile_values'].append(curr_tactile_values)
+            self.deployment_info['neighbor_ids'].append(nn_idxs[0])
+            closest_representation = self.all_representations[nn_idxs[0]]
+            self.deployment_info['closest_representations'].append(closest_representation)
+
         # Visualize if given 
         if visualize: 
-            self._visualize_state(
-                curr_tactile_values, # We do want to plot all the tactile values - not only the ones we want  
-                fingertip_positions,
-                kinova_cart_state[:3],
-                id_of_nn,
-                nn_idxs,
-                nn_separate_dists, # We'll visualize 3 more neighbors' distances with their demos and ids
-            )
+
+            self.visualization_info['state_ids'].append(self.state_id)
+            self.visualization_info['images'].append(image)
+            self.visualization_info['tactile_values'].append(curr_tactile_values)
+            self.visualization_info['id_of_nns'].append(id_of_nn)
+            self.visualization_info['nn_idxs'].append(nn_idxs)
+            self.visualization_info['nn_dists'].append(nn_separate_dists)
 
         self.state_id += 1
 
@@ -298,9 +330,11 @@ class VINN(Deployer):
 
         return nn_action
 
-    def _visualize_state(self, curr_tactile_values, curr_fingertip_position, curr_kinova_cart_pos, id_of_nn, nn_idxs, nn_separate_dists):
+    def _visualize_state(self, curr_tactile_values, curr_fingertip_position, curr_kinova_cart_pos, id_of_nn, nn_idxs, nn_separate_dists, state_id=None, image=None):
         # Get the current image 
-        curr_image = self.inv_image_transform(self._get_curr_image()).numpy().transpose(1,2,0)
+        if image is None:
+            image = self._get_curr_image()
+        curr_image = self.inv_image_transform(image).numpy().transpose(1,2,0)
         curr_image_cv2 = cv2.cvtColor(curr_image*255, cv2.COLOR_RGB2BGR)
         curr_tactile_image = self.tactile_img.get_tactile_image_for_visualization(curr_tactile_values) 
 
@@ -325,9 +359,11 @@ class VINN(Deployer):
         dump_whole_state(curr_tactile_values, curr_tactile_image, curr_fingertip_position, curr_kinova_cart_pos, title='curr_state', vision_state=curr_image_cv2)
         dump_whole_state(knn_vis_data['tactile_values'], knn_vis_data['tactile_image'], knn_vis_data['allegro'], knn_vis_data['kinova'], title='knn_state', vision_state=knn_vis_data['image'])
         dump_repr_effects(nn_separate_dists, viz_id_of_nns, demo_nums, self.representation_types)
+        if state_id is None:
+            state_id = self.state_id
         dump_knn_state(
             dump_dir = self.deployment_dump_dir,
-            img_name = 'state_{}.png'.format(str(self.state_id).zfill(2)),
+            img_name = 'state_{}.png'.format(str(state_id).zfill(2)),
             image_repr = True,
             add_repr_effects = True,
             include_temporal_states = False
