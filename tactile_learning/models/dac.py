@@ -28,7 +28,7 @@ class Actor(nn.Module):
 									nn.Linear(hidden_dim, hidden_dim),
 									nn.ReLU(inplace=True),
 									nn.Linear(hidden_dim, action_shape[0]))
-		self.offset_mask = torch.tensor(offset_mask).float().to(torch.device('cuda'))
+		self.offset_mask = torch.tensor(offset_mask).float().to(torch.device('cuda')) # NOTE: This is used to set the exploration
 
 		self.apply(weight_init)
 

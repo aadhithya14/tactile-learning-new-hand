@@ -6,6 +6,8 @@ defaults:
 data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss
 image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
 tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
+reward_representations: ['tactile']
+policy_representations: ['image', 'tactile']
 
 seed: 42 
 device: cuda

@@ -41,8 +41,7 @@ class Workspace:
         self.roots = sorted(glob.glob(f'{cfg.data_path}/demonstration_*'))
         # print('self.roots: {}'.format(self.roots))
         self.mock_data = load_data(self.roots, demos_to_use=cfg.mock_demo_nums)
-        self._set_mock_demos
-        () # Get the mock demo observation and representations
+        self._set_mock_demos() # Get the mock demo observation and representations
         self.mock_env = MockEnv(self.mock_episodes)
 
         # self.agent = hydra.utils.instantiate(cfg.agent)
@@ -208,7 +207,7 @@ class Workspace:
             # print('TIMESTEP: {}'.format(time_step))
 
             # At the end of an episode actions
-            if time_step.last() or ((self.global_step % self.train_env.spec.max_episode_steps == 0) and self.global_step > 0): # TODO: This could require more checks in the real world
+            if time_step.last() or self.mock_episodes['end_of_demos'][self.global_step % len(self.mock_episodes['end_of_demos'])] == 1: # ((self.global_step % self.train_env.spec.max_episode_steps == 0) and self.global_step > 0): # TODO: This could require more checks in the real world
                 self._global_episode += 1 # Episode has been finished
                 
                 # Make each element in the observations to be a new array

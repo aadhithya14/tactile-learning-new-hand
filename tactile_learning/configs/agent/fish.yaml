@@ -5,6 +5,8 @@ mock_demo_nums: ${mock_demo_nums} # Demo that will be moved mockly
 data_path: ${data_path} # Path to hold all the preprocessed demos
 image_out_dir: ${image_out_dir}
 tactile_out_dir: ${tactile_out_dir}
+reward_representations: ${reward_representations}
+policy_representations: ${policy_representations}
 
 action_shape: ??? # 12 + 7 TODO: to be specified later in the environment (when we add the environment) but for now we're specifiying here 
 device: ${device}
