@@ -34,8 +34,8 @@ class Actor(nn.Module):
 
 	def forward(self, obs, action, std):
 
-		action = action.repeat(1, 100)
-		h = torch.cat((obs, action), dim=1)
+		action = action.repeat(1, 100) # Action shape (1, A) -> (1, 100*A)
+		h = torch.cat((obs, action), dim=1) # h shape: (1, 100*A + Repr_Dim)
 		mu = self.policy(h) 
 		mu = torch.tanh(mu) * self.offset_mask
 

@@ -7,7 +7,6 @@ suite: dexterousgym
 name: 'dexterous_gym'
 task_name: ${suite.task.task_name} # Is received from the Cup Unstacking 
 
-# TODO: Check if we're going to be using these - not use if not
 # task settings
 frame_stack: 1
 action_repeat: 1
@@ -35,5 +34,6 @@ task_make_fn:
   tactile_dim: ??? # This will be set by the train_online.make_agent code
   frame_stack: ${suite.frame_stack}
   action_repeat: ${suite.action_repeat}
+  action_type: joint # fingertip/joint
   # seed: ${seed}
   

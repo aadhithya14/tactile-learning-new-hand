@@ -25,7 +25,8 @@ class CupUnstackingEnv(gym.Env):
             host_address = "172.24.71.240",
             camera_num = 1,
             height = 224,
-            width = 224
+            width = 224,
+            action_type = 'joint' # fingertip / joint
         ):
             # print(camera_num, "CAMERA_NUM")
             self.width = width
@@ -37,7 +38,7 @@ class CupUnstackingEnv(gym.Env):
                 required_data={"rgb_idxs": [camera_num], "depth_idxs": []}
             )
 
-            self.min_action, self.max_action = -5, 5 # To clip the action
+            # self.min_action, self.max_action = -5, 5 # To clip the action
             self.home_state = dict(
                 allegro = np.array([
                     -0.0658244726801581, 0.11152991296986751, 0.036465840916854717, 0.29693057660614736, # Index
@@ -65,8 +66,10 @@ class CupUnstackingEnv(gym.Env):
                 representation_type = 'tdex'
             )
 
-            self.action_space = spaces.Box(low = np.array([-1]*19,dtype=np.float32), # Actions are 12 + 7
-                                           high = np.array([1]*19,dtype=np.float32),
+            action_dim = 23 if action_type == 'joint' else 19
+            self.action_type = action_type
+            self.action_space = spaces.Box(low = np.array([-1]*action_dim,dtype=np.float32), # Actions are 12 + 7
+                                           high = np.array([1]*action_dim,dtype=np.float32),
                                            dtype = np.float32)
             # self.observation_space = spaces.Box(low = np.array([0,0],dtype=np.float32), high = np.array([255,255],dtype=np.float32), dtype = np.float32)
             self.observation_space = spaces.Dict(dict(
@@ -99,7 +102,7 @@ class CupUnstackingEnv(gym.Env):
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             image = im.fromarray(image)
             img = self.image_transform(image)
-            return np.asarray(img)
+            return np.asarray(img) # NOTE: This is for environment
 
         def _crop_transform(self, image):
             return crop_transform(image, camera_view=self.view_num)
@@ -118,12 +121,16 @@ class CupUnstackingEnv(gym.Env):
             print('action.shape: {}'.format(action.shape))
             # action *= (1.0/5) # This is to make the training more stable 
             try: 
-                hand_joint_action = self._robot.get_joint_state_from_coord(
-                    action[0:3], action[3:6], action[6:9], action[9:12],
-                    self.deploy_api.get_robot_state()['allegro']['position'])
+                if self.action_type == 'fingertip':
+                    hand_joint_action = self._robot.get_joint_state_from_coord(
+                        action[0:3], action[3:6], action[6:9], action[9:12],
+                        self.deploy_api.get_robot_state()['allegro']['position'])
+                else:
+                    hand_joint_action = action[:16]
+                
                 self.deploy_api.send_robot_action({
                     'allegro': hand_joint_action, 
-                    'kinova':  action[12:]
+                    'kinova':  action[-7:]
                 })
                 # self.hand.send_robot_action({self.robot_name: converted_action})
             except:
@@ -133,16 +140,14 @@ class CupUnstackingEnv(gym.Env):
             obs = {}
             # obs['features'] = self.deploy_api.get_robot_state() # TODO: having the features should be better and faster as well
             obs['pixels'] = self._get_curr_image()
-            # obs['depth'] = self.hand.get_depth_images() - NOTE we're not using depth for now
             
             sensor_state = self.deploy_api.get_sensor_state()
             tactile_values = sensor_state['xela']['sensor_values']
             obs['tactile'] = self.tactile_repr.get(tactile_values)
 
-            reward, done, infos = 0, False, {'is_success': False}
-            # print(f'RETURNING AFTER STEP: {obs},{reward},{done},{infos} ')   
+            reward, done, infos = 0, False, {'is_success': False} 
 
-            print('obs[tactile].shape: {}'.format(obs['tactile'].shape))
+            # print('obs[tactile].shape: {}'.format(obs['tactile'].shape))
 
             return obs, reward, done, infos #obs, reward, done, infos
 

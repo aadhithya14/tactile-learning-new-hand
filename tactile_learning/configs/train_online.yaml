@@ -6,7 +6,7 @@ defaults:
 data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss
 image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
 tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
-reward_representations: ['tactile']
+reward_representations: ['image']
 policy_representations: ['image', 'tactile']
 
 seed: 42 
@@ -14,12 +14,13 @@ device: cuda
 
 num_train_frames: 5000 # Total training numbers
 num_seed_frames: 20
+
 eval_every_frames: 100
 
 # Environment params
 expert_demo_num: 15
-mock_env: True # If set to true we will be using mock demos as the environment interaction
-mock_demo_nums: [] # Use all of them # [13,15,2,7] # 15 is the expert demo in the agent
+mock_env: False # If set to true we will be using mock demos as the environment interaction
+mock_demo_nums: [13,15,2,7] # Use all of them # [13,15,2,7] # 15 is the expert demo in the agent
 
 # Agent params 
 bc_regularize: False
@@ -34,7 +35,7 @@ batch_size: 256
 save_video: False 
 save_train_video: False 
 
-log: True
+log: False
 experiment: fish_rewards_mock_demo_training
 
 # hydra configuration - should be received separately

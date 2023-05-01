@@ -40,6 +40,7 @@ class ReplayBufferStorage:
         replay_dir.mkdir(exist_ok=True)
         self._current_episode = defaultdict(list)
         self._preload()
+        # print('_DATA_SPECS: {}'.format(self._data_specs))
 
     def __len__(self):
         return self._num_transitions
@@ -48,10 +49,16 @@ class ReplayBufferStorage:
     #save it to a file
     def add(self, time_step, last=False):
         for spec in self._data_specs:
+            # print('spec: {}'.format(spec))
             if type(spec) is dict: # It means that this is observation
+                # print('spec.keys(): {}, time_step: {}'.format(spec.keys(), time_step))
                 value = time_step.observation
                 for obs_spec in spec.values():
-                    self._current_episode[obs_spec.name].append(value[obs_spec.name].detach().cpu().numpy())
+                    # print('obs_spec: {}'.format(obs_spec))
+                    # print('obs_spec.name: {}, value.keys(): {}'.format(obs_spec.name, value.keys()))
+                    # self._current_episode[obs_spec.name].append(value[obs_spec.name].detach().cpu().numpy())
+                    # print('value[{}].shape: {}'.format(obs_spec.name, value[obs_spec.name].shape))
+                    self._current_episode[obs_spec.name].append(value[obs_spec.name])
                 # print(value[obs_spec.name].detach().cpu().numpy().shape)
             else:
                 value = time_step[spec.name]

@@ -183,7 +183,7 @@ class FrameStackWrapper(dm_env.Environment):
 											dtype=np.uint8,
 											minimum=0,
 											maximum=255,
-											name='observation')
+											name='pixels')
 		
 		tactile_shape = wrapped_obs_spec['tactile'].shape
 		print('tactile_shape: {}, num_frames: {}'.format(tactile_shape, num_frames))
@@ -352,8 +352,16 @@ class ExtendedTimeStepWrapper(dm_env.Environment):
 		return getattr(self._env, name)
 
 
-def make(name, tactile_out_dir, host_address, camera_num, height, width, tactile_dim, frame_stack, action_repeat):
-	env = gym.make(name, tactile_out_dir = tactile_out_dir, host_address=host_address, camera_num=camera_num, height=height, width=width)
+def make(name, tactile_out_dir, host_address, camera_num, height, width, tactile_dim, frame_stack, action_repeat, action_type):
+	env = gym.make(
+		name,
+		tactile_out_dir = tactile_out_dir,
+		host_address = host_address,
+		camera_num = camera_num,
+		height = height,
+		width = width,
+		action_type = action_type
+	)
 	# env.seed(seed)
 	
 	# # add wrappers

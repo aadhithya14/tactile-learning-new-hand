@@ -20,6 +20,7 @@ def set_seed_everywhere(seed):
 class eval_mode:
     def __init__(self, *models):
         self.models = models
+        # print('models in eval_mode:{}'.format(models))
 
     def __enter__(self):
         self.prev_states = []

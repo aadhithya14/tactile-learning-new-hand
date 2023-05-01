@@ -76,8 +76,8 @@ class MockEnv(dm_env.Environment):
         self.current_step = self._find_closest_next_demo()
 
         obs = {}
-        obs['pixels'] = self.episodes['image_obs'][self.current_step]
-        obs['tactile'] = self.episodes['tactile_reprs'][self.current_step]
+        obs['pixels'] = self.episodes['image_obs'][self.current_step].detach().cpu().numpy()
+        obs['tactile'] = self.episodes['tactile_reprs'][self.current_step].detach().cpu().numpy()
         
         # step_type = StepType.LAST if done else StepType.MID
 
@@ -112,8 +112,8 @@ class MockEnv(dm_env.Environment):
         self.current_step += 1
 
         obs = {}
-        obs['pixels'] = self.episodes['image_obs'][self.current_step]
-        obs['tactile'] = self.episodes['tactile_reprs'][self.current_step] # It should mock exactly the last 
+        obs['pixels'] = self.episodes['image_obs'][self.current_step].detach().cpu().numpy() # NOTE: These are added to imitate the actual environment - but not sure if works
+        obs['tactile'] = self.episodes['tactile_reprs'][self.current_step].detach().cpu().numpy() # It should mock exactly the last 
 
         step_type = StepType.LAST if self.episodes['end_of_demos'][self.current_step] == 1 else StepType.MID
     

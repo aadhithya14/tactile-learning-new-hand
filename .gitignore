@@ -146,3 +146,4 @@ notebooks/*.gif
 notebooks/.ipynb_checkpoints/*
 
 buffer/*
+weights/*
