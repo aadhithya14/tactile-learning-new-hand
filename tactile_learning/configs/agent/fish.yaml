@@ -28,4 +28,4 @@ auto_rew_scale_factor: 10
 bc_weight_type: 'qfilter'
 bc_weight_schedule: 'linear(1.0,0.1,20000)'
 offset_scale_factor: 0.2
-offset_mask: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0] # TODO: What is this?
+offset_mask: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0] # Only exploration - kinova translation

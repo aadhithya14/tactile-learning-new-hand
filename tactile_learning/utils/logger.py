@@ -28,3 +28,11 @@ class Logger:
 
         with open(self.logger_file, 'a') as f:
             f.write('{}\n'.format(msg))
+
+    def log_metrics(self, metrics, time_step, time_step_name):
+        for key in metrics.keys():
+            msg = {
+                time_step_name: time_step,
+                key: metrics[key]
+            }
+            self.log(msg)

@@ -8,4 +8,5 @@ from .rewarder import *
 from .tactile_image import *
 from .timer import * 
 from .utils import *
+from .video_recorder import *
 from .visualization import *

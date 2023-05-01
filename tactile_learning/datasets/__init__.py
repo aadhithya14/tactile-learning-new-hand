@@ -6,3 +6,4 @@ from .all import *
 from .tactile import *
 from .vision import *
 from .representations import *
+from .replay_buffer import *

@@ -5,13 +5,42 @@
 
 import dm_env
 import numpy as np
+
+from typing import Any, NamedTuple
 from dm_env import StepType, specs, TimeStep
+
+from tactile_learning.utils import get_inverse_image_norm
+
+class Spec:
+    max_episode_steps = 70
+
+class ExtendedTimeStep(NamedTuple):
+	step_type: Any
+	reward: Any
+	discount: Any
+	observation: Any
+	action: Any
+	base_action: Any
+
+	def first(self):
+		return self.step_type == StepType.FIRST
+
+	def mid(self):
+		return self.step_type == StepType.MID
+
+	def last(self):
+		return self.step_type == StepType.LAST
+
+	def __getitem__(self, attr):
+		return getattr(self, attr)
 
 # Returns similar outputs to a TimeStep
 class MockEnv(dm_env.Environment):
     def __init__(self, episodes):
         self.episodes = episodes
         self.current_step = 0
+
+        self.__dict__['spec'] = Spec()
 
         # Set the DM Env requirements
         self._action_spec = specs.BoundedArray(
@@ -23,18 +52,20 @@ class MockEnv(dm_env.Environment):
         )
         # Observation spec
         self._obs_spec = {}
-        self._obs_spec['image_obs'] = specs.BoundedArray(
+        self._obs_spec['pixels'] = specs.BoundedArray(
             shape=(480,480,3), # This is how we're transforming the image observations
             dtype=np.uint8,
             minimum=0,
             maximum=255,
-            name='image_obs'
+            name='pixels'
         )
-        self._obs_spec['tactile_repr'] = specs.Array(
+        self._obs_spec['tactile'] = specs.Array(
 			shape =(1024,),
 			dtype=np.float32, # NOTE: is this a problem?
-			name ='tactile_repr' # We will receive the representation directly
+			name ='tactile' # We will receive the representation directly
 		)
+
+        self.inv_image_transform = get_inverse_image_norm()
 
         # print('episodes: {}'.format(episodes['end_of_demos']))
 
@@ -45,16 +76,18 @@ class MockEnv(dm_env.Environment):
         self.current_step = self._find_closest_next_demo()
 
         obs = {}
-        obs['image_obs'] = self.episodes['image_obs'][self.current_step]
-        obs['tactile_repr'] = self.episodes['tactile_reprs'][self.current_step]
+        obs['pixels'] = self.episodes['image_obs'][self.current_step]
+        obs['tactile'] = self.episodes['tactile_reprs'][self.current_step]
         
         # step_type = StepType.LAST if done else StepType.MID
 
-        return TimeStep(
+        return ExtendedTimeStep(
             step_type = StepType.FIRST,
             reward = 0, # Reward will always be calculated by the ot rewarder
             discount = 1.0, # Hardcoded for now
-            observation = obs 
+            observation = obs,
+            action = np.zeros(19),
+            base_action = np.zeros(19)
         )
 
     def _find_closest_next_demo(self):
@@ -68,7 +101,7 @@ class MockEnv(dm_env.Environment):
         next_demo_step = (self.current_step+offset_step+1) % len(self.episodes['end_of_demos'])
         return next_demo_step
 
-    def step(self, action):
+    def step(self, action, base_action):
         # observation, reward, done, info = self._env.step(action)
         # obs = {}
         # obs['pixels'] = observation['pixels'].astype(np.uint8)
@@ -79,16 +112,18 @@ class MockEnv(dm_env.Environment):
         self.current_step += 1
 
         obs = {}
-        obs['image_obs'] = self.episodes['image_obs'][self.current_step]
-        obs['tactile_repr'] = self.episodes['tactile_reprs'][self.current_step]
+        obs['pixels'] = self.episodes['image_obs'][self.current_step]
+        obs['tactile'] = self.episodes['tactile_reprs'][self.current_step] # It should mock exactly the last 
 
         step_type = StepType.LAST if self.episodes['end_of_demos'][self.current_step] == 1 else StepType.MID
     
-        return TimeStep(
+        return ExtendedTimeStep(
             step_type = step_type,
             reward = 0, # Reward will always be calculated by the ot rewarder
             discount = 1.0, # Hardcoded for now
-            observation = obs 
+            observation = obs,
+            action = action, 
+            base_action = base_action
         )
 
     def observation_spec(self):
@@ -97,8 +132,8 @@ class MockEnv(dm_env.Environment):
     def action_spec(self):
         return self._action_spec
 
-    # def render(self, mode="rgb_array", width=256, height=256):
-    #     return self._env.render(mode="rgb_array", width=width, height=height)
+    def render(self):
+        return self.inv_image_transform(self.episodes['image_obs'][self.current_step]) # These should already be 
 
     # def __getattr__(self, name):
     #     return getattr(self._env, name)

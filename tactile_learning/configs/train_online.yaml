@@ -16,12 +16,26 @@ num_train_frames: 5000 # Total training numbers
 num_seed_frames: 20
 eval_every_frames: 100
 
+# Environment params
 expert_demo_num: 15
-mock_demo_nums: [13,15,2,7] # 15 is the expert demo in the agent
+mock_env: True # If set to true we will be using mock demos as the environment interaction
+mock_demo_nums: [] # Use all of them # [13,15,2,7] # 15 is the expert demo in the agent
 
-log: False
+# Agent params 
 bc_regularize: False
-experiment: fish_rewards_mock_demo_checks
+
+# Replay buffer params
+replay_buffer_size: 150000
+replay_buffer_num_workers: 2
+nstep: 3
+batch_size: 256
+
+# Recorder
+save_video: False 
+save_train_video: False 
+
+log: True
+experiment: fish_rewards_mock_demo_training
 
 # hydra configuration - should be received separately
 hydra:

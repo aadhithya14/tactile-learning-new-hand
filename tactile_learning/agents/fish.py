@@ -103,6 +103,9 @@ class FISHAgent:
 		if 'image' in policy_representations:
 			repr_dim += image_cfg.encoder.out_dim
 		# repr_dim = image_cfg.encoder.out_dim + tactile_cfg.encoder.out_dim 
+
+		print("REPR_DIM: {}, ACTION_SHAPE: {}".format(repr_dim, action_shape))
+
 		self.actor = Actor(repr_dim, action_shape, feature_dim,
 						   hidden_dim, offset_mask).to(device)
 
@@ -226,7 +229,7 @@ class FISHAgent:
 
 		obs = self.encoder(obs) if self.use_encoder else obs
 
-		stddev = utils.schedule(self.stddev_schedule, step)
+		stddev = schedule(self.stddev_schedule, step)
 		dist = self.actor(obs, base_action, stddev)
 		if eval_mode:
 			offset_action = dist.mean
@@ -287,7 +290,10 @@ class FISHAgent:
 		metrics = dict()
 
 		with torch.no_grad():
-			stddev = utils.schedule(self.stddev_schedule, step)
+			stddev = schedule(self.stddev_schedule, step)
+			# print('next_obs.shape: {}, base_next_action.shape: {}'.format(
+			# 	next_obs.shape, base_next_action.shape
+			# ))
 			dist = self.actor(next_obs, base_next_action, stddev)
 
 			next_action = base_next_action + dist.sample(clip=self.stddev_clip) * self.offset_scale_factor
@@ -316,7 +322,7 @@ class FISHAgent:
 	def update_actor(self, obs, obs_expert, obs_qfilter, action_expert, base_action, base_action_expert, bc_regularize, step):
 		metrics = dict()
 
-		stddev = utils.schedule(self.stddev_schedule, step)
+		stddev = schedule(self.stddev_schedule, step)
 
 		# compute action offset
 		dist = self.actor(obs, base_action, stddev)
@@ -332,7 +338,7 @@ class FISHAgent:
 		if not bc_regularize: # This will be false
 			bc_weight = 0.0
 		elif self.bc_weight_type == "linear":
-			bc_weight = utils.schedule(self.bc_weight_schedule, step)
+			bc_weight = schedule(self.bc_weight_schedule, step)
 		elif self.bc_weight_type == "qfilter": # NOTE: This is for ROT but in FISH they had it set to false
 			"""
 			Soft Q-filtering inspired from 			
@@ -379,50 +385,63 @@ class FISHAgent:
 			
 		return metrics
 
-	def update(self, replay_iter, expert_replay_iter, ssl_replay_iter, step, bc_regularize=False):
+	def update(self, replay_iter, step, bc_regularize=False, expert_replay_iter=None, ssl_replay_iter=None):
 		metrics = dict()
 
 		if step % self.update_every_steps != 0:
 			return metrics
 
 		batch = next(replay_iter)
-		obs, action, base_action, reward, discount, next_obs, base_next_action = utils.to_torch(
+		# print('batch[0].shape: {}'.format(batch[0].shape))
+		image_obs, tactile_repr, action, base_action, reward, discount, next_image_obs, next_tactile_repr, base_next_action = to_torch(
 			batch, self.device)
+		
+		# print('IN UPDATE ### - image_obs.shape: {}, tactile_repr.shape: {}, next_image_obs.shape: {}, next_tactile_repr.shape: {}'.format(
+		# 	image_obs.shape, tactile_repr.shape, next_image_obs.shape, next_tactile_repr.shape
+		# ))
 
 		# augment
-		if self.augment:
-			obs_qfilter = self.aug(obs.clone().float())
-			obs = self.aug(obs.float())
-			next_obs = self.aug(next_obs.float())
-		else:
-			obs_qfilter = obs.clone().float()
-			obs = obs.float()
-			next_obs = next_obs.float()
+		# if self.augment:
+		# 	obs_qfilter = self.aug(obs.clone().float())
+		# 	obs = self.aug(obs.float())
+		# 	next_obs = self.aug(next_obs.float())
+		# else:
+		# 	obs_qfilter = obs.clone().float()
+		# 	obs = obs.float()
+		# 	next_obs = next_obs.float()
 
 		# Get the representations
 		reprs = []
 		next_reprs = [] # These will be concatenated afterwards
 		if 'image' in self.policy_representations:
 			# Current representations
-			image_obs = self.image_normalize(obs['image_obs']).to(self.device) # This will give all the image observations of one batch
+			if self.augment: # Augment image if wanted
+				image_obs = self.image_aug(image_obs.float())
+			image_obs = self.image_normalize(image_obs).to(self.device) # This will give all the image observations of one batch
 			image_reprs = self.image_encoder(image_obs)
 			reprs.append(image_reprs)
 
 			# Next representations
-			image_next_obs = self.image_normalize(next_obs['image_obs']).to(self.device)
+			if self.augment:
+				next_image_obs = self.image_aug(next_image_obs.float())
+			image_next_obs = self.image_normalize(next_image_obs).to(self.device)
 			with torch.no_grad():
 				image_next_reprs = self.image_encoder(image_next_obs)
 			next_reprs.append(image_next_reprs)
 
 		if 'tactile' in self.policy_representations:
-			tactile_reprs = obs['tactile_repr'].to(self.device) # This will give all the representations of one batch
+			tactile_reprs = tactile_repr.to(self.device) # This will give all the representations of one batch
 			reprs.append(tactile_reprs)
 
-			tactile_next_reprs = next_obs['tactile_repr'].to(self.device)
+			tactile_next_reprs = next_tactile_repr.to(self.device)
 			next_reprs.append(tactile_next_reprs)	
 
-		obs = torch.concat([reprs], axis=-1) # Concatenate the representations to get the final representations
-		next_obs = torch.concat([next_reprs], axis=-1)
+		obs = torch.concat(reprs, axis=-1) # Concatenate the representations to get the final representations
+		next_obs = torch.concat(next_reprs, axis=-1)
+
+		# print('obs.shape: {}, next_obs.shape: {}'.format(
+		# 	obs.shape, next_obs.shape
+		# ))
 
 		# encode
 		# obs = self.normalize(obs/255.0)
@@ -433,7 +452,7 @@ class FISHAgent:
 
 		# if bc_regularize:
 		# 	batch = next(expert_replay_iter)
-		# 	obs_expert, action_expert = utils.to_torch(batch, self.device)
+		# 	obs_expert, action_expert = to_torch(batch, self.device)
 		# 	action_expert = action_expert.float()
 		# 	if self.k == 1:
 		# 		base_action_expert = action_expert.clone()
@@ -459,6 +478,7 @@ class FISHAgent:
 		# 	# Detach grads
 		# 	obs_expert = obs_expert.detach()
 		# else: # TODO: Fix this if you were to use bc_regularize
+
 		obs_qfilter = None
 		obs_expert = None 
 		action_expert = None
@@ -475,12 +495,12 @@ class FISHAgent:
 		metrics.update(self.update_actor(obs.detach(), obs_expert, obs_qfilter, action_expert, base_action, base_action_expert, bc_regularize, step))
 
 		# update critic target
-		utils.soft_update_params(self.critic, self.critic_target,
+		soft_update_params(self.critic, self.critic_target,
 								 self.critic_target_tau)
 
 		return metrics
 
-	def ot_rewarder(self, episode_obs):
+	def ot_rewarder(self, episode_obs, mock=False): # TODO: Delete the mock option
 		
 		# TODO: Get the observations separately - instead of putting them directly we'll need
 		# to have them separately - so the observations will be observations[pixels] and observations[tactile]
@@ -488,8 +508,11 @@ class FISHAgent:
 		# TODO: Get the image obs like this when we
 		curr_reprs, exp_reprs = [], []
 		if 'image' in self.reward_representations:
-			image_obs = self.image_normalize(episode_obs['image_obs']).to(self.device) # This will give all the image observations of one episode
-			image_reprs = self.image_encoder(image_obs)
+			if mock:
+				image_reprs = self.image_encoder(episode_obs['image_obs'].to(self.device))
+			else:
+				image_obs = self.image_normalize(episode_obs['image_obs']).to(self.device) # This will give all the image observations of one episode
+				image_reprs = self.image_encoder(image_obs)
 			expert_image_reprs = self.image_encoder(self.expert_demo['image_obs'].to(self.device))
 			curr_reprs.append(image_reprs)
 			exp_reprs.append(expert_image_reprs)
@@ -500,15 +523,11 @@ class FISHAgent:
 			curr_reprs.append(tactile_reprs)
 			exp_reprs.append(expert_tactile_reprs)
 
-		# print('image_reprs.shape: {}, tactile_reprs.shape: {}, expert_image_repre.shape: {}, expr_tactile.shape: {}'.format(
-		# 	image_reprs.shape, tactile_reprs.shape, expert_image_reprs.shape, expert_tactile_reprs.shape
-		# ))
-
 		# Concatenate everything now
 		obs = torch.concat(curr_reprs, dim=-1).detach()
 		exp = torch.concat(exp_reprs, dim=-1).detach()
 
-		print('obs.shape: {}, exp.shape: {}'.format(obs.shape, exp.shape))
+		print('ot_rewarder - obs.shape: {}, exp.shape: {}'.format(obs.shape, exp.shape))
 			
 		if self.rewards == 'sinkhorn_cosine':
 			cost_matrix = cosine_distance(
