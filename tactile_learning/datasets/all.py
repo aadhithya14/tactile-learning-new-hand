@@ -108,3 +108,7 @@ class TactileVisionActionDataset(data.Dataset):
         action = self._get_action(index)
         
         return tactile_image, vision_image, action
+
+
+# if __name__ == '__main__':
+#     dataset = 

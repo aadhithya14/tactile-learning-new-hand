@@ -22,6 +22,7 @@ from tactile_learning.utils import *
 class CupUnstackingEnv(gym.Env):
         def __init__(self, # We will use both the hand and the arm
             tactile_out_dir,
+            tactile_model_type = 'byol',
             host_address = "172.24.71.240",
             camera_num = 1,
             height = 224,
@@ -54,13 +55,14 @@ class CupUnstackingEnv(gym.Env):
             # considered lower than 255
 
             device = torch.device('cuda:0')
-            tactile_cfg, tactile_encoder, _ = init_encoder_info(device, tactile_out_dir, 'tactile')
+            tactile_cfg, tactile_encoder, _ = init_encoder_info(device, tactile_out_dir, 'tactile', model_type=tactile_model_type)
             tactile_img = TactileImage(
                 tactile_image_size = tactile_cfg.tactile_image_size, 
                 shuffle_type = None
             )
+            tactile_repr_dim = tactile_cfg.encoder.tactile_encoder.out_dim if tactile_model_type == 'bc' else tactile_cfg.encoder.out_dim
             self.tactile_repr = TactileRepresentation(
-                encoder_out_dim = tactile_cfg.encoder.out_dim,
+                encoder_out_dim = tactile_repr_dim,
                 tactile_encoder = tactile_encoder,
                 tactile_image = tactile_img,
                 representation_type = 'tdex'
@@ -74,8 +76,8 @@ class CupUnstackingEnv(gym.Env):
             # self.observation_space = spaces.Box(low = np.array([0,0],dtype=np.float32), high = np.array([255,255],dtype=np.float32), dtype = np.float32)
             self.observation_space = spaces.Dict(dict(
                 pixels = spaces.Box(low = np.array([0,0],dtype=np.float32), high = np.array([255,255], dtype=np.float32), dtype = np.float32),
-                tactile = spaces.Box(low = np.array([-1]*tactile_cfg.encoder.out_dim, dtype=np.float32),
-                                     high = np.array([1]*tactile_cfg.encoder.out_dim, dtype=np.float32),
+                tactile = spaces.Box(low = np.array([-1]*tactile_repr_dim, dtype=np.float32),
+                                     high = np.array([1]*tactile_repr_dim, dtype=np.float32),
                                      dtype = np.float32)
             ))
             

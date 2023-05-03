@@ -1,0 +1,3 @@
+loss_fn: mse
+representation_type: tdex
+freeze_encoders: false

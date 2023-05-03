@@ -127,3 +127,33 @@ class TactileWholeHandEncoder(nn.Module):
         x = torch.flatten(x, 1) # Flatten all dimensions except batch
         x = self.final_layer(x)
         return x
+    
+class TactileBCEncoder(nn.Module): # Encoder for the whole tactile image
+    def __init__(
+        self,
+        in_channels,
+        out_dim # Final dimension of the representation
+    ):
+        super().__init__()
+        self.out_dim = out_dim
+        self.model = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels=32, kernel_size=2),
+            nn.ReLU(),
+            # PrintSize(),
+            nn.Conv2d(in_channels=32, out_channels=4, kernel_size=4),
+            nn.ReLU(),
+            # PrintSize()
+        )
+
+        self.final_layer = nn.Sequential(
+           nn.Linear(in_features=3136, out_features=1024),
+           nn.ReLU(), 
+           nn.Linear(in_features=1024, out_features=out_dim)
+        )
+        
+    def forward(self, x):
+        # print('x.shape: {}'.format(x.shape))
+        x = self.model(x)
+        x = torch.flatten(x, 1) # Flatten all dimensions except batch
+        x = self.final_layer(x)
+        return x

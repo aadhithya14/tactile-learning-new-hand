@@ -39,7 +39,7 @@ def create_fc(input_dim, output_dim, hidden_dims, use_batchnorm=False, dropout=N
         layers.append(nn.BatchNorm1d(hidden_dims[-1], affine=False))
     return nn.Sequential(*layers)
 
-def init_encoder_info(device, out_dir, encoder_type='tactile', view_num=1): # encoder_type: either image or tactile
+def init_encoder_info(device, out_dir, encoder_type='tactile', view_num=1, model_type='byol'): # encoder_type: either image or tactile
         if encoder_type == 'tactile' and  out_dir is None:
             encoder = alexnet(pretrained=True, out_dim=512, remove_last_layer=True)
             cfg = OmegaConf.create({'encoder':{'out_dim':512}, 'tactile_image_size':224})
@@ -50,8 +50,13 @@ def init_encoder_info(device, out_dir, encoder_type='tactile', view_num=1): # en
         
         else:
             cfg = OmegaConf.load(os.path.join(out_dir, '.hydra/config.yaml'))
-            model_path = os.path.join(out_dir, 'models/byol_encoder_best.pt')
-            encoder = load_model(cfg, device, model_path)
+            bc_model_type = None
+            if model_type == 'byol': # We assume that the model path is byol directly
+                model_path = os.path.join(out_dir, f'models/{model_type}_encoder_best.pt')
+            elif model_type == 'bc':
+                model_path = os.path.join(out_dir, f'models/{model_type}_{encoder_type}_encoder_best.pt')
+                bc_model_type = encoder_type
+            encoder = load_model(cfg, device, model_path, bc_model_type)
         encoder.eval() 
         
         if encoder_type == 'image':

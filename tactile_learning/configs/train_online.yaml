@@ -5,22 +5,25 @@ defaults:
 
 data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss
 image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
-tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
-reward_representations: ['image']
+tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120 # - Play data encoder
+# tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.03/12-23_bc_bs_64_epochs_500_lr_1e-05_cup_picking_after_rss
+tactile_model_type: byol # It could be ssl/byol as well
+
+reward_representations: ['tactile']
 policy_representations: ['image', 'tactile']
 
 seed: 42 
 device: cuda
 
 num_train_frames: 5000 # Total training numbers
-num_seed_frames: 20
+num_seed_frames: 200
 
 eval_every_frames: 100
 
 # Environment params
-expert_demo_num: 15
+expert_demo_num: 13
 mock_env: False # If set to true we will be using mock demos as the environment interaction
-mock_demo_nums: [13,15,2,7] # Use all of them # [13,15,2,7] # 15 is the expert demo in the agent
+mock_demo_nums: [10, 12, 13, 15, 2, 7] # Use all of them # [13,15,2,7] # 15 is the expert demo in the agent
 
 # Agent params 
 bc_regularize: False
@@ -33,7 +36,11 @@ batch_size: 256
 
 # Recorder
 save_video: False 
-save_train_video: False 
+save_train_video: True 
+
+# Snapshot loading
+load_snapshot: False
+snapshot_weight: ??? # This should be set if we ask it to load snapshot - but for now we're not
 
 log: False
 experiment: fish_rewards_mock_demo_training

@@ -40,12 +40,8 @@ class Workspace:
         self.mock_env = cfg.mock_env
         self._env_setup(tactile_repr_dim) # Should be set here
 
-        # Get the mock environment observations and the tactile representations - this will
-        # be changed as we use the actual environment
-        # self.roots = sorted(glob.glob(f'{cfg.data_path}/demonstration_*'))
-        # self.mock_data = load_data(self.roots, demos_to_use=cfg.mock_demo_nums)
-        # self._set_mock_demos() # Get the mock demo observation and representations
-        # self.mock_env = MockEnv(self.mock_episodes)
+        # If load the snapshot rather than agent
+        self.load_snapshot = cfg.load_snapshot 
 
         # self.agent = hydra.utils.instantiate(cfg.agent)
         self._initialize_agent()
@@ -72,13 +68,14 @@ class Workspace:
         image_cfg, self.image_encoder, self.image_transform = init_encoder_info(self.device, cfg.image_out_dir, 'image')
         self.inv_image_transform = get_inverse_image_norm() 
 
-        tactile_cfg, self.tactile_encoder, _ = init_encoder_info(self.device, cfg.tactile_out_dir, 'tactile')
+        tactile_cfg, self.tactile_encoder, _ = init_encoder_info(self.device, cfg.tactile_out_dir, 'tactile', model_type=cfg.tactile_model_type)
         tactile_img = TactileImage(
             tactile_image_size = tactile_cfg.tactile_image_size, 
             shuffle_type = None
         )
+        tactile_repr_dim = tactile_cfg.encoder.tactile_encoder.out_dim if cfg.tactile_model_type == 'bc' else tactile_cfg.encoder.out_dim
         self.tactile_repr = TactileRepresentation( # This will be used when calculating the reward - not getting the observations
-            encoder_out_dim = tactile_cfg.encoder.out_dim,
+            encoder_out_dim = tactile_repr_dim,
             tactile_encoder = self.tactile_encoder,
             tactile_image = tactile_img,
             representation_type = 'tdex'
@@ -93,7 +90,7 @@ class Workspace:
         for param in self.tactile_encoder.parameters():
             param.requires_grad = False
 
-        return tactile_cfg.encoder.out_dim # Should return the tactile representation dimension
+        return tactile_repr_dim # Should return the tactile representation dimension
 
     def _env_setup(self, tactile_repr_dim):
 
@@ -269,11 +266,10 @@ class Workspace:
         while train_until_step(self.global_step): # We're going to behave as if we act and the observations and the representations are coming from the mock_demo but all the rest should be the same
             
             # At the end of an episode actions
-            if time_step.last() or (self.global_step > 0 and (self.global_step % self.train_env.spec.max_episode_steps == 0)): # or self.mock_episodes['end_of_demos'][self.global_step % len(self.mock_episodes['end_of_demos'])] == 1: # ((self.global_step % self.train_env.spec.max_episode_steps == 0) and self.global_step > 0): # TODO: This could require more checks in the real world
+            if time_step.last() or ((not self.mock_env) and self.global_step > 0 and (self.global_step % self.train_env.spec.max_episode_steps == 0)): # or self.mock_episodes['end_of_demos'][self.global_step % len(self.mock_episodes['end_of_demos'])] == 1: # ((self.global_step % self.train_env.spec.max_episode_steps == 0) and self.global_step > 0): # TODO: This could require more checks in the real world
                 
                 # Save the episode as a video
-                if self._global_episode % 10 == 0:
-                    self.train_video_recorder.save(f'{self.global_frame}.mp4')
+                # if self._global_episode % 10 == 0:
                 
                 self._global_episode += 1 # Episode has been finished
                 
@@ -298,6 +294,8 @@ class Workspace:
                         new_rewards_sum = np.sum(new_rewards)
    
                 print(f'REWARD = {new_rewards_sum}')
+                self.train_video_recorder.save(f'e{self.global_episode}_f{self.global_frame}_r{new_rewards_sum}.mp4')
+                
                 if self.mock_env:
                     self.episode_id = (self.episode_id+1) % len(self.mock_episodes['demo_nums'])
 
@@ -305,6 +303,7 @@ class Workspace:
                 for i, elt in enumerate(time_steps):
                     elt = elt._replace(reward=new_rewards[i]) # Update the reward of the object accordingly
                     # print('time_step.keys(): {}'.format(time_step.keys()))
+                    # print('elt: {}'.format(elt))
                     self.replay_storage.add(elt, last = (i == len(time_steps) - 1))
 
                 # Log
@@ -338,22 +337,24 @@ class Workspace:
 
             # Get the action
             with torch.no_grad(), eval_mode(self.agent):
-                # action, base_action = self.agent.mock_act(
-                #     time_step.observation,
-                #     step = self.global_step,
-                #     max_step = self.train_env.spec.max_episode_steps
-                #     # self.global_step,
-                #     # eval_mode=False
-                # )
-                action, base_action = self.agent.act(
-                    obs = dict(
-                        image_obs = torch.FloatTensor(time_step.observation['pixels']),
-                        tactile_repr = torch.FloatTensor(time_step.observation['tactile'])
-                    ),
-                    global_step = self.global_step, 
-                    episode_step = episode_step,
-                    eval_mode = False
-                )
+                if self.mock_env:
+                    action, base_action = self.agent.mock_act(
+                        time_step.observation,
+                        step = self.global_step,
+                        max_step = self.train_env.spec.max_episode_steps
+                        # self.global_step,
+                        # eval_mode=False
+                    )
+                else:
+                    action, base_action = self.agent.act(
+                        obs = dict(
+                            image_obs = torch.FloatTensor(time_step.observation['pixels']),
+                            tactile_repr = torch.FloatTensor(time_step.observation['tactile'])
+                        ),
+                        global_step = self.global_step, 
+                        episode_step = episode_step,
+                        eval_mode = False
+                    )
                 
             print('ACTION: {}, BASE ACTION: {}, STEP: {}, TIME_STEP_OBS>SHAPE: {}, {}'.format(
                 action, base_action, self.global_step,
@@ -389,6 +390,12 @@ class Workspace:
 @hydra.main(version_base=None, config_path='tactile_learning/configs', config_name='train_online')
 def main(cfg: DictConfig) -> None:
     workspace = Workspace(cfg)
+
+    if cfg.load_snapshot:
+        snapshot = Path(cfg.snapshot_weight)
+        print(f'Resuming the snapshot: {snapshot}')    
+        workspace.load_snapshot(snapshot)
+
     workspace.train_online()
 
 

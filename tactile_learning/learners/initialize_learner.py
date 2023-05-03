@@ -186,8 +186,9 @@ def init_bc(cfg, device, rank):
         tactile_encoder = tactile_encoder,
         last_layer = last_layer,
         optimizer = optimizer,
-        loss_fn = 'mse',
-        representation_type='all'
+        loss_fn = cfg.learner.loss_fn,
+        representation_type = cfg.learner.representation_type,
+        freeze_encoders = cfg.learner.freeze_encoders
     )
     learner.to(device) 
     

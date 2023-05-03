@@ -15,7 +15,6 @@ np.save.__defaults__ = (None, True, None, 'ASCII')
 
 def episode_len(episode): 
     # subtract -1 because the dummy first transition
-    #print(next(iter(episode.values())))
     return len(next(iter(episode.values()))) - 1
 
 def save_episode(episode, fn):
@@ -49,17 +48,10 @@ class ReplayBufferStorage:
     #save it to a file
     def add(self, time_step, last=False):
         for spec in self._data_specs:
-            # print('spec: {}'.format(spec))
             if type(spec) is dict: # It means that this is observation
-                # print('spec.keys(): {}, time_step: {}'.format(spec.keys(), time_step))
                 value = time_step.observation
                 for obs_spec in spec.values():
-                    # print('obs_spec: {}'.format(obs_spec))
-                    # print('obs_spec.name: {}, value.keys(): {}'.format(obs_spec.name, value.keys()))
-                    # self._current_episode[obs_spec.name].append(value[obs_spec.name].detach().cpu().numpy())
-                    # print('value[{}].shape: {}'.format(obs_spec.name, value[obs_spec.name].shape))
                     self._current_episode[obs_spec.name].append(value[obs_spec.name])
-                # print(value[obs_spec.name].detach().cpu().numpy().shape)
             else:
                 value = time_step[spec.name]
                 self._current_episode[spec.name].append(value)
@@ -70,7 +62,6 @@ class ReplayBufferStorage:
                 if type(spec) is dict:
                     for obs_spec in spec.values():
                         episode[obs_spec.name] = np.array(self._current_episode[obs_spec.name], obs_spec.dtype)
-
                 else:
                     episode[spec.name] = np.array(self._current_episode[spec.name], spec.dtype)
 
@@ -112,6 +103,7 @@ class ReplayBuffer(IterableDataset):
     #randomly sample an episode from the buffer
     def _sample_episode(self):
         # print('IN _SAMPLE_EPISODE EPISODE_FNS: {}'.format(self._episode_fns))
+        # []
         eps_fn = random.choice(self._episode_fns)
         # print('EPS_FN in _sample_episode: {}'.format(eps_fn))
         return self._episodes[eps_fn]

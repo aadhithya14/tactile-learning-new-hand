@@ -20,6 +20,7 @@ class ImageTactileBC(Learner):
         optimizer,
         loss_fn,
         representation_type, # image, tactile, all
+        freeze_encoders
     ):
 
         self.image_encoder = image_encoder 
@@ -27,6 +28,7 @@ class ImageTactileBC(Learner):
         self.last_layer = last_layer  
         self.optimizer = optimizer 
         self.representation_type = representation_type
+        self.freeze_encoders = freeze_encoders
 
         if loss_fn == 'mse':
             self.loss_fn = mse
@@ -63,16 +65,20 @@ class ImageTactileBC(Learner):
                    _use_new_zipfile_serialization=False)
 
     def _get_all_repr(self, tactile_image, vision_image):
-        if self.representation_type == 'all':
+        if self.freeze_encoders:
+            with torch.no_grad():
+                tactile_repr = self.tactile_encoder(tactile_image)
+                vision_repr = self.image_encoder(vision_image)
+        else:
             tactile_repr = self.tactile_encoder(tactile_image)
             vision_repr = self.image_encoder(vision_image)
+        
+        if self.representation_type == 'tdex':
             all_repr = torch.concat((tactile_repr, vision_repr), dim=-1)
             return all_repr
         if self.representation_type == 'tactile':
-            tactile_repr = self.tactile_encoder(vision_image)
             return tactile_repr 
         if self.representation_type == 'image':
-            vision_repr = self.image_encoder(vision_image)
             return vision_repr
 
 
@@ -103,9 +109,7 @@ class ImageTactileBC(Learner):
         for batch in test_loader:
             tactile_image, vision_image, action = [b.to(self.device) for b in batch]
             with torch.no_grad():
-                tactile_repr = self.tactile_encoder(tactile_image)
-                vision_repr = self.image_encoder(vision_image)
-                all_repr = torch.concat((tactile_repr, vision_repr), dim=-1)
+                all_repr = self._get_all_repr(tactile_image, vision_image)
                 pred_action = self.last_layer(all_repr)
 
             loss = self.loss_fn(action, pred_action)

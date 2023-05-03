@@ -147,3 +147,4 @@ notebooks/.ipynb_checkpoints/*
 
 buffer/*
 weights/*
+*video*/*

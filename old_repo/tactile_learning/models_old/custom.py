@@ -27,7 +27,7 @@ class TactileJointLinear(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim, output_dim),
             # nn.Sigmoid() # Should be mapped bw -1,1
-        ) # TODO: Check the activation functions! 
+        ) 
 
     def forward(self, x):
         action = self.model(x.float())
@@ -126,34 +126,6 @@ class TactileStackedEncoder(nn.Module): # Model for 16x3 RGB channelled images
         x = self.final_layer(x)
         return x
 
-# class TactileImageEncoder(nn.Module):
-#     def __init__(
-#         self,
-#         in_channels,
-#         out_dim # Final dimension of the representation
-#     ):
-#         super().__init__()
-#         self.out_dim = out_dim
-#         self.model = nn.Sequential(
-#             nn.Conv2d(in_channels, out_channels=64, kernel_size=2),
-#             nn.ReLU(),
-#             # PrintSize(),
-#             nn.Conv2d(in_channels=64, out_channels=32, kernel_size=2),
-#             nn.ReLU(),
-#             # PrintSize(),
-#             nn.Conv2d(in_channels=32, out_channels=16, kernel_size=2),
-#             nn.ReLU(),
-#             # PrintSize()
-#         )
-#         self.linear = nn.Linear(in_features=16*5*5, out_features=out_dim)
-#         # self.relu = nn.ReLU()
-        
-#     def forward(self, x):
-#         x = self.model(x)
-#         x = torch.flatten(x, 1) # Flatten all dimensions except batch
-#         x = self.linear(x)
-#         return x
-
 class TactileWholeHandEncoder(nn.Module): # Encoder for the whole tactile image
     def __init__(
         self,
@@ -163,18 +135,15 @@ class TactileWholeHandEncoder(nn.Module): # Encoder for the whole tactile image
         super().__init__()
         self.out_dim = out_dim
         self.model = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels=64, kernel_size=2),
+            nn.Conv2d(in_channels, out_channels=32, kernel_size=2),
             nn.ReLU(),
-            # PrintSize(),
-            nn.Conv2d(in_channels=64, out_channels=32, kernel_size=4),
-            nn.ReLU(),
-            # PrintSize(),
+            PrintSize(),
             nn.Conv2d(in_channels=32, out_channels=32, kernel_size=2),
             nn.ReLU(),
-            # PrintSize(),
+            PrintSize(),
             nn.Conv2d(in_channels=32, out_channels=16, kernel_size=2),
             nn.ReLU(),
-            # PrintSize()
+            PrintSize()
         )
 
         self.final_layer = nn.Sequential(

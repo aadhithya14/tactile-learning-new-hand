@@ -23,7 +23,7 @@ from holobot.robot.allegro.allegro_kdl import AllegroKDL
 class FISHAgent:
     def __init__(self,
         data_path, demo_num, mock_demo_nums,
-        image_out_dir, tactile_out_dir, # This is used to get the tactile representation size
+        image_out_dir, tactile_out_dir, tactile_model_type, # This is used to get the tactile representation size
         reward_representations, policy_representations,
         action_shape, device, lr, feature_dim,
         hidden_dim, critic_target_tau, num_expl_steps,
@@ -70,13 +70,14 @@ class FISHAgent:
         self.image_normalize = T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
         # self.tactile_normalize = T.Normalize(TACTILE_IMAGE_MEANS, TACTILE_IMAGE_STDS)
 
-        tactile_cfg, self.tactile_encoder, _ = init_encoder_info(self.device, tactile_out_dir, 'tactile')
+        tactile_cfg, self.tactile_encoder, _ = init_encoder_info(self.device, tactile_out_dir, 'tactile', model_type=tactile_model_type)
         tactile_img = TactileImage(
             tactile_image_size = tactile_cfg.tactile_image_size, 
             shuffle_type = None
         )
+        tactile_repr_dim = tactile_cfg.encoder.tactile_encoder.out_dim if tactile_model_type == 'bc' else tactile_cfg.encoder.out_dim
         self.tactile_repr = TactileRepresentation( # This will be used when calculating the reward - not getting the observations
-            encoder_out_dim = tactile_cfg.encoder.out_dim,
+            encoder_out_dim = tactile_repr_dim,
             tactile_encoder = self.tactile_encoder,
             tactile_image = tactile_img,
             representation_type = 'tdex'
@@ -99,7 +100,7 @@ class FISHAgent:
 
         repr_dim = 0
         if 'tactile' in policy_representations:
-            repr_dim += tactile_cfg.encoder.out_dim
+            repr_dim += tactile_repr_dim
         if 'image' in policy_representations:
             repr_dim += image_cfg.encoder.out_dim
         # repr_dim = image_cfg.encoder.out_dim + tactile_cfg.encoder.out_dim 
@@ -177,7 +178,9 @@ class FISHAgent:
         # TODO: You should get the nearest neighbor at the beginning
 
         # Get the action in the current step
-        episode_step = episode_step % (len(self.data['allegro_actions']['indices']))
+        if episode_step >= len(self.data['allegro_actions']['indices']):
+            episode_step = len(self.data['allegro_actions']['indices']) - 1 # Return the last action if it's larger than the last step 
+        # episode_step = episode_step % (len(self.data['allegro_actions']['indices']))
 
         demo_id, action_id = self.data['allegro_actions']['indices'][episode_step] # self.curr_step
         allegro_joint_action = self.data['allegro_actions']['values'][demo_id][action_id]
@@ -256,7 +259,10 @@ class FISHAgent:
         # Get the action in the current step
         demo_id, action_id = self.mock_data['allegro_actions']['indices'][self.curr_step]
         allegro_joint_action = self.mock_data['allegro_actions']['values'][demo_id][action_id]
-        allegro_fingertip_action = self.kdl_solver.get_fingertip_coords(allegro_joint_action)
+        if self.action_shape == 19:
+            allegro_action = self.kdl_solver.get_fingertip_coords(allegro_joint_action)
+        else:
+            allegro_action = allegro_joint_action
 
 
         # NOTE: Set the thumb to the states so far - this should be removed as we fix the thumb calibration
@@ -269,11 +275,11 @@ class FISHAgent:
         kinova_action = self.mock_data['kinova']['values'][demo_id][kinova_id]
 
         # Concatenate the actions 
-        demo_action = np.concatenate([allegro_fingertip_action, kinova_action], axis=-1)
+        demo_action = np.concatenate([allegro_action, kinova_action], axis=-1)
 
         self.curr_step = (self.curr_step+1) % (len(self.mock_data['allegro_actions']['indices']))
 
-        return demo_action, np.zeros(19) # Base action will be 0s only for now
+        return demo_action, np.zeros(self.action_shape) # Base action will be 0s only for now
 
     def update_critic(self, obs, action, base_next_action, reward, discount, next_obs, step):
         metrics = dict()

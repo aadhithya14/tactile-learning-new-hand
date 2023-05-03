@@ -44,7 +44,7 @@ class MockEnv(dm_env.Environment):
 
         # Set the DM Env requirements
         self._action_spec = specs.BoundedArray(
-            shape=(19,), # Should be tuple - or an iterable
+            shape=(23,), # Should be tuple - or an iterable
             dtype=np.float32,
             minimum=-1,
             maximum=+1,
@@ -78,7 +78,9 @@ class MockEnv(dm_env.Environment):
         obs = {}
         obs['pixels'] = self.episodes['image_obs'][self.current_step].detach().cpu().numpy()
         obs['tactile'] = self.episodes['tactile_reprs'][self.current_step].detach().cpu().numpy()
-        
+
+        # print('')
+
         # step_type = StepType.LAST if done else StepType.MID
 
         return ExtendedTimeStep(
@@ -86,8 +88,8 @@ class MockEnv(dm_env.Environment):
             reward = 0, # Reward will always be calculated by the ot rewarder
             discount = 1.0, # Hardcoded for now
             observation = obs,
-            action = np.zeros(19),
-            base_action = np.zeros(19)
+            action = np.zeros(23),
+            base_action = np.zeros(23)
         )
 
     def _find_closest_next_demo(self):

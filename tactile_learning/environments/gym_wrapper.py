@@ -352,10 +352,14 @@ class ExtendedTimeStepWrapper(dm_env.Environment):
 		return getattr(self._env, name)
 
 
-def make(name, tactile_out_dir, host_address, camera_num, height, width, tactile_dim, frame_stack, action_repeat, action_type):
+def make(name, tactile_out_dir, tactile_model_type, host_address, camera_num, height, width, tactile_dim, frame_stack, action_repeat, action_type):
+	print('tactile_out_dir: {}'.format(
+		tactile_out_dir
+	))
 	env = gym.make(
 		name,
 		tactile_out_dir = tactile_out_dir,
+		tactile_model_type = tactile_model_type,
 		host_address = host_address,
 		camera_num = camera_num,
 		height = height,

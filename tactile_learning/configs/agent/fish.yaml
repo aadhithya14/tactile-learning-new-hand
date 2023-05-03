@@ -5,6 +5,7 @@ mock_demo_nums: ${mock_demo_nums} # Demo that will be moved mockly
 data_path: ${data_path} # Path to hold all the preprocessed demos
 image_out_dir: ${image_out_dir}
 tactile_out_dir: ${tactile_out_dir}
+tactile_model_type: ${tactile_model_type}
 reward_representations: ${reward_representations}
 policy_representations: ${policy_representations}
 
@@ -27,5 +28,5 @@ auto_rew_scale: True
 auto_rew_scale_factor: 10
 bc_weight_type: 'qfilter'
 bc_weight_schedule: 'linear(1.0,0.1,20000)'
-offset_scale_factor: 0.3 # Output of the model is -1,1 -> we can set the offset to whatever
-offset_mask: [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] # Only exploration - kinova translation
+offset_scale_factor: 0.06 # Output of the model is -1,1 -> we can set the offset to whatever
+offset_mask: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0] # Only exploration - kinova translation
