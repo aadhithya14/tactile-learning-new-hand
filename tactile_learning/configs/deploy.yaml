@@ -1,8 +1,8 @@
 defaults:
   - deployer: vinn
 
-visualize: false
+visualize: true
 loop: true
-frequency: 1
-deployment_dump_dir: /home/irmak/Workspace/tactile-learning/deployment_data/cup_picking/after_rss/fixing_blur/1
-data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss # User should fill this
+frequency: 1.2
+deployment_dump_dir: /home/irmak/Workspace/tactile-learning/deployment_data/bowl_picking/after_rss/original_object/2
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/bowl_picking/after_rss # User should fill this

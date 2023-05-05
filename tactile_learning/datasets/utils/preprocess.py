@@ -90,7 +90,9 @@ def dump_data_indices(
         is_byol_image=False,
         threshold_step_size=0.012,
         cam_view_num=0,
-        subsample_separately=True
+        subsample_separately=True,
+        kinova_threshold = None,
+        allegro_threshold = None
     ):
     # Matches the index -> demo_id, datapoint_id according to the timestamps saved
     allegro_indices, image_indices, tactile_indices, allegro_action_indices, kinova_indices = [], [], [], [], []
@@ -151,12 +153,12 @@ def dump_data_indices(
                     allegro_kdl_solver,
                     allegro_positions,
                     allegro_id,
-                    threshold_step_size=0.01 # When you preprocess for training, one should decrease this size - we need more data
+                    threshold_step_size=allegro_threshold # When you preprocess for training, one should decrease this size - we need more data
                 )
                 pos_kinova_id = find_next_kinova_id(
                     kinova_positions,
                     kinova_id,
-                    threshold_step_size=0.02
+                    threshold_step_size=kinova_threshold
                 )
 
                 if pos_allegro_id >= len(allegro_positions) or pos_kinova_id >= len(kinova_positions):

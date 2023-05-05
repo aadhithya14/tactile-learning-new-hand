@@ -201,8 +201,10 @@ class VINN(Deployer):
 
         # Visualize
         if len(self.visualization_info['state_ids']) > 0: # It was asked to visualize
+            pbar = tqdm(total=len(self.visualization_info['state_ids']))
             for i,state_id in enumerate(self.visualization_info['state_ids']):
 
+                # print('')
                 self._visualize_state(
                     curr_tactile_values = self.visualization_info['tactile_values'][i],
                     curr_fingertip_position = None, # We are not dumping state for now
@@ -213,6 +215,10 @@ class VINN(Deployer):
                     image = self.visualization_info['images'][i], 
                     state_id = state_id
                 )
+                pbar.set_description(f'Dumping visualization state: {state_id}')
+                pbar.update(1)
+
+            pbar.close()
 
     def get_action(self, tactile_values, recv_robot_state, visualize=False):
         if self.open_loop:

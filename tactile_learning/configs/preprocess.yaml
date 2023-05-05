@@ -1,4 +1,4 @@
-data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/bowl_picking/after_rss
 process_single_demo: false
 
 # Preprocessing for different types - if both false then preprocessing is done for deployment
@@ -6,10 +6,12 @@ vision_byol: false
 tactile_byol: false
 
 subsample_separately: true
+kinova_threshold_step_size: 0.012 # If subsample_separately set to true this will be used
+allegro_threshold_step_size: 0.008 
+threshold_step_size: 0.012 # Step size to be used in subsampling
 dump_images: true # If vision_byol is used dump_images should be true
 dump_data_indices: true 
 dump_fingertips: true
-threshold_step_size: 0.012 # Step size to be used in subsampling
 view_num: 1 # Camera ID to dump the images
 
 repr_preprocesser: # NOTE: This was for BET - we're just getting the representations in bet
