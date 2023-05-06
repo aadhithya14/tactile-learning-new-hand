@@ -70,9 +70,10 @@ class SequentialRepresentationsActions(data.Dataset):
     
 if __name__ == '__main__':
     dset = SequentialRepresentationsActions(
-        seq_length=10,
-        data_path = '/home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss',
-        demos_to_use=[13,14,15,16,17,18]
+        seq_length=3,
+        data_path = '/home/irmak/Workspace/Holo-Bot/extracted_data/bowl_picking/after_rss',
+        demos_to_use=[22,24,26,34,28,29],
+        dset_type='all'
     ) 
     print(len(dset))
     dataloader = data.DataLoader(dset, 

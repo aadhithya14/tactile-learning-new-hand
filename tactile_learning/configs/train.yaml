@@ -1,14 +1,14 @@
 defaults:
-    - encoder:  alexnet
-    - learner: tactile_byol
-    - dataset: tactile_ssl_dataset
+    # - encoder: resnet18
+    - learner: bc_gmm
+    - dataset: all
     - optimizer: adam
 
 seed: 42
 device: cuda
 
-learner_type: tactile_byol # Can be bet, bc_gmm, image_byol, tactile_stacked_byol # tactile_stacked_byol tactile_linear_byol, bc, tactile_byol
-self_supervised: true
+learner_type: bc_gmm # Can be bet, bc_gmm, image_byol, tactile_stacked_byol # tactile_stacked_byol tactile_linear_byol, bc, tactile_byol
+self_supervised: false
 
 # Hyperparameters to be used everywhere
 batch_size: 32

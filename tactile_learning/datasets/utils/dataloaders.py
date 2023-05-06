@@ -22,10 +22,13 @@ def get_framebased_shuffled_dataloader(cfg):
             tactile_img_size = cfg.tactile_image_size
         ) # This should be named this way 
     else:
+        # print()
         dataset = hydra.utils.instantiate(
             cfg.dataset,
             data_path = cfg.data_dir
         )
+
+        print('cfg.data_dir: {}, dataset: {}'.format(cfg.data_dir, dataset))
         
 
     train_dset_size = int(len(dataset) * cfg.train_dset_split)
@@ -48,7 +51,7 @@ def get_framebased_shuffled_dataloader(cfg):
 def get_demobased_shuffled_dataloader(cfg):
     random.seed(10)
 
-    all_demos_to_use = cfg.dataset.all_demos_to_use
+    all_demos_to_use = cfg.dataset.demos_to_use
     # Get a random demo numbers to shuffle
     test_demo = random.choice(all_demos_to_use)
     test_dset = hydra.utils.instantiate(

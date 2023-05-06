@@ -15,7 +15,7 @@ def main(cfg : DictConfig) -> None:
     for demo_id, root in enumerate(roots):
         if cfg.dump_fingertips:
             dump_fingertips(root=root)
-        if dump_data_indices:
+        if cfg.dump_data_indices:
             dump_data_indices(
                 demo_id = demo_id, 
                 root = root, 
@@ -32,16 +32,21 @@ def main(cfg : DictConfig) -> None:
         elif cfg.dump_images:
             dump_video_to_images(root, view_num=cfg.view_num, dump_all=False)
         
-        if cfg.repr_preprocesser.apply:
-            preprocesser = RepresentationPreprocessor(
-                data_path = cfg.data_path,
-                tactile_out_dir = cfg.repr_preprocessor.tactile_out_dir, 
-                image_out_dir = cfg.repr_preprocessor.image_out_dir,
-                view_num = cfg.view_num,
-                demos_to_use = cfg.repr_preprocessor.demos_to_use
-            )
 
         print('-----')    
+
+    if cfg.repr_preprocessor.apply:
+        preprocessor = RepresentationPreprocessor(
+            data_path = cfg.data_path,
+            tactile_out_dir = cfg.repr_preprocessor.tactile_out_dir, 
+            image_out_dir = cfg.repr_preprocessor.image_out_dir,
+            view_num = cfg.view_num,
+            demos_to_use = cfg.repr_preprocessor.demos_to_use,
+            representation_types=cfg.repr_preprocessor.representation_types
+        )
+        preprocessor.get_all_representations()
+        print(f'Dumping - all_representations.shape: {preprocessor.all_representations.shape}')
+        preprocessor.dump_all_representations()
 
 if __name__ == '__main__':
     main()

@@ -37,14 +37,14 @@ class BETLearner(Learner):
         for batch in train_loader: 
             self.optimizer.zero_grad()
             obs, act = (x.to(self.device) for x in batch)
-            print('obs.shape: {}, act.shape: {}'.format(
-                obs.shape, act.shape
-            ))
+            # print('obs.shape: {}, act.shape: {}'.format(
+            #     obs.shape, act.shape
+            # ))
 
             # Get the loss
             _, loss, loss_dict = self.bet_model(obs, None, act) # It's unconditional
             train_loss += loss.item()
-            print(f'loss_dict: {loss_dict}')
+            # print(f'loss_dict: {loss_dict}')
 
             # Backprop
             loss.backward() 
@@ -66,6 +66,6 @@ class BETLearner(Learner):
                 # Get the loss
                 _, loss, loss_dict = self.bet_model(obs, None, act) # It's unconditional
                 test_loss += loss.item()
-                print(f'loss_dict: {loss_dict}')
+                # print(f'loss_dict: {loss_dict}')
 
         return test_loss / len(test_loader), loss_dict

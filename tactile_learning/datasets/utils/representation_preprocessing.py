@@ -36,11 +36,11 @@ class RepresentationPreprocessor: # It should only take image and tactile inout 
         
         self.set_up_env()
 
-        device = torch.device('cuda:0')
+        self.device = torch.device('cuda:0')
         self.view_num = view_num
         self.representation_types = representation_types
 
-        tactile_cfg, tactile_encoder, _ = self._init_encoder_info(device, tactile_out_dir, 'tactile')
+        tactile_cfg, tactile_encoder, _ = self._init_encoder_info(self.device, tactile_out_dir, 'tactile')
         self.tactile_img = TactileImage(
             tactile_image_size = tactile_cfg.tactile_image_size
         )
@@ -51,7 +51,7 @@ class RepresentationPreprocessor: # It should only take image and tactile inout 
             representation_type = 'tdex'
         )
 
-        self.image_cfg, self.image_encoder, self.image_transform = self._init_encoder_info(device, image_out_dir, 'image')
+        self.image_cfg, self.image_encoder, self.image_transform = self._init_encoder_info(self.device, image_out_dir, 'image')
         self.inv_image_transform = get_inverse_image_norm()
 
         self.roots = sorted(glob.glob(f'{data_path}/demonstration_*'))
@@ -60,7 +60,7 @@ class RepresentationPreprocessor: # It should only take image and tactile inout 
 
     def set_up_env(self):
         os.environ["MASTER_ADDR"] = "localhost"
-        os.environ["MASTER_PORT"] = "29505"
+        os.environ["MASTER_PORT"] = "29506"
 
         torch.distributed.init_process_group(backend='gloo', rank=0, world_size=1)
         torch.cuda.set_device(0)
@@ -111,7 +111,7 @@ class RepresentationPreprocessor: # It should only take image and tactile inout 
             elif repr_type == 'tactile':
                 new_repr = self.tactile_repr.get(tactile_values)
             elif repr_type == 'image':
-                new_repr = self.image_encoder(image.unsqueeze(dim=0)) # Add a dimension to the first axis so that it could be considered as a batch
+                new_repr = self.image_encoder(image.unsqueeze(dim=0).to(self.device)) # Add a dimension to the first axis so that it could be considered as a batch
                 new_repr = new_repr.detach().cpu().numpy().squeeze()
 
             if i == 0:
@@ -129,6 +129,10 @@ class RepresentationPreprocessor: # It should only take image and tactile inout 
         if 'kinova' in self.representation_types: repr_dim += KINOVA_CARTESIAN_POS_SIZE
         if 'torque' in self.representation_types: repr_dim += ALLEGRO_JOINT_NUM # There are 16 joint values
         if 'image' in self.representation_types: repr_dim += self.image_cfg.encoder.out_dim
+
+        print('repr_dim: {}, self.repr_rtypes: {}'.format(
+            repr_dim, self.representation_types
+        ))
 
         self.all_representations = np.zeros((
             len(self.data['tactile']['indices']), repr_dim
