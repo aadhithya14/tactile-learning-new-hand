@@ -1,15 +1,16 @@
 defaults:
   - suite: gym
   - agent: fish # Optimizer will be initialized inside the agent
-  # - dataset: fish_all_replay_buffer - TODO
 
-data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss
-image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
+object: bowl_picking
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}/after_rss
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
+image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.06/10-50_image_byol_bs_32_epochs_500_lr_1e-05_bowl_picking_after_rss
 tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120 # - Play data encoder
 # tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.03/12-23_bc_bs_64_epochs_500_lr_1e-05_cup_picking_after_rss
 tactile_model_type: byol # It could be ssl/byol as well
 
-reward_representations: ['tactile']
+reward_representations: ['image']
 policy_representations: ['image', 'tactile']
 
 seed: 42 
@@ -21,7 +22,7 @@ num_seed_frames: 200
 eval_every_frames: 100
 
 # Environment params
-expert_demo_num: 13
+expert_demo_num: 24
 mock_env: False # If set to true we will be using mock demos as the environment interaction
 mock_demo_nums: [10, 12, 13, 15, 2, 7] # Use all of them # [13,15,2,7] # 15 is the expert demo in the agent
 
@@ -43,7 +44,7 @@ load_snapshot: False
 snapshot_weight: ??? # This should be set if we ask it to load snapshot - but for now we're not
 
 log: False
-experiment: fish_rewards_mock_demo_training
+experiment: fish_${object}_me_${mock_env}_ed_${expert_demo_num}
 
 # hydra configuration - should be received separately
 hydra:

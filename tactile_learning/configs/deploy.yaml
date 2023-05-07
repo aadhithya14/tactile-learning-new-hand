@@ -1,7 +1,7 @@
 defaults:
-  - deployer: vinn
+  - deployer: bet
 
-visualize: true
+visualize: false
 loop: true
 frequency: 1.2
 deployment_dump_dir: /home/irmak/Workspace/tactile-learning/deployment_data/bowl_picking/after_rss/original_object/2

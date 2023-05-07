@@ -133,7 +133,7 @@ class BET(Deployer):
             elif repr_type == 'tactile':
                 new_repr = self.tactile_repr.get(tactile_values)
             elif repr_type == 'image':
-                new_repr = self.image_encoder(image.unsqueeze(dim=0)) # Add a dimension to the first axis so that it could be considered as a batch
+                new_repr = self.image_encoder(image.unsqueeze(dim=0).to(self.device)) # Add a dimension to the first axis so that it could be considered as a batch
                 new_repr = new_repr.detach().cpu().numpy().squeeze()
 
             if i == 0:

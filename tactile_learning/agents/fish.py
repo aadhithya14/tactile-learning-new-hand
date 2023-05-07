@@ -105,8 +105,9 @@ class FISHAgent:
             repr_dim += image_cfg.encoder.out_dim
         # repr_dim = image_cfg.encoder.out_dim + tactile_cfg.encoder.out_dim 
 
-        print("REPR_DIM: {}, ACTION_SHAPE: {}".format(repr_dim, action_shape))
+        # print("REPR_DIM: {}, ACTION_SHAPE: {}".format(repr_dim, action_shape))
         self.action_shape = action_shape
+        self.offset_mask = torch.IntTensor(offset_mask).to(self.device)
         self.actor = Actor(repr_dim, action_shape, feature_dim,
                             hidden_dim, offset_mask).to(device)
 
@@ -227,8 +228,9 @@ class FISHAgent:
             offset_action = dist.sample(clip=None)
             if global_step < self.num_expl_steps:
                 offset_action.uniform_(-1.0, 1.0)
+                offset_action *= self.offset_mask
 
-        # print('offset_action: {}'.format(offset_action))
+        print('offset_action * self.offset_scale_factor: {}'.format(offset_action * self.offset_scale_factor))
         action = base_action + offset_action * self.offset_scale_factor
         # print('action: {}'.format(action))
 

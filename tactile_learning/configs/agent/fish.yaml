@@ -16,7 +16,7 @@ feature_dim:  512 # 16(Allegro) + 7(kinova) - TODO: Check this not sure what's h
 # use_tb: ${use_tb}
 hidden_dim: 64
 critic_target_tau: 0.01
-num_expl_steps: 0
+num_expl_steps: ${num_seed_frames}
 update_every_steps: 2
 stddev_schedule: 0.1
 stddev_clip: 0.3
@@ -28,5 +28,5 @@ auto_rew_scale: True
 auto_rew_scale_factor: 10
 bc_weight_type: 'qfilter'
 bc_weight_schedule: 'linear(1.0,0.1,20000)'
-offset_scale_factor: 0.06 # Output of the model is -1,1 -> we can set the offset to whatever
-offset_mask: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0] # Only exploration - kinova translation
+offset_scale_factor: -0.06 # Output of the model is -1,1 -> we can set the offset to whatever
+offset_mask: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0] # Only exploration - kinova translation
