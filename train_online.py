@@ -245,7 +245,8 @@ class Workspace:
         time_steps = list() 
         observations = dict(
             image_obs = list(),
-            tactile_repr = list()
+            tactile_repr = list(),
+            features = list()
         )
         time_step = self.train_env.reset()
         
@@ -257,6 +258,7 @@ class Workspace:
         time_steps.append(time_step)
         observations['image_obs'].append(torch.FloatTensor(time_step.observation['pixels']))
         observations['tactile_repr'].append(torch.FloatTensor(time_step.observation['tactile']))
+        observations['features'].append(torch.FloatTensor(time_step.observation['features']))
 
         if self.agent.auto_rew_scale:
             self.agent.sinkhorn_rew_scale = 1. # This will be set after the first episode
@@ -267,9 +269,6 @@ class Workspace:
             
             # At the end of an episode actions
             if time_step.last() or ((not self.mock_env) and self.global_step > 0 and (self.global_step % self.train_env.spec.max_episode_steps == 0)): # or self.mock_episodes['end_of_demos'][self.global_step % len(self.mock_episodes['end_of_demos'])] == 1: # ((self.global_step % self.train_env.spec.max_episode_steps == 0) and self.global_step > 0): # TODO: This could require more checks in the real world
-                
-                # Save the episode as a video
-                # if self._global_episode % 10 == 0:
                 
                 self._global_episode += 1 # Episode has been finished
                 
@@ -302,8 +301,6 @@ class Workspace:
                 # Update the reward in the timesteps accordingly
                 for i, elt in enumerate(time_steps):
                     elt = elt._replace(reward=new_rewards[i]) # Update the reward of the object accordingly
-                    # print('time_step.keys(): {}'.format(time_step.keys()))
-                    # print('elt: {}'.format(elt))
                     self.replay_storage.add(elt, last = (i == len(time_steps) - 1))
 
                 # Log
@@ -318,7 +315,8 @@ class Workspace:
                 time_steps = list()
                 observations = dict(
                     image_obs = list(),
-                    tactile_repr = list()
+                    tactile_repr = list(),
+                    features = list()
                 ) 
 
                 x = input("Press Enter to continue... after reseting env")
@@ -327,8 +325,9 @@ class Workspace:
                 time_steps.append(time_step)
                 observations['image_obs'].append(torch.FloatTensor(time_step.observation['pixels']))
                 observations['tactile_repr'].append(torch.FloatTensor(time_step.observation['tactile']))
+                observations['features'].append(torch.FloatTensor(time_step.observation['features']))
 
-                # Debugging and visualization
+                # Checkpoint saving and visualization
                 self.train_video_recorder.init(time_step.observation['pixels'])
                 if self.cfg.suite.save_snapshot:
                     self.save_snapshot()
@@ -349,7 +348,8 @@ class Workspace:
                     action, base_action = self.agent.act(
                         obs = dict(
                             image_obs = torch.FloatTensor(time_step.observation['pixels']),
-                            tactile_repr = torch.FloatTensor(time_step.observation['tactile'])
+                            tactile_repr = torch.FloatTensor(time_step.observation['tactile']),
+                            features = torch.FloatTensor(time_step.observation['features'])
                         ),
                         global_step = self.global_step, 
                         episode_step = episode_step,
@@ -359,7 +359,8 @@ class Workspace:
             print('ACTION: {}, BASE ACTION: {}, STEP: {}, TIME_STEP_OBS>SHAPE: {}, {}'.format(
                 action, base_action, self.global_step,
                 time_step.observation['tactile'].shape,
-                time_step.observation['pixels'].shape
+                time_step.observation['pixels'].shape,
+                time_step.observation['features'].shape
             ))
 
             # Training - updating the agents 
@@ -381,6 +382,7 @@ class Workspace:
             time_steps.append(time_step)
             observations['image_obs'].append(torch.FloatTensor(time_step.observation['pixels']))
             observations['tactile_repr'].append(torch.FloatTensor(time_step.observation['tactile']))
+            observations['features'].append(torch.FloatTensor(time_step.observation['features']))
 
             # Record and increase the steps
             self.train_video_recorder.record(time_step.observation['pixels']) # NOTE: Should we do env.render()? 

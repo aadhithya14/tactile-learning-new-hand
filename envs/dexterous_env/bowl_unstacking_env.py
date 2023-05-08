@@ -171,7 +171,11 @@ class BowlUnstackingEnv(gym.Env):
         def reset(self): 
             self.init_hand()
             obs = {}
-            obs['features'] = self.deploy_api.get_robot_state() # NOTE: having the features should be better and faster as well
+            features_dict = self.deploy_api.get_robot_state() # NOTE: having the features should be better and faster as well
+            obs['features'] = np.concatenate(
+                [features_dict['allegro']['position'], features_dict['kinova']],
+                axis=0
+            )
             obs['pixels'] = self._get_curr_image()
             
             sensor_state = self.deploy_api.get_sensor_state()

@@ -165,11 +165,13 @@ class ReplayBuffer(IterableDataset):
 
         image_obs = episode['pixels'][idx-1]
         tactile_repr = episode['tactile'][idx-1]
+        features = episode['features'][idx-1]
         action = episode['action'][idx]
         base_action = episode['base_action'][idx]
 
         next_image_obs = episode['pixels'][idx+self._nstep-1]
         next_tactile_repr = episode['tactile'][idx+self._nstep-1]
+        next_features = episode['features'][idx+self._nstep-1]
         base_next_action = episode['base_action'][idx + self._nstep - 1]
         reward = np.zeros_like(episode['reward'][idx])
         discount = np.ones_like(episode['discount'][idx])
@@ -178,7 +180,7 @@ class ReplayBuffer(IterableDataset):
             reward += discount * step_reward
             discount *= episode['discount'][idx + i] * self._discount
 
-        return (image_obs, tactile_repr, action, base_action, reward, discount, next_image_obs, next_tactile_repr, base_next_action)
+        return (image_obs, tactile_repr, features, action, base_action, reward, discount, next_image_obs, next_tactile_repr, next_features, base_next_action)
 
     def __iter__(self):
         while True:

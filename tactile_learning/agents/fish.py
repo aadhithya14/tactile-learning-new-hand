@@ -24,7 +24,7 @@ class FISHAgent:
     def __init__(self,
         data_path, demo_num, mock_demo_nums,
         image_out_dir, tactile_out_dir, tactile_model_type, # This is used to get the tactile representation size
-        reward_representations, policy_representations,
+        reward_representations, policy_representations, view_num,
         action_shape, device, lr, feature_dim,
         hidden_dim, critic_target_tau, num_expl_steps,
         update_every_steps, stddev_schedule, stddev_clip, augment,
@@ -85,7 +85,7 @@ class FISHAgent:
 
         self.reward_representations = reward_representations
         self.policy_representations = policy_representations
-        self.view_num = 1
+        self.view_num = view_num
 
         # Freeze the encoders
         self.image_encoder.eval()
@@ -103,6 +103,8 @@ class FISHAgent:
             repr_dim += tactile_repr_dim
         if 'image' in policy_representations:
             repr_dim += image_cfg.encoder.out_dim
+        if 'features' in policy_representations:
+            repr_dim += 23 
         # repr_dim = image_cfg.encoder.out_dim + tactile_cfg.encoder.out_dim 
 
         # print("REPR_DIM: {}, ACTION_SHAPE: {}".format(repr_dim, action_shape))
@@ -215,10 +217,11 @@ class FISHAgent:
         with torch.no_grad():
             obs = self._get_policy_reprs_from_obs( # This method is called with torch.no_grad() in training anyways
                 image_obs = obs['image_obs'].unsqueeze(0),
-                tactile_repr = obs['tactile_repr'].unsqueeze(0)
+                tactile_repr = obs['tactile_repr'].unsqueeze(0),
+                features = obs['features'].unsqueeze(0)
             )
 
-        # print('obs.shape: {}'.format(obs.shape))
+        print('obs.shape: {} in act'.format(obs.shape))
 
         stddev = schedule(self.stddev_schedule, global_step)
         dist = self.actor(obs, base_action, stddev)
@@ -228,9 +231,9 @@ class FISHAgent:
             offset_action = dist.sample(clip=None)
             if global_step < self.num_expl_steps:
                 offset_action.uniform_(-1.0, 1.0)
-                offset_action *= self.offset_mask
+                offset_action *= self.offset_mask * self.offset_scale_factor
 
-        print('offset_action * self.offset_scale_factor: {}'.format(offset_action * self.offset_scale_factor))
+        # print('offset_action * self.offset_scale_factor: {}'.format(offset_action * self.offset_scale_factor))
         action = base_action + offset_action * self.offset_scale_factor
         # print('action: {}'.format(action))
 
@@ -382,7 +385,7 @@ class FISHAgent:
             
         return metrics
 
-    def _get_policy_reprs_from_obs(self, image_obs, tactile_repr):
+    def _get_policy_reprs_from_obs(self, image_obs, tactile_repr, features):
          # Get the representations
         reprs = []
         if 'image' in self.policy_representations:
@@ -397,6 +400,9 @@ class FISHAgent:
             tactile_reprs = tactile_repr.to(self.device) # This will give all the representations of one batch
             reprs.append(tactile_reprs)
 
+        if 'features' in self.policy_representations:
+            reprs.append(features.to(self.device))
+
         return torch.concat(reprs, axis=-1) # Concatenate the representations to get the final representations
 
     def update(self, replay_iter, step, bc_regularize=False, expert_replay_iter=None, ssl_replay_iter=None):
@@ -406,17 +412,19 @@ class FISHAgent:
             return metrics
 
         batch = next(replay_iter)
-        image_obs, tactile_repr, action, base_action, reward, discount, next_image_obs, next_tactile_repr, base_next_action = to_torch(
+        image_obs, tactile_repr, features, action, base_action, reward, discount, next_image_obs, next_tactile_repr, next_features, base_next_action = to_torch(
             batch, self.device)
 
         # Get the representations
         obs = self._get_policy_reprs_from_obs(
             image_obs = image_obs, 
-            tactile_repr = tactile_repr
+            tactile_repr = tactile_repr,
+            features = features,
         )
         next_obs = self._get_policy_reprs_from_obs(
             image_obs = next_image_obs, 
-            tactile_repr = next_tactile_repr
+            tactile_repr = next_tactile_repr,
+            features = next_features
         )
 
         # reprs = []
@@ -512,7 +520,7 @@ class FISHAgent:
         
         # NOTE: In this code we're not using target encoder since the encoders are already frozen
         curr_reprs, exp_reprs = [], []
-        if 'image' in self.reward_representations:
+        if 'image' in self.reward_representations: # We will not be using features for reward for sure
             if mock:
                 image_reprs = self.image_encoder(episode_obs['image_obs'].to(self.device))
             else:

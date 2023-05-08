@@ -9,13 +9,13 @@ subsample_separately: true
 kinova_threshold_step_size: 0.012 # If subsample_separately set to true this will be used
 allegro_threshold_step_size: 0.008 
 threshold_step_size: 0.012 # Step size to be used in subsampling
-dump_images: false # If vision_byol is used dump_images should be true
-dump_data_indices: false 
-dump_fingertips: false
-view_num: 1 # Camera ID to dump the images
+dump_images: true # If vision_byol is used dump_images should be true
+dump_data_indices: true 
+dump_fingertips: true
+view_num: 0 # Camera ID to dump the images
 
 repr_preprocessor: # NOTE: This was for BET  and IBC - we're just getting the representations in bet
-  apply: true
+  apply: false
   tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
   # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
   # demos_to_use: [13,14,15,16,17,18]
