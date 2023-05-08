@@ -85,13 +85,16 @@ def init_tactile_vicreg(cfg, device, rank, sim_coef, std_coef, cov_coef):
         augment_fn = augment_fn, 
         sim_coef = sim_coef, 
         std_coef = std_coef, 
-        cov_coef = cov_coef
-    ).to(device)
+        cov_coef = cov_coef,
+        device = device
+    )
+    # vicreg_wrapper.to(device)
+    # print('vicreg_wrapper: {}'.format(vicreg_wrapper))
     backbone = DDP(backbone, device_ids=[rank], output_device=rank, broadcast_buffers=False)
-    projector = DDP(projector, device[rank], output_device=rank, broadcast_buffers=False)
+    projector = DDP(projector, device_ids=[rank], output_device=rank, broadcast_buffers=False)
 
     # Initialize the optimizer 
-    optimizer = hydra.utils.instantiate(cfg. optimizer,
+    optimizer = hydra.utils.instantiate(cfg.optimizer,
                                         params = vicreg_wrapper.parameters())
 
     learner = VICRegLearner(

@@ -48,8 +48,8 @@ def get_vision_augmentations(img_means, img_stds):
 # Vision transforms used
 def crop_transform(image, camera_view=0): # This is significant to the setup
     if camera_view == 0:
-        # return crop(image, 0,0,480,480)
-        return crop(image, 20,20,300,300)
+        return crop(image, 0,0,480,480)
+        # return crop(image, 20,20,300,300)
     elif camera_view == 1:
         return crop(image, 0,90,480,480)
     

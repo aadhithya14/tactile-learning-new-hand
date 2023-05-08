@@ -13,6 +13,7 @@ class VICRegLearner(Learner):
         self.vicreg_wrapper = vicreg_wrapper 
 
     def to(self, device):
+        self.device = device
         self.vicreg_wrapper.to(device)
 
     def train(self):
@@ -37,7 +38,7 @@ class VICRegLearner(Learner):
         for batch in train_loader:
             image = batch.to(self.device)
 
-            self.optimier.zero_grad() 
+            self.optimizer.zero_grad() 
             
             loss, _ = self.vicreg_wrapper.forward(image)
             train_loss += loss.item() 

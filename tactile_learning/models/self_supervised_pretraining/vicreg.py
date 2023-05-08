@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 
 from tactile_learning.utils import vicreg_loss
@@ -11,7 +12,8 @@ class VICReg(nn.Module):
         augment_fn,
         sim_coef,
         std_coef,
-        cov_coef
+        cov_coef,
+        device
     ):
         super(VICReg, self).__init__()
 
@@ -25,12 +27,21 @@ class VICReg(nn.Module):
         self.std_coef = std_coef
         self.cov_coef = cov_coef
 
+        # Send a mock image tensor to instantiate singleton parameters
+        self.to(device)
+        self.forward(
+            image = torch.randn(2, 3, 224, 224, device=device)
+        )
+
     def get_image_representation(self, image):
         augmented_image = self.augment_fn(image)
         representation = self.projector(self.backbone(augmented_image))
         return representation
 
     def forward(self, image):
+        # print('IN FORWARD IMAGE SHAPE: {}'.format(
+        #     image.shape
+        # ))
         first_projection = self.get_image_representation(image)
         second_projection = self.get_image_representation(image)
 
