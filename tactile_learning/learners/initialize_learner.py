@@ -7,9 +7,11 @@ from .vicreg import VICRegLearner
 from .behavior_cloning import ImageTactileBC
 from .bet import BETLearner
 from .bc_gmm import BCGMM
+from .simclr import SIMCLRLearner
+from .mocov3 import MOCOLearner
 
 from tactile_learning.utils import *
-from tactile_learning.models import BYOL, VICReg, create_fc, init_encoder_info
+from tactile_learning.models import  *
 
 def init_learner(cfg, device, rank=0):
     if cfg.learner_type == 'bc':
@@ -43,6 +45,100 @@ def init_learner(cfg, device, rank=0):
         )
     
     return None
+
+def init_tactile_moco(cfg, device, rank):
+    encoder = hydra.utils.instantiate(cfg.encoder).to(device)
+    # Change the last layer
+    encoder.classifier = create_fc(
+        input_dim = cfg.learner.last_layer.input_dim,
+        output_size = cfg.encoder.out_dim,
+        hidden_size = cfg.learner.last_layer.hidden_size,
+        use_batchnorm = cfg.learner.last_layer.use_batchnorm,
+        is_moco = True
+    )
+
+    # Initialize the encoders and the augmentations
+    momentum_encoder = copy(encoder)
+
+    predictor = hydra.utils.instantiate(
+        cfg.learner.predictor,
+        input_dim = cfg.encoder.out_dim
+    )
+    first_augmentation_function, second_augmentation_function = get_moco_augmentations(
+        mean_tensor = TACTILE_IMAGE_MEANS, 
+        std_tensor = TACTILE_IMAGE_STDS
+    )
+
+    # Initialize the wrapper 
+    moco_wrapper = MoCo (
+        base_encoder = encoder,
+        momentum_encoder = momentum_encoder,
+        predictor = predictor,
+        first_augment_fn = first_augmentation_function,
+        sec_augment_fn = second_augmentation_function,
+        temperature = cfg.learner.temperature,
+        device = device
+    )
+
+    # Initialize the optimizer 
+    encoder = DDP(encoder, device_ids=[rank], output_device=rank, broadcast_buffers=False)
+    momentum_encoder = DDP(momentum_encoder, device_ids=[rank], output_device=rank, broadcast_buffers=False)
+    predictor = DDP(predictor, device_ids=[rank], output_device=rank, broadcast_buffers=False)
+
+    # Initialize the optimizer 
+    optimizer = hydra.utils.instantiate(cfg.optimizer,
+                                        params = moco_wrapper.parameters())
+
+
+    # Initialize the learner
+    learner = MOCOLearner(
+        wrapper = moco_wrapper, 
+        optimizer = optimizer,
+        momentum = cfg.learner.momentum,
+        total_epochs = cfg.train_epochs
+    )
+    learner.to(device)
+
+    return learner
+
+def init_tactile_simclr(cfg, device, rank):
+    # Initialize the augmentations and models to be used 
+    augmentation_function = get_simclr_augmentation(
+        color_jitter_const = cfg.learner.augmentation.color_jitter_const,
+        mean_tensor = TACTILE_IMAGE_MEANS, 
+        std_tensor =  TACTILE_IMAGE_STDS
+    )
+
+    encoder = hydra.utils.instantiate(cfg.encoder).to(device)
+
+    projector = hydra.utils.instantiate(
+        input_dim = cfg.encoder.out_dim
+    )
+    
+    # Initialize the SimCLR loss wrapper
+    simclr_wrapper = SimCLR(
+        encoder = encoder, 
+        projector = projector,
+        augment_fn = augmentation_function,
+        temperature = cfg.learner.temperature,
+        device = device
+    )
+
+    encoder = DDP(encoder, device_ids=[rank], output_device=rank, broadcast_buffers=False)
+    projector = DDP(projector, device_ids=[rank], output_device=rank, broadcast_buffers=False)
+
+    # Initialize the optimizer 
+    optimizer = hydra.utils.instantiate(cfg.optimizer,
+                                        params = simclr_wrapper.parameters())
+    
+    # Initialize the learner
+    learner = SIMCLRLearner(
+        simclr_wrapper = simclr_wrapper,
+        optimizer = optimizer
+    )
+    learner.to(device)
+
+    return learner
 
 def init_bet_learner(cfg, device):
     bet_model = hydra.utils.instantiate(cfg.learner.model).to(device)

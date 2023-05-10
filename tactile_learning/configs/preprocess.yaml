@@ -1,8 +1,8 @@
-data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/cup_picking/after_rss
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/gamepad/after_rss
 process_single_demo: false
 
 # Preprocessing for different types - if both false then preprocessing is done for deployment
-vision_byol: true
+vision_byol: false
 tactile_byol: false
 
 subsample_separately: true
@@ -12,13 +12,22 @@ threshold_step_size: 0.012 # Step size to be used in subsampling
 dump_images: true # If vision_byol is used dump_images should be true
 dump_data_indices: true 
 dump_fingertips: true
-view_num: 0 # Camera ID to dump the images
+view_num: 1 # Camera ID to dump the images
 
 repr_preprocessor: # NOTE: This was for BET  and IBC - we're just getting the representations in bet
-  apply: false
+  apply: true
   tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
+  # Cup unstacking 
   # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
   # demos_to_use: [13,14,15,16,17,18]
-  image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.06/10-50_image_byol_bs_32_epochs_500_lr_1e-05_bowl_picking_after_rss
-  demos_to_use: [22,24,26,34,28,29]
+  # Bowl unstacking
+  # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.06/10-50_image_byol_bs_32_epochs_500_lr_1e-05_bowl_picking_after_rss
+  # demos_to_use: [22,24,26,34,28,29]
+  # Bottle Opening
+  # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.09/17-10_image_byol_bs_32_epochs_500_lr_1e-05_bottle_opening_after_rss 
+  # demos_to_use: [2,5,8,10,11,12] 
+  # Gamepad
+  image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.10/00-13_image_byol_bs_32_epochs_500_lr_1e-05_gamepad_after_rss 
+  demos_to_use: [2,3,5,6,7,9] 
+
   representation_types: ['image','tactile','kinova','allegro']

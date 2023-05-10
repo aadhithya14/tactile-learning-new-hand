@@ -44,8 +44,8 @@ class ReplayBufferStorage:
     def __len__(self):
         return self._num_transitions
 
-    #Add value from _data_specs to _current_episode[spec.name] and
-    #save it to a file
+    # Add value from _data_specs to _current_episode[spec.name] and
+    # save it to a file
     def add(self, time_step, last=False):
         for spec in self._data_specs:
             if type(spec) is dict: # It means that this is observation

@@ -22,10 +22,10 @@ num_seed_frames: 200
 eval_every_frames: 100
 
 # Environment params
-expert_demo_num: 24
+expert_demo_num: 24 # We can get multiple expert demos
 mock_env: False # If set to true we will be using mock demos as the environment interaction
 mock_demo_nums: [10, 12, 13, 15, 2, 7] # Use all of them # [13,15,2,7] # 15 is the expert demo in the agent
-camera_num: 0
+camera_num: 1
 
 # Agent params 
 bc_regularize: False

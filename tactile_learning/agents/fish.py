@@ -540,8 +540,6 @@ class FISHAgent:
         obs = torch.concat(curr_reprs, dim=-1).detach()
         exp = torch.concat(exp_reprs, dim=-1).detach()
 
-        # print('ot_rewarder - obs.shape: {}, exp.shape: {}'.format(obs.shape, exp.shape))
-            
         if self.rewards == 'sinkhorn_cosine':
             cost_matrix = cosine_distance(
                 obs, exp)  # Get cost matrix for samples using critic network.

@@ -93,7 +93,7 @@ class BowlUnstackingEnv(gym.Env):
                 T.Resize((480,640)),
                 T.Lambda(self._crop_transform),
                 T.Resize((self.height, self.width))
-            ]) 
+            ]) # We're not normalizing here
 
         def set_up_env(self):
             os.environ["MASTER_ADDR"] = "localhost"
