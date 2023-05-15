@@ -3,11 +3,16 @@ data_path: ???
 deployment_dump_dir: ??? 
 tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
-image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.06/10-50_image_byol_bs_32_epochs_500_lr_1e-05_bowl_picking_after_rss
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.06/10-50_image_byol_bs_32_epochs_500_lr_1e-05_bowl_picking_after_rss
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.10/00-13_image_byol_bs_32_epochs_500_lr_1e-05_gamepad_after_rss 
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.09/17-10_image_byol_bs_32_epochs_500_lr_1e-05_bottle_opening_after_rss 
+image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.10/16-16_image_byol_bs_33_epochs_500_lr_1e-05_book_opening_after_rss
 representation_types: [image, tactile, kinova, allegro]
 ibc_config:
   # ebm_model_path: /home/irmak/Workspace/ibc/experiments/tactile_implicit_ebm_10/checkpoints/ckpt_34000.ckpt
-  ebm_model_path: /home/irmak/Workspace/ibc/experiments/test_tactile_implicit_ebm_bowl_picking_30/checkpoints/ckpt_38000.ckpt 
+  # ebm_model_path: /home/irmak/Workspace/ibc/experiments/test_tactile_implicit_ebm_bowl_picking_30/checkpoints/ckpt_38000.ckpt 
+  # ebm_model_path: /home/irmak/Workspace/ibc/experiments/test_tactile_implicit_ebm_gamepad_30/checkpoints/ckpt_8000.ckpt 
+  ebm_model_path: /home/irmak/Workspace/ibc/experiments/test_tactile_implicit_ebm_book_opening_30/checkpoints/ckpt_42000.ckpt
   ebm_model:
     # _target_: tactile_learning.models.EBMMLP - NOTE: Learn how to next target
     input_dim: 1578

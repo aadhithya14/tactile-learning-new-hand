@@ -26,8 +26,8 @@ class DexterityEnv(gym.Env):
             camera_num = 0
         ):
             # print(camera_num, "CAMERA_NUM")
-            self.width = 224
-            self.height = 224
+            self.width = 480
+            self.height = 480
             self.view_num = camera_num
 
             self.deploy_api = DeployAPI(

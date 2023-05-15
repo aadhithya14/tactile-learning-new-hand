@@ -1,4 +1,5 @@
 # This script is used to train the policy online
+import datetime
 import os
 import hydra
 
@@ -65,7 +66,8 @@ class Workspace:
             self.logger = Logger(cfg, wandb_exp_name, out_dir=self.hydra_dir)
 
     def _encoder_setup(self, cfg):
-        image_cfg, self.image_encoder, self.image_transform = init_encoder_info(self.device, cfg.image_out_dir, 'image')
+        print('cfg.image_model_type: {}'.format(cfg.image_model_type))
+        image_cfg, self.image_encoder, self.image_transform = init_encoder_info(self.device, cfg.image_out_dir, 'image', model_type=cfg.image_model_type)
         self.inv_image_transform = get_inverse_image_norm() 
 
         tactile_cfg, self.tactile_encoder, _ = init_encoder_info(self.device, cfg.tactile_out_dir, 'tactile', model_type=cfg.tactile_model_type)
@@ -278,7 +280,9 @@ class Workspace:
 
                 # Get the rewards
                 new_rewards = self.agent.ot_rewarder(
-                    episode_obs = observations
+                    episode_obs = observations,
+                    episode_id = self.global_episode,
+                    visualize = self.cfg.save_train_cost_matrices
                 )
                 new_rewards_sum = np.sum(new_rewards)
 
@@ -288,12 +292,15 @@ class Workspace:
                         self.agent.sinkhorn_rew_scale = self.agent.sinkhorn_rew_scale * self.agent.auto_rew_scale_factor / float(
                             np.abs(new_rewards_sum))
                         new_rewards = self.agent.ot_rewarder(
-                            episode_obs = observations
+                            episode_obs = observations,
+                            episode_id = self.global_episode,
+                            visualize = False
                         )
                         new_rewards_sum = np.sum(new_rewards)
    
                 print(f'REWARD = {new_rewards_sum}')
-                self.train_video_recorder.save(f'e{self.global_episode}_f{self.global_frame}_r{new_rewards_sum}.mp4')
+                ts = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
+                self.train_video_recorder.save(f'{ts}_e{self.global_episode}_f{self.global_frame}_r{round(new_rewards_sum,2)}.mp4')
                 
                 if self.mock_env:
                     self.episode_id = (self.episode_id+1) % len(self.mock_episodes['demo_nums'])

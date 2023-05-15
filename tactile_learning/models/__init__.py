@@ -1,5 +1,6 @@
 from .dac import *
 from .ebm import EBMMLP
+from .encoders import *
 from .gmm import GMMLayer
 from .knn import *
 from .pretrained import *

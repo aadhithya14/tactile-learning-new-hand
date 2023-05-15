@@ -245,6 +245,7 @@ class BYOL(nn.Module):
         return_embedding = False,
         return_projection = True
     ):
+        # print('x.shape: {}'.format(x.shape))
         assert not (self.training and x.shape[0] == 1), 'you must have greater than 1 sample when training, due to the batchnorm in the projection layer'
 
         if return_embedding:

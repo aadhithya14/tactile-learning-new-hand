@@ -1,7 +1,10 @@
 image_encoder:
-  _target_: tactile_learning.models.pretrained.resnet18
-  pretrained: true
+  # _target_: tactile_learning.models.pretrained.resnet18
+  # pretrained: true
+  # out_dim: 512
+  _target_: tactile_learning.models.ImageBCEncoder
   out_dim: 512
+  in_channels: 3
 
 tactile_encoder:
   # _target_: tactile_learning.models.pretrained.alexnet

@@ -49,8 +49,9 @@ def init_encoder_info(device, out_dir, encoder_type='tactile', view_num=1, model
             cfg = OmegaConf.create({"encoder":{"out_dim":512}})
         
         else:
+            print('in else condition, model_tyep: {}'.format(model_type))
             cfg = OmegaConf.load(os.path.join(out_dir, '.hydra/config.yaml'))
-            bc_model_type = None
+            bc_model_type = None # TODO: Clean this code
             if model_type == 'byol': # We assume that the model path is byol directly
                 model_path = os.path.join(out_dir, f'models/{model_type}_encoder_best.pt')
             elif model_type == 'bc':
@@ -100,12 +101,7 @@ def load_model(cfg, device, model_path, bc_model_type=None):
         new_state_dict = modify_byol_state_dict(new_state_dict)
 
     # Load the new state dict to the model 
-    # print('new_state_dict: {}'.format(new_state_dict))
     model.load_state_dict(new_state_dict)
-    # if cfg.distributed and eval: # Load the models to evaluate
-    #     model = DDP(model.to(device), device_ids=[0])
-    # else:
-    #     model = model.to(device)
     model = model.to(device)
 
     return model

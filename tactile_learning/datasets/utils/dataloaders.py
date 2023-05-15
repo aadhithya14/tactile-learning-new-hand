@@ -28,7 +28,7 @@ def get_framebased_shuffled_dataloader(cfg):
             data_path = cfg.data_dir
         )
 
-        print('cfg.data_dir: {}, dataset: {}'.format(cfg.data_dir, dataset))
+        # print('cfg.data_dir: {}, dataset: {}'.format(cfg.data_dir, dataset))
         
 
     train_dset_size = int(len(dataset) * cfg.train_dset_split)

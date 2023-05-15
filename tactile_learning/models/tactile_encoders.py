@@ -146,10 +146,12 @@ class TactileBCEncoder(nn.Module): # Encoder for the whole tactile image
         )
 
         self.final_layer = nn.Sequential(
-           nn.Linear(in_features=3136, out_features=1024),
+           nn.Linear(in_features=14400, out_features=1024),
            nn.ReLU(), 
            nn.Linear(in_features=1024, out_features=out_dim)
         )
+
+        # self.apply(weight_init)
         
     def forward(self, x):
         # print('x.shape: {}'.format(x.shape))

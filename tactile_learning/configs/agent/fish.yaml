@@ -1,17 +1,20 @@
 # @package agent
 _target_: tactile_learning.agents.FISHAgent
-demo_num: ${expert_demo_num} # Demo to get the base action from
+expert_demo_nums: ${expert_demo_nums} # Demo to get the base action from
+expert_id: ${expert_id}
+reward_matching_steps: ${reward_matching_steps}
 mock_demo_nums: ${mock_demo_nums} # Demo that will be moved mockly
 data_path: ${data_path} # Path to hold all the preprocessed demos
 image_out_dir: ${image_out_dir}
 tactile_out_dir: ${tactile_out_dir}
 tactile_model_type: ${tactile_model_type}
+image_model_type: ${image_model_type}
 reward_representations: ${reward_representations}
 policy_representations: ${policy_representations}
 view_num: ${camera_num}
 action_shape: ??? # 12 + 7 TODO: to be specified later in the environment (when we add the environment) but for now we're specifiying here 
 device: ${device}
-lr: 1e-4
+lr: 1e-3 # It was 1e-4 before 
 feature_dim:  512 # 16(Allegro) + 7(kinova) - TODO: Check this not sure what's happening lol 
 # use_tb: ${use_tb}
 hidden_dim: 64
@@ -28,5 +31,7 @@ auto_rew_scale: True
 auto_rew_scale_factor: 10
 bc_weight_type: 'qfilter'
 bc_weight_schedule: 'linear(1.0,0.1,20000)'
-offset_scale_factor: -0.1 # Output of the model is -1,1 -> we can set the offset to whatever
-offset_mask: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0] # Only exploration - kinova translation
+arm_offset_scale_factor: -0.1
+hand_offset_scale_factor: 1.
+# offset_scale_factor: -0.1 # Output of the model is -1,1 -> we can set the offset to whatever
+offset_mask: [1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0] # Only exploration - kinova translation

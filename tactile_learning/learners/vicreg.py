@@ -22,7 +22,7 @@ class VICRegLearner(Learner):
     def eval(self): 
         self.vicreg_wrapper.eval()  
 
-    def save(self, checkpoint_dir, model_type='best')
+    def save(self, checkpoint_dir, model_type='best'):
         vicreg_encoder_weights = self.vicreg_wrapper.get_encoder_weights()
         torch.save(
             vicreg_encoder_weights, 

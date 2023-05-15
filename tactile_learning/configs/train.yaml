@@ -1,18 +1,18 @@
 defaults:
-    - encoder: resnet18
-    # - learner: image_byol
-    - dataset: vision_dataset
+    - encoder: bc_encoders
+    - learner: bc
+    - dataset: all
     - optimizer: adam
 
 seed: 42
 device: cuda
 
-learner_type: image_byol # Can be bet, bc_gmm, image_byol, tactile_stacked_byol # tactile_stacked_byol tactile_linear_byol, bc, tactile_byol
+learner_type: bc # Can be bet, bc_gmm, image_byol, tactile_stacked_byol # tactile_stacked_byol tactile_linear_byol, bc, tactile_byol
 self_supervised: true
 
 # Hyperparameters to be used everywhere
 batch_size: 32
-tactile_image_size: 224 # 224 # This could be changed for stacked or shared architectures
+tactile_image_size: 64 # 224 # This could be changed for stacked or shared architectures
 vision_image_size: 480
 train_epochs: 500
 save_frequency: 10
@@ -24,7 +24,7 @@ world_size: 1
 num_gpus: 4
 
 # Data path to be set
-object: gamepad
+object: bowl_picking
 experiment: ${learner_type}_bs_${batch_size}_epochs_${train_epochs}_lr_${optimizer.lr}_${object}_after_rss # Name of the experiment that the models are saved
 data_dir: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}/after_rss
 # data_dir: /data/tactile_dexterity/play_data

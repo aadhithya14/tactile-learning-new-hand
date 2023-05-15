@@ -11,7 +11,7 @@ from tactile_learning.utils import *
 class Deployer(ABC):
     def set_up_env(self):
         os.environ["MASTER_ADDR"] = "localhost"
-        os.environ["MASTER_PORT"] = "29505"
+        os.environ["MASTER_PORT"] = "29506"
 
         torch.distributed.init_process_group(backend='gloo', rank=0, world_size=1)
         torch.cuda.set_device(0)

@@ -25,8 +25,8 @@ class BowlUnstackingEnv(gym.Env):
             tactile_model_type = 'byol',
             host_address = "172.24.71.240",
             camera_num = 1,
-            height = 224,
-            width = 224,
+            height = 480,
+            width = 480,
             action_type = 'joint' # fingertip / joint
         ):
             # print(camera_num, "CAMERA_NUM")
@@ -93,7 +93,7 @@ class BowlUnstackingEnv(gym.Env):
                 T.Resize((480,640)),
                 T.Lambda(self._crop_transform),
                 T.Resize((self.height, self.width))
-            ]) # We're not normalizing here
+            ]) # We're not normalizing here - we normalize in the reward extraction
 
         def set_up_env(self):
             os.environ["MASTER_ADDR"] = "localhost"
