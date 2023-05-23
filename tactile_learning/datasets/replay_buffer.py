@@ -4,6 +4,9 @@ import random
 import traceback
 from collections import defaultdict
 
+from PIL import Image
+from torchvision import transforms as T
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -164,12 +167,16 @@ class ReplayBuffer(IterableDataset):
         idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
 
         image_obs = episode['pixels'][idx-1]
+        # image_obs = Image.fromarray(np.transpose(episode['pixels'][idx-1], (2,1,0)), 'RGB')
+        # image_obs = T.ToTensor()(image_obs).float()
         tactile_repr = episode['tactile'][idx-1]
         features = episode['features'][idx-1]
         action = episode['action'][idx]
         base_action = episode['base_action'][idx]
 
         next_image_obs = episode['pixels'][idx+self._nstep-1]
+        # next_image_obs = Image.fromarray(np.transpose(episode['pixels'][idx+self._nstep-1], (2,1,0)), 'RGB')
+        # next_image_obs = T.ToTensor()(next_image_obs).float()
         next_tactile_repr = episode['tactile'][idx+self._nstep-1]
         next_features = episode['features'][idx+self._nstep-1]
         base_next_action = episode['base_action'][idx + self._nstep - 1]

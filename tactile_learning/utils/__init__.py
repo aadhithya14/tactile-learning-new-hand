@@ -5,6 +5,7 @@ from .distributions import *
 from .logger import *
 from .losses import *
 from .rewarder import *
+from .rl_exploration import *
 from .tactile_image import *
 from .timer import * 
 from .utils import *

@@ -92,8 +92,16 @@ class BowlUnstackingEnv(gym.Env):
             self.image_transform = T.Compose([ # No normalization just simple cropping
                 T.Resize((480,640)),
                 T.Lambda(self._crop_transform),
-                T.Resize((self.height, self.width))
+                T.Resize((self.height, self.width)),
+                T.ToTensor(),
+                T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
             ]) # We're not normalizing here - we normalize in the reward extraction
+
+            self.visualize_image_transform = T.Compose([
+                T.Resize((480,640)),
+                T.Lambda(self._crop_transform),
+                T.Resize((self.height, self.width))
+            ])
 
         def set_up_env(self):
             os.environ["MASTER_ADDR"] = "localhost"
@@ -102,12 +110,17 @@ class BowlUnstackingEnv(gym.Env):
             torch.distributed.init_process_group(backend='gloo', rank=0, world_size=1)
             torch.cuda.set_device(0)
 
-        def _get_curr_image(self):
+        def _get_curr_image(self, visualize=True):
             image, _ = self.image_subscriber.recv_rgb_image()
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            image = im.fromarray(image)
-            img = self.image_transform(image)
-            return np.asarray(img) # NOTE: This is for environment
+            image = im.fromarray(image, 'RGB')
+            if visualize:
+                img = self.visualize_image_transform(image)
+                img = np.asarray(img)
+            else:
+                img = self.image_transform(image)
+                img = torch.FloatTensor(img)
+            return img # NOTE: This is for environment
 
         def _crop_transform(self, image):
             return crop_transform(image, camera_view=self.view_num)
@@ -153,7 +166,7 @@ class BowlUnstackingEnv(gym.Env):
             #     obs['features']
             # ))
             
-            obs['pixels'] = self._get_curr_image()
+            obs['pixels'] = self._get_curr_image() # NOTE: Check this - you're returning non normalized things though
             
             sensor_state = self.deploy_api.get_sensor_state()
             tactile_values = sensor_state['xela']['sensor_values']
@@ -166,7 +179,7 @@ class BowlUnstackingEnv(gym.Env):
             return obs, reward, done, infos #obs, reward, done, infos
 
         def render(self, mode='rbg_array', width=0, height=0):
-            return self._get_curr_image()
+            return self._get_curr_image(visualize=True)
     
         def reset(self): 
             self.init_hand()

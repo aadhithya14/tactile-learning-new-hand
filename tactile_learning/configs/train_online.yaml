@@ -12,26 +12,34 @@ tactile_model_type: byol # It could be ssl/byol as well
 image_model_type: bc
 
 reward_representations: ['image']
-policy_representations: ['image', 'tactile', 'features']
+policy_representations: ['image', 'features']
 
 seed: 42 
 device: cuda
 
-num_train_frames: 5000 # Total training numbers
-num_seed_frames: 160
+num_train_frames: 10000 # Total training numbers
+num_seed_frames: 0 # First 10 episodes will be random!
 
 eval_every_frames: 100
+buffer_path: 2023.05.22T16-20_last_frames_5_se_False_endrepeat_1_mfb_True_ee_False_offset_lowered # If there is a buffer path given this will be used
 
-# Environment params
+# FISH and environment params
 expert_id: 0 # 22
-expert_demo_nums: [22,24,26,28,29,34] # We can get multiple expert demos
-reward_matching_steps: 20 # We will only match the last 20 steps through the demonstration
+expert_demo_nums: [22,24,28,29,34] # We can get multiple expert demos
+reward_matching_steps: 5 # We will only match the last 20 steps through the demonstration
+match_from_both: True # If true we'll match the rewards from both of the 
+exponential_weight_init: False # If true the initial weight in the ot reward will be exponential - currently it's equal importance to all timeframes
+end_frames_repeat: 1 # Stack the last frames for 20 times
+sum_experts: False
+scale_representations: False
+exponential_exploration: False # This is to explore sometimes when it's stuck
 mock_env: False # If set to true we will be using mock demos as the environment interaction
 mock_demo_nums: [10, 12, 13, 15, 2, 7] # Use all of them # [13,15,2,7] # 15 is the expert demo in the agent
 camera_num: 1
 
 # Agent params 
 bc_regularize: False
+features_repeat: 5 # Number to how many times to repeat the features as the input to the model
 
 # Replay buffer params
 replay_buffer_size: 150000
@@ -46,10 +54,10 @@ save_train_cost_matrices: True
 
 # Snapshot loading
 load_snapshot: False
-snapshot_weight: ??? # This should be set if we ask it to load snapshot - but for now we're not
+snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot_rewards_fixed.pt # This should be set if we ask it to load snapshot - but for now we're not
 
 log: False
-experiment: fish_${object}_me_${mock_env}_ed_${expert_demo_nums}
+experiment: ${now:%Y.%m.%d}T${now:%H-%M}_last_frames_${reward_matching_steps}_se_${sum_experts}_endrepeat_${end_frames_repeat}_mfb_${match_from_both}_ee_${exponential_exploration}_offset_lowered
 
 # hydra configuration - should be received separately
 hydra:

@@ -49,7 +49,6 @@ def init_encoder_info(device, out_dir, encoder_type='tactile', view_num=1, model
             cfg = OmegaConf.create({"encoder":{"out_dim":512}})
         
         else:
-            print('in else condition, model_tyep: {}'.format(model_type))
             cfg = OmegaConf.load(os.path.join(out_dir, '.hydra/config.yaml'))
             bc_model_type = None # TODO: Clean this code
             if model_type == 'byol': # We assume that the model path is byol directly

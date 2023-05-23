@@ -8,9 +8,18 @@ def optimal_transport_plan(X,
                            cost_matrix,
                            method='sinkhorn_gpu',
                            niter=500,
-                           epsilon=0.01):
-    X_pot = np.ones(X.shape[0]) * (1 / X.shape[0])
-    Y_pot = np.ones(Y.shape[0]) * (1 / Y.shape[0])
+                           epsilon=0.01,
+                           exponential_weight_init=False):
+    if exponential_weight_init:
+        a = 2/3 # We will be implmenting 
+        r = 1/3 # We are approximating these initial values - by looking at the plots
+        N_x = X.shape[0]
+        N_y = Y.shape[0]
+        X_pot = [a * (r**(N_x-n)) for n in range(N_x)]
+        Y_pot = [a*(r**(N_y-n)) for n in range(N_y)]
+    else:
+        X_pot = np.ones(X.shape[0]) * (1 / X.shape[0])
+        Y_pot = np.ones(Y.shape[0]) * (1 / Y.shape[0])
     c_m = cost_matrix.data.detach().cpu().numpy()
     transport_plan = ot.sinkhorn(X_pot, Y_pot, c_m, epsilon, numItermax=niter)
     transport_plan = torch.from_numpy(transport_plan).to(X.device)
@@ -35,5 +44,4 @@ def euclidean_distance(x, y):
     y_lin = y.unsqueeze(0)
     c = torch.sqrt(torch.sum((torch.abs(x_col - y_lin)) ** 2, 2))
     return c
-
 

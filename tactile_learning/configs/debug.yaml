@@ -1,7 +1,16 @@
 mock: false
 mock_traj_id: 0
 device: cuda
-episode_saved_fn: 20230507T204720_14_76
+base_episode_saved_fn: 2023.05.15T16-16_end_frames_stacked_only_arm/20230515T161741_0_76 # This is a good episode - it will be used only to scale the rewards
+# episode_saved_fn: 2023.05.15T13-53_costs_summed/20230515T135356_0_76
+# episode_saved_fn: 2023.05.15T16-16_end_frames_stacked_only_arm/20230515T162456_7_76
+# episode_saved_fn: 2023.05.19T16-28_last_frames_1_se_False_endrepeat_1_one_expert_both_last_frame/20230519T163329_4_76
+episode_saved_fn: 2023.05.19T16-28_last_frames_1_se_False_endrepeat_1_one_expert_both_last_frame/20230519T162854_0_76
+
+plot_cost_matrix: False
+compare_rewards: True
+scale_rewards: False
+last_frames_to_match: [50,30,25,15,10,2]
 
 params:
   pretrained: true
@@ -62,3 +71,27 @@ encoder_targets:
     #   bc_model_type: image 
 
 # trained_targets:
+
+plot_all_rewards:
+  data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/bowl_picking/after_rss
+  tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
+  image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.11/13-21_bc_bs_32_epochs_500_lr_1e-05_bowl_picking_after_rss
+  expert_demo_nums: [22,24,28,29,34]
+  episode_root_path: /home/irmak/Workspace/tactile-learning/buffer
+  episode_roots:
+    - /home/irmak/Workspace/tactile-learning/buffer/2023.05.22T16-20_last_frames_5_se_False_endrepeat_1_mfb_True_ee_False_offset_lowered
+    # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.19T21-18_last_frames_1_se_False_endrepeat_1_mfb_True_ee_True
+    # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.19T21-09_last_frames_1_se_False_endrepeat_1_mfb_False_ee_True
+    # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.19T20-36_last_frames_10_se_False_endrepeat_1_mfb_True_ee_True
+    # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.19T20-23_last_frames_10_se_False_endrepeat_1_mfb_True
+    # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.19T16-28_last_frames_1_se_False_endrepeat_1_one_expert_both_last_frame
+    # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.19T19-30_last_frames_1_se_False_endrepeat_1_transform_and_training_fixed
+    # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.19T18-35_last_frames_1_se_False_endrepeat_1_one_expert_both_last_frame_image_transform_changed
+    # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.19T16-21_last_frames_1_se_False_endrepeat_1_one_expert
+    # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.19T16-14_last_frames_1_se_False_endrepeat_1
+  frames_to_match: 70
+  match_both: True
+  expo_weight_init: True # This is how we initialize the beginning weight for the transport plan - TODO!
+  device: cuda
+  view_num: 1
+  reward_representations: ['image']

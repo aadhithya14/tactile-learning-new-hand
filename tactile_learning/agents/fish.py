@@ -12,6 +12,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import sys
 
+from pathlib import Path
+from PIL import Image
+
 from torchvision.utils import save_image
 from torchvision import transforms as T
 # from agent.encoder import Encoder
@@ -25,6 +28,8 @@ from holobot.robot.allegro.allegro_kdl import AllegroKDL
 class FISHAgent:
     def __init__(self,
         data_path, expert_demo_nums, expert_id, reward_matching_steps, mock_demo_nums,
+        features_repeat, sum_experts, experiment_name, end_frames_repeat,
+        scale_representations, exponential_exploration, match_from_both,
         image_out_dir, tactile_out_dir, image_model_type, tactile_model_type, # This is used to get the tactile representation size
         reward_representations, policy_representations, view_num,
         action_shape, device, lr, feature_dim,
@@ -65,16 +70,22 @@ class FISHAgent:
         self.data = load_data(self.roots, demos_to_use=expert_demo_nums)
         self.expert_id = expert_id
         self.reward_matching_steps = reward_matching_steps
+        self.features_repeat = features_repeat
+        self.sum_experts = sum_experts
+        self.experiment_name = experiment_name
+        self.end_frames_repeat = end_frames_repeat
+        self.scale_representations = scale_representations
+        self.exponential_exploration = exponential_exploration
+        self.match_from_both = match_from_both
 
         # Set the mock data
         self.mock_data = load_data(self.roots, demos_to_use=mock_demo_nums) # TODO: Delete this
         self.kdl_solver = AllegroKDL()
 
         # TODO: Load the encoders - both the normal ones and the target ones
-        image_cfg, self.image_encoder, self.image_transform = init_encoder_info(self.device, image_out_dir, 'image', model_type=image_model_type)
-        print('self.image_encoder: {}'.format(self.image_encoder))
-        self.inv_image_transform = get_inverse_image_norm() 
-        self.image_normalize = T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
+        image_cfg, self.image_encoder, self.image_transform  = init_encoder_info(self.device, image_out_dir, 'image', model_type=image_model_type)
+        self._set_image_transform()
+
         image_repr_dim = image_cfg.encoder.image_encoder.out_dim if image_model_type == 'bc' else image_cfg.encoder.out_dim
         
 
@@ -114,7 +125,7 @@ class FISHAgent:
         if 'image' in policy_representations:
             repr_dim += image_repr_dim
         if 'features' in policy_representations:
-            repr_dim += 23 
+            repr_dim += 23 * features_repeat
 
         self.offset_mask = torch.IntTensor(offset_mask).to(self.device)
         self.actor = Actor(repr_dim, action_shape, feature_dim,
@@ -131,6 +142,7 @@ class FISHAgent:
 
         # Data augmentation
         self.image_aug = RandomShiftsAug(pad=4) # This is augmentation for the image
+        self.image_normalize = T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
 
         self.train()
         self.critic_target.train()
@@ -149,7 +161,20 @@ class FISHAgent:
         self.actor.train(training)
         self.critic.train(training)
 
-    def _set_expert_demos(self):
+    def _set_image_transform(self):
+        image_act_transform_arr = []
+        if self.augment:
+            image_act_transform_arr.append(
+                RandomShiftsAug(pad=4)
+            )
+        image_act_transform_arr.append(
+            T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
+        )
+
+        self.image_act_transform = T.Compose(image_act_transform_arr)
+        print('image transform: {}'.format(self.image_act_transform))
+
+    def _set_expert_demos(self): # Will stack the end frames back to back
         # We'll stack the tactile repr and the image observations
         self.expert_demos = []
         image_obs = [] 
@@ -191,11 +216,23 @@ class FISHAgent:
             actions.append(demo_action)
 
             if (demo_id != old_demo_id and step_id > 0) or (step_id == len(self.data['image']['indices'])-1):
+                
+                # Stack the frame previous to the end - the end frame is not good - the last frame is the first frame...
+                frame_id_to_stack= -2 # Get the -2nd frame to stack - NOTE: This is a hack for the dataset - the end frame could be noisy sometimes and the last frame shouldn't be added!
+                image_to_append, tactile_to_append, action_to_append = image_obs[frame_id_to_stack], tactile_reprs[frame_id_to_stack], actions[frame_id_to_stack]                
 
+                image_obs = image_obs[:frame_id_to_stack+1]
+                tactile_reprs = tactile_reprs[:frame_id_to_stack+1]
+                actions = actions[:frame_id_to_stack+1]
+                for i in range(self.end_frames_repeat):
+                    image_obs.append(image_to_append)
+                    tactile_reprs.append(tactile_to_append)
+                    actions.append(action_to_append)
+                
                 self.expert_demos.append(dict(
-                    image_obs = torch.stack(image_obs, 0), 
-                    tactile_repr = torch.stack(tactile_reprs, 0),
-                    actions = np.stack(actions, 0)
+                    image_obs = torch.stack(image_obs[:frame_id_to_stack+1], 0), # NOTE: I don't think there is a problem here 
+                    tactile_repr = torch.stack(tactile_reprs[:frame_id_to_stack+1], 0),
+                    actions = np.stack(actions[:frame_id_to_stack+1], 0)
                 ))
                 image_obs = [] 
                 tactile_reprs = []
@@ -203,18 +240,13 @@ class FISHAgent:
 
             old_demo_id = demo_id
         
-    def _load_dataset_image(self, demo_id, image_id):
-        dset_img = load_dataset_image(self.data_path, demo_id, image_id, self.view_num)
-        img = self.image_transform(dset_img)
-        return torch.FloatTensor(img) 
-        
     # Will give the next action in the step
     def base_act(self, obs, episode_step): # Returns the action for the base policy - openloop
         # TODO: You should get the nearest neighbor at the beginning and maybe at each step as well?
 
         # Use expert_demos for base action retrieval
-        if episode_step >= len(self.expert_demos[self.expert_id]['actions'])-1:
-            episode_step = len(self.expert_demos[self.expert_id]['actions'])-2
+        if episode_step >= len(self.expert_demos[self.expert_id]['actions']):
+            episode_step = len(self.expert_demos[self.expert_id]['actions'])-1
 
         action = self.expert_demos[self.expert_id]['actions'][episode_step]
 
@@ -242,15 +274,26 @@ class FISHAgent:
             offset_action = dist.mean
         else:
             offset_action = dist.sample(clip=None)
-            if global_step < self.num_expl_steps:
-                offset_action.uniform_(-1.0, 1.0)
-                offset_action *= self.offset_mask
-                offset_action[:-7] *= self.hand_offset_scale_factor
-                offset_action[-7:] *= self.arm_offset_scale_factor
+            if self.exponential_exploration:
+                epsilon = exponential_epsilon_decay(
+                    step_idx=global_step,
+                    epsilon_decay=self.num_expl_steps
+                )
+                if random.random() < epsilon:
+                    print('EXPLORING!!!')
+                    offset_action.uniform_(-1.0, 1.0)
+                    offset_action *= self.offset_mask
+            else:
+                if global_step < self.num_expl_steps:
+                    offset_action.uniform_(-1.0, 1.0)
+                    offset_action *= self.offset_mask
                 # offset_action *= self.offset_mask * self.offset_scale_factor
 
         offset_action[:-7] *= self.hand_offset_scale_factor
         offset_action[-7:] *= self.arm_offset_scale_factor
+
+        print('OFFSET ACTION: {}'.format(offset_action))
+
         action = base_action + offset_action
 
 
@@ -404,9 +447,10 @@ class FISHAgent:
         reprs = []
         if 'image' in self.policy_representations:
             # Current representations
-            if self.augment: # Augment image if wanted
-                image_obs = self.image_aug(image_obs.float())
-            image_obs = self.image_normalize(image_obs).to(self.device) # This will give all the image observations of one batch
+            # if self.augment: # Augment image if wanted
+            #     image_obs = self.image_aug(image_obs.float())
+            # image_obs = self.image_normalize(image_obs).to(self.device) # This will give all the image observations of one batch
+            image_obs = self.image_act_transform(image_obs.float()).to(self.device)
             image_reprs = self.image_encoder(image_obs)
             reprs.append(image_reprs)
 
@@ -415,7 +459,9 @@ class FISHAgent:
             reprs.append(tactile_reprs)
 
         if 'features' in self.policy_representations:
-            reprs.append(features.to(self.device))
+            repeated_features = features.repeat(1, self.features_repeat)
+            print('features.shape: {}. repeated_features.shape: {}'.format(features.shape, repeated_features.shape))
+            reprs.append(repeated_features.to(self.device))
 
         return torch.concat(reprs, axis=-1) # Concatenate the representations to get the final representations
 
@@ -428,10 +474,12 @@ class FISHAgent:
         batch = next(replay_iter)
         image_obs, tactile_repr, features, action, base_action, reward, discount, next_image_obs, next_tactile_repr, next_features, base_next_action = to_torch(
             batch, self.device)
+        
+        print('UPDATE - image_obs.shape: {}'.format(image_obs.shape))
 
         # Get the representations
         obs = self._get_policy_reprs_from_obs(
-            image_obs = image_obs, 
+            image_obs = image_obs, # These are stacked PIL images?
             tactile_repr = tactile_repr,
             features = features,
         )
@@ -465,7 +513,7 @@ class FISHAgent:
 
         return metrics
 
-    def ot_rewarder(self, episode_obs, episode_id, mock=False, visualize=False): # TODO: Delete the mock option
+    def ot_rewarder(self, episode_obs, episode_id, mock=False, visualize=False, exponential_weight_init=False): # TODO: Delete the mock option
         
         # NOTE: In this code we're not using target encoder since the encoders are already frozen
 
@@ -477,29 +525,40 @@ class FISHAgent:
         # Get the episode representations
         curr_reprs = []
         if 'image' in self.reward_representations: # We will not be using features for reward for sure
-            if mock:
-                image_reprs = self.image_encoder(episode_obs['image_obs'].to(self.device))
+            # if mock:
+            #     # NOTE: Make sure if this is correct or not
+            #     image_reprs = self.image_encoder(episode_obs['image_obs'].to(self.device))
+            # else:
+            #     # TODO: Make sure this is good - it was image_normalize before - not sure if we're normalizing twice by this
+            #     image_obs = self.image_transform(episode_obs['image_obs']).to(self.device) # This will give all the image observations of one episode
+            #     image_reprs = self.image_encoder(image_obs)
+            # NOTE: image_obs should be transformed
+            if self.match_from_both:
+                image_reprs = self.image_encoder(episode_obs['image_obs'][-self.reward_matching_steps:,:].to(self.device))
             else:
-                image_obs = self.image_normalize(episode_obs['image_obs']).to(self.device) # This will give all the image observations of one episode
-                image_reprs = self.image_encoder(image_obs)
-            curr_reprs.append(image_reprs)
+                image_reprs = self.image_encoder(episode_obs['image_obs'].to(self.device))
+            curr_reprs.append(image_reprs) # NOTE: We should alwasys get all of the observation
 
         if 'tactile' in self.reward_representations:
-            tactile_reprs = episode_obs['tactile_repr'].to(self.device) # This will give all the representations of one episode
+            if self.match_from_both:
+                tactile_reprs = episode_obs['tactile_repr'][-self.reward_matching_steps:,:].to(self.device) # This will give all the representations of one episode
+            else:
+                tactile_reprs = episode_obs['tactile_repr'].to(self.device)
             curr_reprs.append(tactile_reprs)
 
         # Concatenate everything now
         obs = torch.concat(curr_reprs, dim=-1).detach()
+        print('obs.shape in ot_rewarder: {}'.format(obs.shape))
 
         for expert_id in range(len(self.expert_demos)):
             # Get the expert representations
             exp_reprs = []
             if 'image' in self.reward_representations: # We will not be using features for reward for sure
-                expert_image_reprs = self.image_encoder(self.expert_demos[expert_id]['image_obs'].to(self.device))
+                expert_image_reprs = self.image_encoder(self.expert_demos[expert_id]['image_obs'][-self.reward_matching_steps:,:].to(self.device))
                 exp_reprs.append(expert_image_reprs)
 
             if 'tactile' in self.reward_representations:
-                expert_tactile_reprs = self.expert_demos[expert_id]['tactile_repr'].to(self.device)
+                expert_tactile_reprs = self.expert_demos[expert_id]['tactile_repr'][-self.reward_matching_steps:,:].to(self.device)
                 exp_reprs.append(expert_tactile_reprs)
 
             # Concatenate everything now
@@ -507,10 +566,10 @@ class FISHAgent:
 
             if self.rewards == 'sinkhorn_cosine':
                 cost_matrix = cosine_distance(
-                    obs, exp)  # Get cost matrix for samples using critic network.
+                        obs, exp)  # Get cost matrix for samples using critic network.
                 transport_plan = optimal_transport_plan(
                     obs, exp, cost_matrix, method='sinkhorn',
-                    niter=100).float()  # Getting optimal coupling
+                    niter=100, exponential_weight_init=exponential_weight_init).float()  # Getting optimal coupling
                 ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
                     torch.mm(transport_plan,
                                 cost_matrix.T)).detach().cpu().numpy()
@@ -520,7 +579,7 @@ class FISHAgent:
                     obs, exp)  # Get cost matrix for samples using critic network.
                 transport_plan = optimal_transport_plan(
                     obs, exp, cost_matrix, method='sinkhorn',
-                    niter=100).float()  # Getting optimal coupling
+                    niter=100, exponential_weight_init=exponential_weight_init).float()  # Getting optimal coupling
                 ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
                     torch.mm(transport_plan,
                                 cost_matrix.T)).detach().cpu().numpy()
@@ -547,10 +606,17 @@ class FISHAgent:
                 best_reward_sum = sum_ot_rewards
                 best_ot_reward_id = expert_id
         
-        if visualize:
-            self.plot_cost_matrix(cost_matrices[best_ot_reward_id], expert_id=best_ot_reward_id, episode_id=episode_id)
+        if self.sum_experts:
+            final_cost_matrix = sum(cost_matrices) # Sum it through all of the cost matrices
+            final_ot_reward = sum(all_ot_rewards)
+        else:
+            final_cost_matrix = cost_matrices[best_ot_reward_id]
+            final_ot_reward = all_ot_rewards[best_ot_reward_id]
 
-        return all_ot_rewards[best_ot_reward_id]
+        if visualize:
+            self.plot_cost_matrix(final_cost_matrix, expert_id=best_ot_reward_id, episode_id=episode_id)
+
+        return final_ot_reward
     
     def plot_cost_matrix(self, cost_matrix, expert_id, episode_id, file_name=None):
         if file_name is None:
@@ -568,7 +634,8 @@ class FISHAgent:
         plt.ylabel('Observation Timesteps')
         plt.title(file_name)
 
-        dump_dir = os.path.join('/home/irmak/Workspace/tactile-learning/train_video/costs')
+        dump_dir = Path('/home/irmak/Workspace/tactile-learning/train_video/costs') / self.experiment_name
+        # dump_dir = os.path.join('/home/irmak/Workspace/tactile-learning/train_video/costs/{}')
         os.makedirs(dump_dir, exist_ok=True)
         dump_file = os.path.join(dump_dir, file_name)
         plt.savefig(dump_file, bbox_inches='tight')
@@ -580,11 +647,14 @@ class FISHAgent:
         return payload
 
     def load_snapshot(self, payload):
+        loaded_encoder = None
         for k, v in payload.items():
+            print('k: {}'.format(k))
             if k == 'image_encoder':
                 loaded_encoder = v
 
         self.critic_target.load_state_dict(self.critic.state_dict())
+        
         self.image_encoder.load_state_dict(loaded_encoder.state_dict()) # NOTE: In the actual repo they use self.vinn_encoder rather than loaded_encoder 
 
         self.image_encoder.eval()

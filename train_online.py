@@ -13,6 +13,7 @@ from omegaconf import DictConfig, OmegaConf
 from pathlib import Path
 from tqdm import tqdm 
 
+from PIL import Image
 # Custom imports 
 # from tactile_learning.datasets import get_dataloaders
 
@@ -42,7 +43,7 @@ class Workspace:
         self._env_setup(tactile_repr_dim) # Should be set here
 
         # If load the snapshot rather than agent
-        self.load_snapshot = cfg.load_snapshot 
+        # self.load_snapshot = cfg.load_snapshot 
 
         # self.agent = hydra.utils.instantiate(cfg.agent)
         self._initialize_agent()
@@ -84,6 +85,11 @@ class Workspace:
         )
         self.view_num = 1
 
+        self.image_episode_transform = T.Compose([
+            T.ToTensor(),
+            T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
+        ])
+
         # Freeze the encoders
         self.image_encoder.eval()
         self.tactile_encoder.eval()
@@ -116,13 +122,18 @@ class Workspace:
             specs.Array((1,), np.float32, 'discount')
         ]
 
+        if self.cfg.buffer_path is None:
+            replay_dir = self.work_dir / 'buffer' / self.cfg.experiment
+        else:
+            replay_dir = self.work_dir / 'buffer' / self.cfg.buffer_path
+        
         self.replay_storage = ReplayBufferStorage(
             data_specs = data_specs,
-            replay_dir = self.work_dir / 'buffer'
+            replay_dir = replay_dir # All the experiments are saved under same name
         )
 
         self.replay_loader = make_replay_loader(
-            replay_dir = self.work_dir / 'buffer',
+            replay_dir = replay_dir,
             max_size = self.cfg.replay_buffer_size,
             batch_size = self.cfg.batch_size,
             num_workers = self.cfg.replay_buffer_num_workers,
@@ -138,7 +149,8 @@ class Workspace:
         self.video_recorder = VideoRecorder(
             self.work_dir if self.cfg.save_video else None)
         self.train_video_recorder = TrainVideoRecorder(
-            self.work_dir if self.cfg.save_train_video else None)
+            save_dir = Path(self.work_dir) / 'train_video/videos' / self.cfg.experiment if self.cfg.save_train_video else None,
+            root_dir = None)
 
     def _set_mock_demos(self):
         # We'll stack the tactile repr and the image observations
@@ -228,11 +240,22 @@ class Workspace:
             payload = torch.load(f)
         agent_payload = {}
         for k, v in payload.items():
+            # print('k: {}, v: {}'.format(k, v))
             if k not in self.__dict__:
                 agent_payload[k] = v
-        self.agent.load_snapshot(agent_payload)
-        # self.agent.load_snapshot_eval(agent_payload) # NOTE: Not sure why they stopped running this
+        # self.agent.load_snapshot(agent_payload)
+        self.agent.load_snapshot_eval(agent_payload) # NOTE: Not sure why they stopped running this
 
+    def _add_time_step(self, time_step, time_steps, observations):
+        pil_image_obs = Image.fromarray(np.transpose(time_step.observation['pixels'], (1,2,0)), 'RGB')
+        transformed_image_obs = self.image_episode_transform(pil_image_obs)
+
+        time_steps.append(time_step)
+        observations['image_obs'].append(transformed_image_obs)
+        observations['tactile_repr'].append(torch.FloatTensor(time_step.observation['tactile']))
+        observations['features'].append(torch.FloatTensor(time_step.observation['features']))
+ 
+        return time_steps, observations
 
     # Main online training code - this will be giving the rewards only for now
     def train_online(self):
@@ -253,20 +276,13 @@ class Workspace:
         time_step = self.train_env.reset()
         
         self.episode_id = 0
-
-        # print(f'RESETTED TIME_STEP: {time_step}')
-        # print('RESET TIMESTEP: {}'.format(time_step))
-        
-        time_steps.append(time_step)
-        observations['image_obs'].append(torch.FloatTensor(time_step.observation['pixels']))
-        observations['tactile_repr'].append(torch.FloatTensor(time_step.observation['tactile']))
-        observations['features'].append(torch.FloatTensor(time_step.observation['features']))
+        time_steps, observations = self._add_time_step(time_step, time_steps, observations)
 
         if self.agent.auto_rew_scale:
             self.agent.sinkhorn_rew_scale = 1. # This will be set after the first episode
 
-        self.train_video_recorder.init(time_step.observation['pixels'])
-        metrics = None # - TODO: Log these afterwards
+        self.train_video_recorder.init(self.train_env.render())
+        metrics = None 
         while train_until_step(self.global_step): # We're going to behave as if we act and the observations and the representations are coming from the mock_demo but all the rest should be the same
             
             # At the end of an episode actions
@@ -282,7 +298,8 @@ class Workspace:
                 new_rewards = self.agent.ot_rewarder(
                     episode_obs = observations,
                     episode_id = self.global_episode,
-                    visualize = self.cfg.save_train_cost_matrices
+                    visualize = self.cfg.save_train_cost_matrices,
+                    exponential_weight_init = self.cfg.exponential_weight_init
                 )
                 new_rewards_sum = np.sum(new_rewards)
 
@@ -294,7 +311,8 @@ class Workspace:
                         new_rewards = self.agent.ot_rewarder(
                             episode_obs = observations,
                             episode_id = self.global_episode,
-                            visualize = False
+                            visualize = False,
+                            exponential_weight_init = self.cfg.exponential_weight_init
                         )
                         new_rewards_sum = np.sum(new_rewards)
    
@@ -306,8 +324,16 @@ class Workspace:
                     self.episode_id = (self.episode_id+1) % len(self.mock_episodes['demo_nums'])
 
                 # Update the reward in the timesteps accordingly
+                obs_length = len(time_steps)
+                avg_reward = new_rewards_sum / obs_length
                 for i, elt in enumerate(time_steps):
-                    elt = elt._replace(reward=new_rewards[i]) # Update the reward of the object accordingly
+                    # Give average reward to steps that are lower than reward_matching_steps
+                    if i < (obs_length - self.cfg.reward_matching_steps):
+                        new_reward = avg_reward
+                    else:
+                        # If not give the actual reward
+                        new_reward = new_rewards[self.cfg.reward_matching_steps - (obs_length - i)]
+                    elt = elt._replace(reward=new_reward) # Update the reward of the object accordingly
                     self.replay_storage.add(elt, last = (i == len(time_steps) - 1))
 
                 # Log
@@ -329,10 +355,7 @@ class Workspace:
                 x = input("Press Enter to continue... after reseting env")
 
                 time_step = self.train_env.reset()
-                time_steps.append(time_step)
-                observations['image_obs'].append(torch.FloatTensor(time_step.observation['pixels']))
-                observations['tactile_repr'].append(torch.FloatTensor(time_step.observation['tactile']))
-                observations['features'].append(torch.FloatTensor(time_step.observation['features']))
+                time_steps, observations = self._add_time_step(time_step, time_steps, observations)
 
                 # Checkpoint saving and visualization
                 self.train_video_recorder.init(time_step.observation['pixels'])
@@ -349,7 +372,7 @@ class Workspace:
                         step = self.global_step,
                         max_step = self.train_env.spec.max_episode_steps
                         # self.global_step,
-                        # eval_mode=False
+                        # eval_mode=False 
                     )
                 else:
                     action, base_action = self.agent.act(
@@ -386,10 +409,7 @@ class Workspace:
             time_step = self.train_env.step(action, base_action)
             episode_reward += time_step.reward
 
-            time_steps.append(time_step)
-            observations['image_obs'].append(torch.FloatTensor(time_step.observation['pixels']))
-            observations['tactile_repr'].append(torch.FloatTensor(time_step.observation['tactile']))
-            observations['features'].append(torch.FloatTensor(time_step.observation['features']))
+            time_steps, observations = self._add_time_step(time_step, time_steps, observations)
 
             # Record and increase the steps
             self.train_video_recorder.record(time_step.observation['pixels']) # NOTE: Should we do env.render()? 
