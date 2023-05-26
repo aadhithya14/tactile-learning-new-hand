@@ -8,6 +8,8 @@ end_frames_repeat: ${end_frames_repeat}
 sum_experts: ${sum_experts}
 scale_representations: ${scale_representations}
 exponential_exploration: ${exponential_exploration}
+exponential_offset_exploration: ${exponential_offset_exploration}
+base_policy: ${base_policy}
 match_from_both: ${match_from_both}
 mock_demo_nums: ${mock_demo_nums} # Demo that will be moved mockly
 data_path: ${data_path} # Path to hold all the preprocessed demos
@@ -21,7 +23,7 @@ experiment_name: ${experiment}
 view_num: ${camera_num}
 action_shape: ??? # 12 + 7 TODO: to be specified later in the environment (when we add the environment) but for now we're specifiying here 
 device: ${device}
-lr: 1e-4 # It was 1e-4 before 
+lr: 1e-5 # It was 1e-4 before 
 feature_dim:  512 # 16(Allegro) + 7(kinova) - TODO: Check this not sure what's happening lol 
 # use_tb: ${use_tb}
 hidden_dim: 64
@@ -38,7 +40,7 @@ auto_rew_scale: True
 auto_rew_scale_factor: 10
 bc_weight_type: 'qfilter'
 bc_weight_schedule: 'linear(1.0,0.1,20000)'
-arm_offset_scale_factor: 0.035
+arm_offset_scale_factor: 0.08
 hand_offset_scale_factor: 1.5
 # offset_scale_factor: -0.1 # Output of the model is -1,1 -> we can set the offset to whatever
 offset_mask: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0] # Only exploration - kinova translation

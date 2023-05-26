@@ -29,7 +29,8 @@ class FISHAgent:
     def __init__(self,
         data_path, expert_demo_nums, expert_id, reward_matching_steps, mock_demo_nums,
         features_repeat, sum_experts, experiment_name, end_frames_repeat,
-        scale_representations, exponential_exploration, match_from_both,
+        scale_representations, exponential_exploration, base_policy,
+        exponential_offset_exploration, match_from_both,
         image_out_dir, tactile_out_dir, image_model_type, tactile_model_type, # This is used to get the tactile representation size
         reward_representations, policy_representations, view_num,
         action_shape, device, lr, feature_dim,
@@ -76,7 +77,15 @@ class FISHAgent:
         self.end_frames_repeat = end_frames_repeat
         self.scale_representations = scale_representations
         self.exponential_exploration = exponential_exploration
+        # If expo offset is set to true we will be using additive offsets
+        # for each timestep and the added offset will always be lower and 
+        # lower as the time passes
+        self.exponential_offset_exploration = exponential_offset_exploration
+        self.last_offset = None # This will be changed if expo offset is set to true
         self.match_from_both = match_from_both
+        self.base_policy = base_policy
+        if base_policy:
+            self.first_frame_encoder = resnet18(pretrained=True, out_dim=512) # NOTE: Set this differently
 
         # Set the mock data
         self.mock_data = load_data(self.roots, demos_to_use=mock_demo_nums) # TODO: Delete this
@@ -172,7 +181,9 @@ class FISHAgent:
         )
 
         self.image_act_transform = T.Compose(image_act_transform_arr)
-        print('image transform: {}'.format(self.image_act_transform))
+        # print('image transform: {}'.format(self.image_act_transform))
+
+        self.image_normalize = T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
 
     def _set_expert_demos(self): # Will stack the end frames back to back
         # We'll stack the tactile repr and the image observations
@@ -239,10 +250,64 @@ class FISHAgent:
                 actions = []
 
             old_demo_id = demo_id
+
+        if 'vinn' in self.base_policy:
+            self.first_frame_img_encoder = resnet18(pretrained=True, out_dim=512).to(self.device).eval()
+            self._get_first_frame_exp_representations()
+
+    
+    def _get_first_frame_exp_representations(self): # This will be used for VINN
         
+        exp_representations = [] 
+        for expert_id in range(len(self.expert_demos)):
+            first_frame_exp_obs = self.expert_demos[expert_id]['image_obs'][0:1,:].to(self.device)
+            plt.imshow(np.transpose(first_frame_exp_obs[0].detach().cpu().numpy(), (1,2,0)))
+            plt.savefig(f'expert_id_{expert_id}.png')
+            print(f'expert_{expert_id} mean: {first_frame_exp_obs[0].mean()}')
+
+            # NOTE: Expert demos should already be normalized
+            first_frame_exp_representation = self.first_frame_img_encoder(first_frame_exp_obs)
+            exp_representations.append(first_frame_exp_representation.detach().cpu().numpy().squeeze())
+
+        self.exp_first_frame_reprs = np.stack(exp_representations, axis=0)
+        print('self.exp_reprs.shape: {}'.format(self.exp_first_frame_reprs.shape))
+
+    def _check_limits(self, offset_action):
+        limits = [-0.1, 0.1]
+        return torch.clamp(offset_action, min=limits[0], max=limits[1])    
+
+    def _get_closest_expert_id(self, obs):
+        # Get the representation of the current observation
+        image_transform = T.Compose([
+            # T.ToTensor(),
+            T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
+        ])
+        # pil_image_obs = Image.fromarray(np.transpose(obs['image_obs'], (1,2,0)), 'RGB')
+        
+        image_obs = image_transform(obs['image_obs'] / 255.).unsqueeze(0).to(self.device)
+        plt.imshow(np.transpose(image_obs[0].detach().cpu().numpy(), (1,2,0)))
+        plt.savefig(f'first_obs.png')
+        curr_repr = self.first_frame_img_encoder(image_obs).detach().cpu().numpy().squeeze()
+
+        # Get the distance of the curr_repr to the expert representaitons of the first frame
+        l1_distances = self.exp_first_frame_reprs - curr_repr
+        l2_distances = np.linalg.norm(l1_distances, axis=1)
+        print('l2_distances.shape: {} - should be NUM_EXPERTS'.format(l2_distances.shape))
+        sorted_idxs = np.argsort(l2_distances)
+
+        print('SORTED EXPERTS: {}'.format(sorted_idxs))
+        return sorted_idxs[0], l2_distances
+
     # Will give the next action in the step
     def base_act(self, obs, episode_step): # Returns the action for the base policy - openloop
         # TODO: You should get the nearest neighbor at the beginning and maybe at each step as well?
+
+        if self.base_policy == 'vinn_openloop' and episode_step == 0: # Get the expert id that has the closest representaiton in the beginning
+            self.expert_id, self.l2_distances = self._get_closest_expert_id(obs)
+        
+        print('EXPERT ID: {}, L2 DIST: {}'.format(
+            self.expert_id, self.l2_distances
+        ))
 
         # Use expert_demos for base action retrieval
         if episode_step >= len(self.expert_demos[self.expert_id]['actions']):
@@ -260,8 +325,11 @@ class FISHAgent:
         print('base_action.shape: {}'.format(base_action.shape))
 
         with torch.no_grad():
+            # Get the action image_obs
+            # image_obs = Image.fromarray(np.transpose(obs['image_obs'], (1,2,0)), 'RGB')
+            # image_obs = T.ToTensor()(image_obs).float().unsqueeze(0)
             obs = self._get_policy_reprs_from_obs( # This method is called with torch.no_grad() in training anyways
-                image_obs = obs['image_obs'].unsqueeze(0),
+                image_obs = obs['image_obs'].unsqueeze(0) / 255.,
                 tactile_repr = obs['tactile_repr'].unsqueeze(0),
                 features = obs['features'].unsqueeze(0)
             )
@@ -274,12 +342,15 @@ class FISHAgent:
             offset_action = dist.mean
         else:
             offset_action = dist.sample(clip=None)
+
+            # Exploration
             if self.exponential_exploration:
                 epsilon = exponential_epsilon_decay(
                     step_idx=global_step,
                     epsilon_decay=self.num_expl_steps
                 )
-                if random.random() < epsilon:
+                rand_num = random.random()
+                if rand_num < epsilon:
                     print('EXPLORING!!!')
                     offset_action.uniform_(-1.0, 1.0)
                     offset_action *= self.offset_mask
@@ -287,16 +358,28 @@ class FISHAgent:
                 if global_step < self.num_expl_steps:
                     offset_action.uniform_(-1.0, 1.0)
                     offset_action *= self.offset_mask
-                # offset_action *= self.offset_mask * self.offset_scale_factor
+         
+        is_explore = global_step < self.num_expl_steps or (self.exponential_exploration and rand_num < epsilon)
 
-        offset_action[:-7] *= self.hand_offset_scale_factor
-        offset_action[-7:] *= self.arm_offset_scale_factor
+        print('is_explore: {}'.format(is_explore))
+        
+        if is_explore and self.exponential_offset_exploration:  # TODO: Do the OU Noise
+            offset_action[:-7] *= self.hand_offset_scale_factor / ((episode_step+1)/2) 
+            offset_action[-7:] *= self.arm_offset_scale_factor / ((episode_step+1)/2)
+            if episode_step > 0:
+                offset_action += self.last_offset
+            self.last_offset = offset_action
+        else:
+            offset_action[:-7] *= self.hand_offset_scale_factor
+            offset_action[-7:] *= self.arm_offset_scale_factor
+
+
+        # Check if the offset action is higher than the limits
+        offset_action = self._check_limits(offset_action)
 
         print('OFFSET ACTION: {}'.format(offset_action))
 
         action = base_action + offset_action
-
-
         return action.cpu().numpy()[0], base_action.cpu().numpy()[0]
 
     def _find_closest_mock_step(self, curr_step):
@@ -451,6 +534,13 @@ class FISHAgent:
             #     image_obs = self.image_aug(image_obs.float())
             # image_obs = self.image_normalize(image_obs).to(self.device) # This will give all the image observations of one batch
             image_obs = self.image_act_transform(image_obs.float()).to(self.device)
+            print('image_obs.mean() after transform in _get_policy_reprs_from_obs: {}'.format(
+                image_obs.mean()
+            ))
+            # if image_obs.shape[0] == 1:
+                # plt.imshow(np.transpose(image_obs[0].detach().cpu().numpy(), (1,2,0)))
+                # ts = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
+                # plt.savefig(f'{ts}_curr_obs.png')
             image_reprs = self.image_encoder(image_obs)
             reprs.append(image_reprs)
 

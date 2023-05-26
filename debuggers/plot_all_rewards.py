@@ -89,10 +89,11 @@ class Rewarder:
 
     # Will get the reward for each episde with the best expert
     # and will return expert ids, and the rewards for each episode
-    def get_ot_rewards(self, reward_representations, expo_weight_init=False):
+    def get_ot_rewards(self, reward_representations, expo_weight_init=False, return_all_rewards=False):
 
         best_rewards = [] 
         best_experts = []
+        ot_rewards_to_return = []
         for episode_id in range(len(self.episode_demos)):
             all_ot_rewards = []
             best_reward_sum = -sys.maxsize 
@@ -134,6 +135,16 @@ class Rewarder:
             # Append them to the best experts and rewards 
             best_rewards.append(best_reward_sum)
             best_experts.append(best_ot_reward_id)
+
+            # Return all of the rewards if asked for
+            if return_all_rewards:
+                # Get all ot rewards
+                ot_rewards_to_return.append(
+                    all_ot_rewards[best_ot_reward_id]
+                )
+
+        if return_all_rewards:
+            return best_rewards, best_experts, ot_rewards_to_return
 
         return best_rewards, best_experts
 
@@ -350,6 +361,8 @@ def get_all_rewards(cfg: DictConfig):
     )
     print('best_rewards: {}, best_expert_ids: {}'.format(best_rewards, best_expert_ids))
 
+
+    # Sort and plot them
     expert_frames, episode_frames, sorted_reward_ids = prep_demos_for_visualization(
         expert_demos=expert_demos,
         episode_demos=episode_demos,
@@ -365,7 +378,6 @@ def get_all_rewards(cfg: DictConfig):
 
     sorted_expert_ids = [best_expert_ids[reward_id] for reward_id in sorted_reward_ids]
     sorted_rewards = [best_rewards[reward_id] for reward_id in sorted_reward_ids]
-
     plotter = RewardPlotter(
         episode_frames = episode_frames,
         expert_frames = expert_frames, 
@@ -376,10 +388,15 @@ def get_all_rewards(cfg: DictConfig):
     # nrows = min(int(len(episode_frames)/ncols), 60)
     nrows = int(len(episode_frames)/ncols)
     print('ncols: {}, nrows: {}'.format(ncols, nrows))
+    episode_time_step = cfg.episode_roots[0].split('/')[-1].split('_')[0]
+    # Remove the dots from the string
+    ts_arr = episode_time_step.split('.')
+    episode_ts = ''.join(ts_arr)
+    print('episode_ts: {}'.format(episode_ts))
     plotter.plot_rewards(
         nrows = nrows,
         ncols = ncols,
-        figure_name = f'plot_all_rewards_outputs/match_frames_{cfg.frames_to_match}_mb_{cfg.match_both}_rewards_{cfg.reward_representations}_expo_{cfg.expo_weight_init}_sorted'
+        figure_name = f'plot_all_rewards_outputs/1st_ts_{episode_ts}_experts_{cfg.expert_demo_nums}_match_frames_{cfg.frames_to_match}_mb_{cfg.match_both}_rewards_{cfg.reward_representations}_expo_{cfg.expo_weight_init}_sorted'
     )
 
 if __name__ == '__main__':

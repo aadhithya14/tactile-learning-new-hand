@@ -108,7 +108,7 @@ def get_image_stats(len_image_dataset, image_loader):
     print('mean: '  + str(total_mean))
     print('std:  '  + str(total_std))
 
-def load_dataset_image(data_path, demo_id, image_id, view_num, transform=None):
+def load_dataset_image(data_path, demo_id, image_id, view_num, transform=None, as_int=False):
     roots = glob.glob(f'{data_path}/demonstration_*')
     roots = sorted(roots)
     image_root = roots[demo_id]

@@ -148,8 +148,8 @@ class ReplayBuffer(IterableDataset):
             if eps_idx % self._num_workers != worker_id:
                 continue
             if eps_fn in self._episodes.keys():
-                # break
-                continue
+                break
+                # continue
             if fetched_size + eps_len > self._max_size:
                 break
             fetched_size += eps_len
@@ -166,7 +166,7 @@ class ReplayBuffer(IterableDataset):
 
         idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
 
-        image_obs = episode['pixels'][idx-1]
+        image_obs = episode['pixels'][idx-1] / 255.
         # image_obs = Image.fromarray(np.transpose(episode['pixels'][idx-1], (2,1,0)), 'RGB')
         # image_obs = T.ToTensor()(image_obs).float()
         tactile_repr = episode['tactile'][idx-1]
@@ -174,7 +174,7 @@ class ReplayBuffer(IterableDataset):
         action = episode['action'][idx]
         base_action = episode['base_action'][idx]
 
-        next_image_obs = episode['pixels'][idx+self._nstep-1]
+        next_image_obs = episode['pixels'][idx+self._nstep-1] / 255.
         # next_image_obs = Image.fromarray(np.transpose(episode['pixels'][idx+self._nstep-1], (2,1,0)), 'RGB')
         # next_image_obs = T.ToTensor()(next_image_obs).float()
         next_tactile_repr = episode['tactile'][idx+self._nstep-1]

@@ -328,12 +328,14 @@ class Workspace:
                 avg_reward = new_rewards_sum / obs_length
                 for i, elt in enumerate(time_steps):
                     # Give average reward to steps that are lower than reward_matching_steps
-                    if i < (obs_length - self.cfg.reward_matching_steps):
-                        new_reward = avg_reward
-                    else:
-                        # If not give the actual reward
+                    # if i < (obs_length - self.cfg.reward_matching_steps):
+                    #     new_reward = avg_reward
+                    # else:
+                    #     # If not give the actual reward
+                    #     new_reward = new_rewards[self.cfg.reward_matching_steps - (obs_length - i)]
+                    if i > (obs_length - self.cfg.reward_matching_steps):
                         new_reward = new_rewards[self.cfg.reward_matching_steps - (obs_length - i)]
-                    elt = elt._replace(reward=new_reward) # Update the reward of the object accordingly
+                        elt = elt._replace(reward=new_reward) # Update the reward of the object accordingly
                     self.replay_storage.add(elt, last = (i == len(time_steps) - 1))
 
                 # Log
@@ -386,12 +388,14 @@ class Workspace:
                         eval_mode = False
                     )
                 
-            print('ACTION: {}, BASE ACTION: {}, STEP: {}, TIME_STEP_OBS>SHAPE: {}, {}'.format(
-                action, base_action, self.global_step,
-                time_step.observation['tactile'].shape,
-                time_step.observation['pixels'].shape,
-                time_step.observation['features'].shape
-            ))
+            # print('ACTION: {}, BASE ACTION: {}, STEP: {}, TIME_STEP_OBS>SHAPE: {}, {}'.format(
+            #     action, base_action, self.global_step,
+            #     time_step.observation['tactile'].shape,
+            #     time_step.observation['pixels'].shape,
+            #     time_step.observation['features'].shape
+            # ))
+            print('STEP: {}'.format(self.global_step))
+            print('---------')
 
             # Training - updating the agents 
             if not seed_until_step(self.global_step):

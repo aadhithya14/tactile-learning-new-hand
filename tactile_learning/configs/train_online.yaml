@@ -18,14 +18,20 @@ seed: 42
 device: cuda
 
 num_train_frames: 10000 # Total training numbers
-num_seed_frames: 0 # First 10 episodes will be random!
+num_seed_frames: 0
 
 eval_every_frames: 100
-buffer_path: 2023.05.22T16-20_last_frames_5_se_False_endrepeat_1_mfb_True_ee_False_offset_lowered # If there is a buffer path given this will be used
+# buffer_path: 2023.05.22T16-20_last_frames_5_se_False_endrepeat_1_mfb_True_ee_False_offset_lowered # If there is a buffer path given this will be used
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.23T19-14_last_frames_5_mfb_True_all_positions_x_axis
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.23T15-17_last_frames_5_se_False_endrepeat_1_mfb_True_ee_False_offset_lowered_position_8
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.24T11-17_last_frames_5_mfb_True_all_positions_x_axis_expert_0
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.24T14-17_last_frames_5_mfb_True_offset_expo_True_all_positions_x_axis_expert_0
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.26T14-17_last_frames_5_offset_expo_True_base_policy_vinn_openloop)experts_[22, 26]
+buffer_path: null
 
 # FISH and environment params
-expert_id: 0 # 22
-expert_demo_nums: [22,24,28,29,34] # We can get multiple expert demos
+expert_id: 0 # 24
+expert_demo_nums: [22,26] # We can get multiple expert demos
 reward_matching_steps: 5 # We will only match the last 20 steps through the demonstration
 match_from_both: True # If true we'll match the rewards from both of the 
 exponential_weight_init: False # If true the initial weight in the ot reward will be exponential - currently it's equal importance to all timeframes
@@ -33,6 +39,8 @@ end_frames_repeat: 1 # Stack the last frames for 20 times
 sum_experts: False
 scale_representations: False
 exponential_exploration: False # This is to explore sometimes when it's stuck
+exponential_offset_exploration: True # TODO: Test this - offset added is lowered exponentially
+base_policy: vinn_openloop
 mock_env: False # If set to true we will be using mock demos as the environment interaction
 mock_demo_nums: [10, 12, 13, 15, 2, 7] # Use all of them # [13,15,2,7] # 15 is the expert demo in the agent
 camera_num: 1
@@ -54,10 +62,10 @@ save_train_cost_matrices: True
 
 # Snapshot loading
 load_snapshot: False
-snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot_rewards_fixed.pt # This should be set if we ask it to load snapshot - but for now we're not
+snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot.pt
 
 log: False
-experiment: ${now:%Y.%m.%d}T${now:%H-%M}_last_frames_${reward_matching_steps}_se_${sum_experts}_endrepeat_${end_frames_repeat}_mfb_${match_from_both}_ee_${exponential_exploration}_offset_lowered
+experiment: ${now:%Y.%m.%d}T${now:%H-%M}_last_frames_${reward_matching_steps}_offset_expo_${exponential_offset_exploration}_base_policy_${base_policy}_experts_${expert_demo_nums}
 
 # hydra configuration - should be received separately
 hydra:
