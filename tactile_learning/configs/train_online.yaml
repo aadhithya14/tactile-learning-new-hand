@@ -12,7 +12,7 @@ tactile_model_type: byol # It could be ssl/byol as well
 image_model_type: bc
 
 reward_representations: ['image']
-policy_representations: ['image', 'features']
+policy_representations: ['image', 'tactile', 'features']
 
 seed: 42 
 device: cuda
@@ -27,7 +27,7 @@ eval_every_frames: 100
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.24T11-17_last_frames_5_mfb_True_all_positions_x_axis_expert_0
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.24T14-17_last_frames_5_mfb_True_offset_expo_True_all_positions_x_axis_expert_0
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.26T14-17_last_frames_5_offset_expo_True_base_policy_vinn_openloop)experts_[22, 26]
-buffer_path: null
+buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.26T15-53_last_frames_5_offset_expo_True_base_policy_vinn_openloop_experts_[22, 26]
 
 # FISH and environment params
 expert_id: 0 # 24

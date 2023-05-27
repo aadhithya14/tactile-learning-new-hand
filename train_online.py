@@ -113,7 +113,7 @@ class Workspace:
                 tactile_dim = tactile_repr_dim
             )
 
-        # Create replay buffer - TODO - data_specs and everything
+        # Create replay buffer
         data_specs = [
             self.train_env.observation_spec(),
             self.train_env.action_spec(),
