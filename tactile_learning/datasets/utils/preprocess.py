@@ -83,6 +83,54 @@ def dump_fingertips(root):
 
     print(f'Saved fingertip positions in {fingertip_state_file}')
 
+def find_shortened_timestamp_id(timestamps, shortening_time):
+    latest_ts = timestamps[-1]
+    # print('latest_ts: {}'.format(latest_ts))
+    desired_ts = latest_ts - shortening_time
+    # print('desired_ts: {}'.format(desired_ts))
+
+    for i, ts in enumerate(timestamps):
+        if ts >= desired_ts:
+            return i
+        
+    return len(timestamps)-1
+
+def get_shortened_ts_ids(
+        root,
+        shortening_time, # shortening time in seconds
+        cam_view_num = 0,
+):
+
+    allegro_states_path = os.path.join(root, 'allegro_joint_states.h5')
+    image_metadata_path = os.path.join(root, f'cam_{cam_view_num}_rgb_video.metadata')
+    tactile_info_path = os.path.join(root, 'touch_sensor_values.h5')
+    allegro_commanded_joint_path = os.path.join(root, 'allegro_commanded_joint_states.h5')
+    kinova_states_path = os.path.join(root, 'kinova_cartesian_states.h5')
+
+    # Will return the last id that has the remaining timestamps
+    with h5py.File(allegro_states_path, 'r') as f:
+        allegro_timestamps = f['timestamps'][()]
+    with h5py.File(tactile_info_path, 'r') as f:
+        tactile_timestamps = f['timestamps'][()]
+    with h5py.File(allegro_commanded_joint_path, 'r') as f:
+        allegro_action_timestamps = f['timestamps'][()]
+    with h5py.File(kinova_states_path, 'r') as f:
+        kinova_timestamps = f['timestamps'][()]
+    with open(image_metadata_path, 'rb') as f:
+        image_metadata = pickle.load(f)
+        image_timestamps = np.asarray(image_metadata['timestamps']) / 1000. 
+
+    latest_ts_ids = dict(
+        allegro = find_shortened_timestamp_id(allegro_timestamps, shortening_time),
+        tactile = find_shortened_timestamp_id(tactile_timestamps, shortening_time),
+        kinova = find_shortened_timestamp_id(kinova_timestamps, shortening_time), 
+        allegro_action = find_shortened_timestamp_id(allegro_action_timestamps, shortening_time), 
+        image = find_shortened_timestamp_id(image_timestamps, shortening_time)
+    )
+
+    return latest_ts_ids
+
+
 def dump_data_indices(
         demo_id,
         root,
@@ -92,7 +140,9 @@ def dump_data_indices(
         cam_view_num=0,
         subsample_separately=True,
         kinova_threshold = None,
-        allegro_threshold = None
+        allegro_threshold = None,
+        shorten_demos = False,
+        shortening_times = [],
     ):
     # Matches the index -> demo_id, datapoint_id according to the timestamps saved
     allegro_indices, image_indices, tactile_indices, allegro_action_indices, kinova_indices = [], [], [], [], []
@@ -115,6 +165,28 @@ def dump_data_indices(
     with open(image_metadata_path, 'rb') as f:
         image_metadata = pickle.load(f)
         image_timestamps = np.asarray(image_metadata['timestamps']) / 1000.
+
+    # Shorten the demos
+    if shorten_demos:
+        time = shortening_times if type(shortening_times) == int else shortening_times[demo_id]
+        # print('time: {}, demo_id: {}, type(shortening_times): {}'.format(
+        #     time, demo_id, type(shortening_times)
+        # ))
+        shortened_ids = get_shortened_ts_ids(root, shortening_time=time)
+        
+        # allegro 
+        allegro_timestamps = allegro_timestamps[:shortened_ids['allegro']]
+        allegro_positions = allegro_positions[:shortened_ids['allegro']]
+        # tactile
+        tactile_timestamps = tactile_timestamps[:shortened_ids['tactile']]
+        # allegro action
+        allegro_action_timestamps = allegro_action_timestamps[:shortened_ids['allegro_action']]
+        # kinova
+        kinova_timestamps = kinova_timestamps[:shortened_ids['kinova']]
+        kinova_positions = kinova_positions[:shortened_ids['kinova']]
+        # image
+        image_timestamps = image_timestamps[:shortened_ids['image']]
+
     
     # Start the allegro kdl solver 
     allegro_kdl_solver = AllegroKDL()

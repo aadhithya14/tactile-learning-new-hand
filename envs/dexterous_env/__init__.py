@@ -12,3 +12,9 @@ register(
 	entry_point='dexterous_env.bowl_unstacking_env:BowlUnstackingEnv',
 	max_episode_steps=76,
 )
+
+register(
+    id = 'PlierPicking-v1',
+    entry_point='dexterous_env.plier_picking_env:PlierPicking',
+	max_episode_steps=50,
+)

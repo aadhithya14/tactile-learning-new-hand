@@ -8,7 +8,7 @@ seed: 42
 device: cuda
 
 learner_type: bc # Can be bet, bc_gmm, image_byol, tactile_stacked_byol # tactile_stacked_byol tactile_linear_byol, bc, tactile_byol
-self_supervised: true
+self_supervised: false
 
 # Hyperparameters to be used everywhere
 batch_size: 32
@@ -24,9 +24,9 @@ world_size: 1
 num_gpus: 4
 
 # Data path to be set
-object: bowl_picking
-experiment: ${learner_type}_bs_${batch_size}_epochs_${train_epochs}_lr_${optimizer.lr}_${object}_after_rss # Name of the experiment that the models are saved
-data_dir: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}/after_rss
+object: card_flipping
+experiment: ${learner_type}_bs_${batch_size}_epochs_${train_epochs}_lr_${optimizer.lr}_${object} # Name of the experiment that the models are saved
+data_dir: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}
 # data_dir: /data/tactile_dexterity/play_data
 checkpoint_dir: ??? # Will be set to hydra dir inside the code
 

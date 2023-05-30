@@ -1,7 +1,7 @@
 # @package suite
 defaults:
   - _self_
-  - task: bowl_unstacking
+  - task: plier_picking
 
 suite: dexterousgym
 name: 'dexterous_gym'

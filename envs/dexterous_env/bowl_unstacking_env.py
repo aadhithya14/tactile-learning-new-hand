@@ -1,7 +1,4 @@
 # Main script for hand interractions 
-# TODO: This should be registered as an environment when we're running this!!
-# Similar to hand-env/hand_envs/__init__.py - when they get registered if you run gym.make
-# with the given task name then it becomes possible to run them
 import cv2 
 import gym
 import numpy as np
@@ -126,18 +123,10 @@ class BowlUnstackingEnv(gym.Env):
             return crop_transform(image, camera_view=self.view_num)
 
         def init_hand(self): # TODO: You should have dexterity_env as the base environment and then all the rest parametric
-            # while True: 
-            #     try:
-            #         self.deploy_api.send_robot_action(self.home_state)
-            #         break 
-            #     except:
-            #         print('Error in init_hand') # NOTE: delete this weird 
-            #         pass
             self.deploy_api.send_robot_action(self.home_state)
 
         def step(self, action):
             print('action.shape: {}'.format(action.shape))
-            # action *= (1.0/5) # This is to make the training more stable 
             try: 
                 if self.action_type == 'fingertip':
                     hand_joint_action = self._robot.get_joint_state_from_coord(
@@ -150,7 +139,6 @@ class BowlUnstackingEnv(gym.Env):
                     'allegro': hand_joint_action, 
                     'kinova':  action[-7:]
                 })
-                # self.hand.send_robot_action({self.robot_name: converted_action})
             except:
                 print("IK error")
             
@@ -161,11 +149,7 @@ class BowlUnstackingEnv(gym.Env):
                 [features_dict['allegro']['position'], features_dict['kinova']],
                 axis=0
             )
-            # obs['features'] = self.deploy_api.get_robot_state() # TODO: having the features should be better and faster as well
-            # print('obs[features]: {}'.format(
-            #     obs['features']
-            # ))
-            
+
             obs['pixels'] = self._get_curr_image() # NOTE: Check this - you're returning non normalized things though
             
             sensor_state = self.deploy_api.get_sensor_state()
@@ -173,8 +157,6 @@ class BowlUnstackingEnv(gym.Env):
             obs['tactile'] = self.tactile_repr.get(tactile_values)
 
             reward, done, infos = 0, False, {'is_success': False} 
-
-            # print('obs[tactile].shape: {}'.format(obs['tactile'].shape))
 
             return obs, reward, done, infos #obs, reward, done, infos
 

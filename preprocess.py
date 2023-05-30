@@ -25,7 +25,9 @@ def main(cfg : DictConfig) -> None:
                 cam_view_num = cfg.view_num,
                 subsample_separately = cfg.subsample_separately,
                 kinova_threshold = cfg.kinova_threshold_step_size,
-                allegro_threshold = cfg.allegro_threshold_step_size
+                allegro_threshold = cfg.allegro_threshold_step_size,
+                shorten_demos = cfg.shorten_demo.apply,
+                shortening_times = cfg.shorten_demo.times,
             )
         if cfg.vision_byol:
             dump_video_to_images(root, view_num=cfg.view_num, dump_all=True) # If dump_all == False then it will use the desired images only

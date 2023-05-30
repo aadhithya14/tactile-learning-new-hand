@@ -537,14 +537,12 @@ class FISHAgent:
             print('image_obs.mean() after transform in _get_policy_reprs_from_obs: {}'.format(
                 image_obs.mean()
             ))
-            # if image_obs.shape[0] == 1:
-                # plt.imshow(np.transpose(image_obs[0].detach().cpu().numpy(), (1,2,0)))
-                # ts = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
-                # plt.savefig(f'{ts}_curr_obs.png')
             image_reprs = self.image_encoder(image_obs)
+            print('image_reprs.mean(): {}'.format(image_reprs.mean()))
             reprs.append(image_reprs)
 
         if 'tactile' in self.policy_representations:
+            print('tactile_repr.mean(): {}'.format(tactile_repr.mean()))
             tactile_reprs = tactile_repr.to(self.device) # This will give all the representations of one batch
             reprs.append(tactile_reprs)
 
@@ -615,14 +613,6 @@ class FISHAgent:
         # Get the episode representations
         curr_reprs = []
         if 'image' in self.reward_representations: # We will not be using features for reward for sure
-            # if mock:
-            #     # NOTE: Make sure if this is correct or not
-            #     image_reprs = self.image_encoder(episode_obs['image_obs'].to(self.device))
-            # else:
-            #     # TODO: Make sure this is good - it was image_normalize before - not sure if we're normalizing twice by this
-            #     image_obs = self.image_transform(episode_obs['image_obs']).to(self.device) # This will give all the image observations of one episode
-            #     image_reprs = self.image_encoder(image_obs)
-            # NOTE: image_obs should be transformed
             if self.match_from_both:
                 image_reprs = self.image_encoder(episode_obs['image_obs'][-self.reward_matching_steps:,:].to(self.device))
             else:

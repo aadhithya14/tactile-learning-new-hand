@@ -1,4 +1,4 @@
-data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/bowl_picking/after_rss
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/plier_picking
 process_single_demo: false
 
 # Preprocessing for different types - if both false then preprocessing is done for deployment
@@ -12,7 +12,11 @@ threshold_step_size: 0.012 # Step size to be used in subsampling
 dump_images: true # If vision_byol is used dump_images should be true
 dump_data_indices: true 
 dump_fingertips: true
-view_num: 1 # Camera ID to dump the images
+view_num: 0 # Camera ID to dump the images
+
+shorten_demo:
+  apply: true
+  times: [10, 2, 3.5, 3, 0, 10, 2] # Times in seconds for each demo - if only one value is given then we'll only use that
 
 repr_preprocessor: # NOTE: This was for BET  and IBC - we're just getting the representations in bet
   apply: false

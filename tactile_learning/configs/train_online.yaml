@@ -2,11 +2,12 @@ defaults:
   - suite: gym
   - agent: fish # Optimizer will be initialized inside the agent
 
-object: bowl_picking
-data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}/after_rss
+object: plier_picking
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.06/10-50_image_byol_bs_32_epochs_500_lr_1e-05_bowl_picking_after_rss
-image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.11/13-21_bc_bs_32_epochs_500_lr_1e-05_bowl_picking_after_rss
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.11/13-21_bc_bs_32_epochs_500_lr_1e-05_bowl_picking_after_rss - Bowl Picking BC
+image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.29/19-45_bc_bs_32_epochs_500_lr_1e-05_plier_picking
 tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120 # - Play data encoder
 tactile_model_type: byol # It could be ssl/byol as well
 image_model_type: bc
@@ -18,7 +19,7 @@ seed: 42
 device: cuda
 
 num_train_frames: 10000 # Total training numbers
-num_seed_frames: 0
+num_seed_frames: 500
 
 eval_every_frames: 100
 # buffer_path: 2023.05.22T16-20_last_frames_5_se_False_endrepeat_1_mfb_True_ee_False_offset_lowered # If there is a buffer path given this will be used
@@ -27,11 +28,14 @@ eval_every_frames: 100
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.24T11-17_last_frames_5_mfb_True_all_positions_x_axis_expert_0
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.24T14-17_last_frames_5_mfb_True_offset_expo_True_all_positions_x_axis_expert_0
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.26T14-17_last_frames_5_offset_expo_True_base_policy_vinn_openloop)experts_[22, 26]
-buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.26T15-53_last_frames_5_offset_expo_True_base_policy_vinn_openloop_experts_[22, 26]
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.26T15-53_last_frames_5_offset_expo_True_base_policy_vinn_openloop_experts_[22, 26]
+buffer_path: null
 
 # FISH and environment params
 expert_id: 0 # 24
-expert_demo_nums: [22,26] # We can get multiple expert demos
+# expert_demo_nums: [22,26] # Bowl Unstacking
+expert_demo_nums: 
+
 reward_matching_steps: 5 # We will only match the last 20 steps through the demonstration
 match_from_both: True # If true we'll match the rewards from both of the 
 exponential_weight_init: False # If true the initial weight in the ot reward will be exponential - currently it's equal importance to all timeframes
@@ -64,8 +68,8 @@ save_train_cost_matrices: True
 load_snapshot: False
 snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot.pt
 
-log: False
-experiment: ${now:%Y.%m.%d}T${now:%H-%M}_last_frames_${reward_matching_steps}_offset_expo_${exponential_offset_exploration}_base_policy_${base_policy}_experts_${expert_demo_nums}
+log: True
+experiment: ${now:%Y.%m.%d}T${now:%H-%M}_last_frames_${reward_matching_steps}_offset_expo_${exponential_offset_exploration}_base_policy_${base_policy}_experts_${expert_demo_nums}_tactile_added
 
 # hydra configuration - should be received separately
 hydra:
