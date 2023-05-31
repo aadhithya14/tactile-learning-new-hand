@@ -1,6 +1,8 @@
 import torch
 import torch.nn.functional as F
 
+from info_nce import InfoNCE
+
 def l1(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     return F.l1_loss(x, y)
 
@@ -53,3 +55,15 @@ def nt_xent_loss(queries, keys, temperature = 0.1):
     loss = F.cross_entropy(logits, labels, reduction='sum')
     loss /= n
     return loss 
+
+# InfoNCE loss - uses the info-enc loss implementation in https://github.com/RElbers/info-nce-pytorch
+# if negative keys are not given then negative keys are considered all the rest of the batch
+def infonce_loss(query, positive_keys, negative_keys=None, negative_mode='unpaired'):
+    loss = InfoNCE(negative_mode=negative_mode) # unpaired is the original default value
+    return loss(
+        query = query, 
+        positive_keys = positive_keys, 
+        negative_keys = negative_keys
+    )
+
+
