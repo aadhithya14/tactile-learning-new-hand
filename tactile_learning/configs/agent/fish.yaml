@@ -23,7 +23,7 @@ experiment_name: ${experiment}
 view_num: ${camera_num}
 action_shape: ??? # 12 + 7 TODO: to be specified later in the environment (when we add the environment) but for now we're specifiying here 
 device: ${device}
-lr: 1e-6 # It was 1e-4 before 
+lr: 5e-7 # It was 1e-4 before 
 feature_dim:  512 # 16(Allegro) + 7(kinova) - TODO: Check this not sure what's happening lol 
 # use_tb: ${use_tb}
 hidden_dim: 64
@@ -41,6 +41,6 @@ auto_rew_scale_factor: 10
 bc_weight_type: 'qfilter'
 bc_weight_schedule: 'linear(1.0,0.1,20000)'
 arm_offset_scale_factor: 0.08
-hand_offset_scale_factor: 1.5
+hand_offset_scale_factor: 1.2
 # offset_scale_factor: -0.1 # Output of the model is -1,1 -> we can set the offset to whatever
-offset_mask: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0] # Only exploration - kinova translation
+offset_mask: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] # Only exploration - kinova translation

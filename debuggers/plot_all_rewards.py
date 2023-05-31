@@ -187,12 +187,6 @@ def prep_demos_for_visualization(episode_demos, expert_demos, inv_image_transfor
         episode_frames.append(
             torch.permute(transformed_img, (1,2,0)) # Will only plot the last frame
         )
-
-    # for episode_id in range(len(episode_demos)): 
-    #     transformed_img = inv_image_transform(episode_demos[episode_id]['image_obs'][-1])
-    #     episode_frames.append(
-    #         torch.permute(transformed_img, (1,2,0)) # Will only plot the last frame
-    #     )
     
     for expert_id in range(len(expert_demos)):
         transformed_img = inv_image_transform(expert_demos[expert_id]['image_obs'][-1])
@@ -210,7 +204,9 @@ def load_one_episode(fn):
 
 def load_root_episodes(root_path):
     episodes = []
+    print()
     fns = sorted(glob.glob(f'{root_path}/*.npz'))
+    # print('fns: {}'.format(fns))
     for i,fn in enumerate(fns):
         episode = load_one_episode(fn)
         episodes.append(episode)
@@ -226,6 +222,7 @@ def load_all_episodes(root_path = None, roots = None):
         root_episodes = load_root_episodes(root)
         all_episodes += root_episodes
 
+    print('len(all_episodes): {}'.format(len(all_episodes)))
     return all_episodes
 
 # This image transform will have the totensor and normalization only
@@ -248,7 +245,7 @@ def load_episode_demos(all_episodes, image_transform):
     return episode_demos
 
 # This image transform will have everything
-def load_expert_demos(data_path, expert_demo_nums, tactile_repr_module, image_transform):
+def load_expert_demos(data_path, expert_demo_nums, tactile_repr_module, image_transform, view_num):
     roots = sorted(glob.glob(f'{data_path}/demonstration_*'))
     data = load_data(roots, demos_to_use=expert_demo_nums)
     
@@ -275,7 +272,7 @@ def load_expert_demos(data_path, expert_demo_nums, tactile_repr_module, image_tr
             data_path = data_path, 
             demo_id = demo_id, 
             image_id = image_id,
-            view_num = 1,
+            view_num = view_num,
             transform = image_transform
         )
         image_obs.append(image)
@@ -315,7 +312,8 @@ def get_all_demos(cfg: DictConfig):
             T.Resize(480),
             T.ToTensor(),
             T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS), 
-        ])
+        ]),
+        view_num = cfg.view_num
     )
 
     all_episodes = load_all_episodes(
@@ -338,6 +336,7 @@ def get_all_rewards(cfg: DictConfig):
 
     # Get all episodes first 
     expert_demos, episode_demos = get_all_demos(cfg)
+    print(len(expert_demos), len(episode_demos))
 
     # Get all the rewards
     _, image_encoder, _ = init_encoder_info(
@@ -396,7 +395,7 @@ def get_all_rewards(cfg: DictConfig):
     plotter.plot_rewards(
         nrows = nrows,
         ncols = ncols,
-        figure_name = f'plot_all_rewards_outputs/1st_ts_{episode_ts}_experts_{cfg.expert_demo_nums}_match_frames_{cfg.frames_to_match}_mb_{cfg.match_both}_rewards_{cfg.reward_representations}_expo_{cfg.expo_weight_init}_sorted'
+        figure_name = f'plot_all_rewards_outputs/{cfg.object}_{episode_ts}_experts_{cfg.expert_demo_nums}_match_frames_{cfg.frames_to_match}_mb_{cfg.match_both}_rewards_{cfg.reward_representations}_expo_{cfg.expo_weight_init}_sorted'
     )
 
 if __name__ == '__main__':

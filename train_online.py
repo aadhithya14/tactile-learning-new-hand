@@ -68,10 +68,10 @@ class Workspace:
 
     def _encoder_setup(self, cfg):
         print('cfg.image_model_type: {}'.format(cfg.image_model_type))
-        image_cfg, self.image_encoder, self.image_transform = init_encoder_info(self.device, cfg.image_out_dir, 'image', model_type=cfg.image_model_type)
+        image_cfg, self.image_encoder, self.image_transform = init_encoder_info(self.device, cfg.image_out_dir, 'image', view_num=cfg.camera_num, model_type=cfg.image_model_type)
         self.inv_image_transform = get_inverse_image_norm() 
 
-        tactile_cfg, self.tactile_encoder, _ = init_encoder_info(self.device, cfg.tactile_out_dir, 'tactile', model_type=cfg.tactile_model_type)
+        tactile_cfg, self.tactile_encoder, _ = init_encoder_info(self.device, cfg.tactile_out_dir, 'tactile', view_num=cfg.camera_num, model_type=cfg.tactile_model_type)
         tactile_img = TactileImage(
             tactile_image_size = tactile_cfg.tactile_image_size, 
             shuffle_type = None
@@ -283,10 +283,11 @@ class Workspace:
 
         self.train_video_recorder.init(self.train_env.render())
         metrics = None 
+        is_episode_done = False
         while train_until_step(self.global_step): # We're going to behave as if we act and the observations and the representations are coming from the mock_demo but all the rest should be the same
             
             # At the end of an episode actions
-            if time_step.last() or ((not self.mock_env) and self.global_step > 0 and (self.global_step % self.train_env.spec.max_episode_steps == 0)): # or self.mock_episodes['end_of_demos'][self.global_step % len(self.mock_episodes['end_of_demos'])] == 1: # ((self.global_step % self.train_env.spec.max_episode_steps == 0) and self.global_step > 0): # TODO: This could require more checks in the real world
+            if time_step.last() or is_episode_done: # TODO: This could require more checks in the real world
                 
                 self._global_episode += 1 # Episode has been finished
                 
@@ -377,7 +378,7 @@ class Workspace:
                         # eval_mode=False 
                     )
                 else:
-                    action, base_action = self.agent.act(
+                    action, base_action, is_episode_done = self.agent.act(
                         obs = dict(
                             image_obs = torch.FloatTensor(time_step.observation['pixels']),
                             tactile_repr = torch.FloatTensor(time_step.observation['tactile']),
@@ -387,13 +388,7 @@ class Workspace:
                         episode_step = episode_step,
                         eval_mode = False
                     )
-                
-            # print('ACTION: {}, BASE ACTION: {}, STEP: {}, TIME_STEP_OBS>SHAPE: {}, {}'.format(
-            #     action, base_action, self.global_step,
-            #     time_step.observation['tactile'].shape,
-            #     time_step.observation['pixels'].shape,
-            #     time_step.observation['features'].shape
-            # ))
+
             print('STEP: {}'.format(self.global_step))
             print('---------')
 

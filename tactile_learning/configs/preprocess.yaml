@@ -16,7 +16,7 @@ view_num: 0 # Camera ID to dump the images
 
 shorten_demo:
   apply: true
-  times: [10, 2, 3.5, 3, 0, 10, 2] # Times in seconds for each demo - if only one value is given then we'll only use that
+  times: [13, 2, 3.5, 3, 0, 10, 2] # Times in seconds for each demo - if only one value is given then we'll only use that
 
 repr_preprocessor: # NOTE: This was for BET  and IBC - we're just getting the representations in bet
   apply: false

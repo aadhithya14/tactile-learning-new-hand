@@ -92,13 +92,13 @@ class FISHAgent:
         self.kdl_solver = AllegroKDL()
 
         # TODO: Load the encoders - both the normal ones and the target ones
-        image_cfg, self.image_encoder, self.image_transform  = init_encoder_info(self.device, image_out_dir, 'image', model_type=image_model_type)
+        image_cfg, self.image_encoder, self.image_transform  = init_encoder_info(self.device, image_out_dir, 'image', view_num=view_num, model_type=image_model_type)
         self._set_image_transform()
 
         image_repr_dim = image_cfg.encoder.image_encoder.out_dim if image_model_type == 'bc' else image_cfg.encoder.out_dim
         
 
-        tactile_cfg, self.tactile_encoder, _ = init_encoder_info(self.device, tactile_out_dir, 'tactile', model_type=tactile_model_type)
+        tactile_cfg, self.tactile_encoder, _ = init_encoder_info(self.device, tactile_out_dir, 'tactile', view_num=view_num, model_type=tactile_model_type)
         tactile_img = TactileImage(
             tactile_image_size = tactile_cfg.tactile_image_size, 
             shuffle_type = None
@@ -195,6 +195,28 @@ class FISHAgent:
         for step_id in range(len(self.data['image']['indices'])): 
             # Set observations
             demo_id, tactile_id = self.data['tactile']['indices'][step_id]
+            if (demo_id != old_demo_id and step_id > 0) or (step_id == len(self.data['image']['indices'])-1):
+                
+                if self.end_frames_repeat > 1:
+                    # Stack the frame previous to the end - the end frame is not good - the last frame is the first frame...
+                    frame_id_to_stack= -1 # Get the -2nd frame to stack - NOTE: This is a hack for the dataset - the end frame could be noisy sometimes and the last frame shouldn't be added!
+                    image_to_append, tactile_to_append, action_to_append = image_obs[frame_id_to_stack], tactile_reprs[frame_id_to_stack], actions[frame_id_to_stack]                
+                    image_obs = image_obs[:frame_id_to_stack]
+                    tactile_reprs = tactile_reprs[:frame_id_to_stack]
+                    actions = actions[:frame_id_to_stack]
+                    for i in range(self.end_frames_repeat):
+                        image_obs.append(image_to_append)
+                        tactile_reprs.append(tactile_to_append)
+                        actions.append(action_to_append)
+                
+                self.expert_demos.append(dict(
+                    image_obs = torch.stack(image_obs, 0), # NOTE: I don't think there is a problem here 
+                    tactile_repr = torch.stack(tactile_reprs, 0),
+                    actions = np.stack(actions, 0)
+                ))
+                image_obs = [] 
+                tactile_reprs = []
+                actions = []
 
             tactile_value = self.data['tactile']['values'][demo_id][tactile_id]
             tactile_repr = self.tactile_repr.get(tactile_value, detach=False)
@@ -204,7 +226,7 @@ class FISHAgent:
                 data_path = self.data_path, 
                 demo_id = demo_id, 
                 image_id = image_id,
-                view_num = 1,
+                view_num = self.view_num,
                 transform = self.image_transform
             )
 
@@ -226,28 +248,7 @@ class FISHAgent:
             tactile_reprs.append(tactile_repr)
             actions.append(demo_action)
 
-            if (demo_id != old_demo_id and step_id > 0) or (step_id == len(self.data['image']['indices'])-1):
-                
-                # Stack the frame previous to the end - the end frame is not good - the last frame is the first frame...
-                frame_id_to_stack= -2 # Get the -2nd frame to stack - NOTE: This is a hack for the dataset - the end frame could be noisy sometimes and the last frame shouldn't be added!
-                image_to_append, tactile_to_append, action_to_append = image_obs[frame_id_to_stack], tactile_reprs[frame_id_to_stack], actions[frame_id_to_stack]                
-
-                image_obs = image_obs[:frame_id_to_stack+1]
-                tactile_reprs = tactile_reprs[:frame_id_to_stack+1]
-                actions = actions[:frame_id_to_stack+1]
-                for i in range(self.end_frames_repeat):
-                    image_obs.append(image_to_append)
-                    tactile_reprs.append(tactile_to_append)
-                    actions.append(action_to_append)
-                
-                self.expert_demos.append(dict(
-                    image_obs = torch.stack(image_obs[:frame_id_to_stack+1], 0), # NOTE: I don't think there is a problem here 
-                    tactile_repr = torch.stack(tactile_reprs[:frame_id_to_stack+1], 0),
-                    actions = np.stack(actions[:frame_id_to_stack+1], 0)
-                ))
-                image_obs = [] 
-                tactile_reprs = []
-                actions = []
+            
 
             old_demo_id = demo_id
 
@@ -273,8 +274,12 @@ class FISHAgent:
         print('self.exp_reprs.shape: {}'.format(self.exp_first_frame_reprs.shape))
 
     def _check_limits(self, offset_action):
-        limits = [-0.1, 0.1]
-        return torch.clamp(offset_action, min=limits[0], max=limits[1])    
+        # limits = [-0.1, 0.1]
+        hand_limits = [-self.hand_offset_scale_factor-0.2, self.hand_offset_scale_factor+0.2] 
+        arm_limits = [-self.arm_offset_scale_factor-0.02, self.arm_offset_scale_factor+0.02]
+        offset_action[:,:-7] = torch.clamp(offset_action[:,:-7], min=hand_limits[0], max=hand_limits[1])
+        offset_action[:,-7:] = torch.clamp(offset_action[:,-7:], min=arm_limits[0], max=arm_limits[1])
+        return offset_action
 
     def _get_closest_expert_id(self, obs):
         # Get the representation of the current observation
@@ -310,17 +315,22 @@ class FISHAgent:
         ))
 
         # Use expert_demos for base action retrieval
+        is_done = False
         if episode_step >= len(self.expert_demos[self.expert_id]['actions']):
             episode_step = len(self.expert_demos[self.expert_id]['actions'])-1
+            is_done = True
 
+        print('episode step: {}, len(self.expert_demos[self.expert_id][actions]: {}'.format(
+            episode_step, len(self.expert_demos[self.expert_id]['actions'])
+        ))
         action = self.expert_demos[self.expert_id]['actions'][episode_step]
 
-        return torch.FloatTensor(action).to(self.device)
+        return torch.FloatTensor(action).to(self.device).unsqueeze(0), is_done
 
 
     def act(self, obs, global_step, episode_step, eval_mode):
         with torch.no_grad():
-            base_action = self.base_act(obs, episode_step).unsqueeze(0)
+            base_action, is_done = self.base_act(obs, episode_step)
 
         print('base_action.shape: {}'.format(base_action.shape))
 
@@ -361,26 +371,25 @@ class FISHAgent:
          
         is_explore = global_step < self.num_expl_steps or (self.exponential_exploration and rand_num < epsilon)
 
-        print('is_explore: {}'.format(is_explore))
-        
         if is_explore and self.exponential_offset_exploration:  # TODO: Do the OU Noise
-            offset_action[:-7] *= self.hand_offset_scale_factor / ((episode_step+1)/2) 
-            offset_action[-7:] *= self.arm_offset_scale_factor / ((episode_step+1)/2)
+            offset_action[:,:-7] *= self.hand_offset_scale_factor / ((episode_step+1)/2) 
+            offset_action[:,-7:] *= self.arm_offset_scale_factor / ((episode_step+1)/2)
             if episode_step > 0:
                 offset_action += self.last_offset
             self.last_offset = offset_action
         else:
-            offset_action[:-7] *= self.hand_offset_scale_factor
-            offset_action[-7:] *= self.arm_offset_scale_factor
-
+            offset_action[:,:-7] *= self.hand_offset_scale_factor
+            offset_action[:,-7:] *= self.arm_offset_scale_factor
 
         # Check if the offset action is higher than the limits
         offset_action = self._check_limits(offset_action)
 
-        print('OFFSET ACTION: {}'.format(offset_action))
+        print('OFFSET ACTION: {}'.format(
+            offset_action[:,:-7]
+        ))
 
         action = base_action + offset_action
-        return action.cpu().numpy()[0], base_action.cpu().numpy()[0]
+        return action.cpu().numpy()[0], base_action.cpu().numpy()[0], is_done
 
     def _find_closest_mock_step(self, curr_step):
         offset_step = 0
@@ -431,8 +440,8 @@ class FISHAgent:
             dist = self.actor(next_obs, base_next_action, stddev)
 
             offset_action = dist.sample(clip=self.stddev_clip)
-            offset_action[:-7] *= self.hand_offset_scale_factor
-            offset_action[-7:] *= self.arm_offset_scale_factor 
+            offset_action[:,:-7] *= self.hand_offset_scale_factor
+            offset_action[:,-7:] *= self.arm_offset_scale_factor 
             next_action = base_next_action + offset_action
 
             target_Q1, target_Q2 = self.critic_target(next_obs, next_action)
@@ -643,6 +652,7 @@ class FISHAgent:
 
             # Concatenate everything now
             exp = torch.concat(exp_reprs, dim=-1).detach()
+            print('exp[{}].shape in ot_rewarder : {}'.format(expert_id, exp.shape))
 
             if self.rewards == 'sinkhorn_cosine':
                 cost_matrix = cosine_distance(
@@ -692,6 +702,9 @@ class FISHAgent:
         else:
             final_cost_matrix = cost_matrices[best_ot_reward_id]
             final_ot_reward = all_ot_rewards[best_ot_reward_id]
+
+        print('all_ot_rewards: {}'.format(all_ot_rewards))
+        print('final_ot_reward: {}'.format(final_ot_reward))
 
         if visualize:
             self.plot_cost_matrix(final_cost_matrix, expert_id=best_ot_reward_id, episode_id=episode_id)

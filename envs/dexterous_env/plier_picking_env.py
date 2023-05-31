@@ -24,6 +24,7 @@ class PlierPicking(DexterityEnv):
         **kwargs
     ): 
         super().__init__(**kwargs)
+        print('self.width: {}'.format(self.width))
 
     def set_home_state(self):
         self.home_state = dict(

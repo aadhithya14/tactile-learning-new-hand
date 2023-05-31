@@ -16,5 +16,5 @@ register(
 register(
     id = 'PlierPicking-v1',
     entry_point='dexterous_env.plier_picking_env:PlierPicking',
-	max_episode_steps=50,
+	max_episode_steps=80, # For the 16th demo
 )

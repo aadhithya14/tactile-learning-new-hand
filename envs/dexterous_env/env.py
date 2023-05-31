@@ -27,7 +27,7 @@ class DexterityEnv(gym.Env):
         width = 480, 
         action_type = 'joint'
     ):
-        self.widht = width
+        self.width = width
         self.height = height
         self.view_num = camera_num 
 
@@ -64,6 +64,41 @@ class DexterityEnv(gym.Env):
             tactile_image = tactile_img,
             representation_type = 'tdex'
         )
+
+        action_dim = 23 if action_type == 'joint' else 19
+        self.action_type = action_type
+        self.action_space = spaces.Box(low = np.array([-1]*action_dim,dtype=np.float32), # Actions are 12 + 7
+                                        high = np.array([1]*action_dim,dtype=np.float32),
+                                        dtype = np.float32)
+        # self.observation_space = spaces.Box(low = np.array([0,0],dtype=np.float32), high = np.array([255,255],dtype=np.float32), dtype = np.float32)
+        self.observation_space = spaces.Dict(dict(
+            pixels = spaces.Box(low = np.array([0,0],dtype=np.float32), high = np.array([255,255], dtype=np.float32), dtype = np.float32),
+            tactile = spaces.Box(low = np.array([-1]*tactile_repr_dim, dtype=np.float32),
+                                    high = np.array([1]*tactile_repr_dim, dtype=np.float32),
+                                    dtype = np.float32),
+            features = spaces.Box(low = np.array([-1]*23, dtype=np.float32),
+                                    high = np.array([1]*23, dtype=np.float32),
+                                    dtype = np.float32)
+        ))
+        
+        self.image_subscriber = ZMQCameraSubscriber(
+            host = host_address,
+            port = 10005 + self.view_num,
+            topic_type = 'RGB'
+        )
+        self.image_transform = T.Compose([ # No normalization just simple cropping
+            T.Resize((480,640)),
+            T.Lambda(self._crop_transform),
+            T.Resize((self.height, self.width)),
+            T.ToTensor(),
+            T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
+        ]) # We're not normalizing here - we normalize in the reward extraction
+
+        self.visualize_image_transform = T.Compose([
+            T.Resize((480,640)),
+            T.Lambda(self._crop_transform),
+            T.Resize((self.height, self.width))
+        ])
 
     def set_home_state(self):
         raise NotImplementedError # This method should be implemented by every class that inherits this
