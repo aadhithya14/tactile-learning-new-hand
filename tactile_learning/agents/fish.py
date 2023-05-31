@@ -115,6 +115,7 @@ class FISHAgent:
         self.reward_representations = reward_representations
         self.policy_representations = policy_representations
         self.view_num = view_num
+        self.inv_image_transform = get_inverse_image_norm() # This is only to be able to 
 
         # Freeze the encoders
         self.image_encoder.eval()
@@ -685,6 +686,17 @@ class FISHAgent:
                 ot_rewards = -(obs - exp).norm(dim=1)
                 ot_rewards *= self.sinkhorn_rew_scale
                 ot_rewards = ot_rewards.detach().cpu().numpy()
+
+            elif self.rewards == 'ssim': # Use structural similarity index match
+                expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'][-self.reward_matching_steps:,:])
+                episode_img = self.inv_image_transform(episode_obs['image_obs'][-self.reward_matching_steps:,:]) 
+                ot_rewards = structural_similarity_index(
+                    x = expert_img,
+                    y = episode_img
+                )
+                ot_rewards -= self.ssim_base_factor 
+                ot_rewards *= self.sinkhorn_rew_scale / (1 - self.ssim_base_factor) # We again scale it to 10 in the beginning
+                cost_matrix = torch.FloatTensor(ot_rewards)
                 
             else:
                 raise NotImplementedError()

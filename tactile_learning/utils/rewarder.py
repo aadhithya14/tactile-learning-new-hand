@@ -3,6 +3,8 @@ import torch
 import ot
 import numpy as np
 
+from skimage.metrics import structural_similarity as ssim
+
 def optimal_transport_plan(X,
                            Y,
                            cost_matrix,
@@ -44,4 +46,33 @@ def euclidean_distance(x, y):
     y_lin = y.unsqueeze(0)
     c = torch.sqrt(torch.sum((torch.abs(x_col - y_lin)) ** 2, 2))
     return c
+
+
+def structural_similarity_index(x, y):
+    # We assume that x and y are arrays of images
+    ssim_matrix = np.zeros((x.shape[0], y.shape[0]))
+    for i,x_img in enumerate(x):
+        for j,y_img in enumerate(y):
+            if len(x_img.shape) > 2: # If the images are RGB images 
+                channel_axis = 2 if x_img.shape[2] == 3 else 0
+            else:
+                channel_axis = None # Images are grayscale
+            
+            print('x_img.shape: {}, y_img.shape: {} in structural_similarity_index()'.format(
+                x_img.shape, y_img.shape
+            ))
+
+            x_img = x_img.numpy()
+            y_img = y_img.numpy() 
+
+            ssim_matrix[i,j] = ssim(
+                x_img,
+                y_img,
+                data_range = max(x_img.max(), y_img.max()) - min(x_img.min(), y_img.min()),
+                channel_axis = channel_axis
+            )
+
+    return ssim_matrix
+
+
 

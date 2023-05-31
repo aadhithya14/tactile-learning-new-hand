@@ -82,7 +82,8 @@ plot_all_rewards:
   expert_demo_nums: [15]
   episode_root_path: /home/irmak/Workspace/tactile-learning/buffer
   episode_roots:
-    - /home/irmak/Workspace/tactile-learning/buffer/2023.05.30T21-04_plier_picking
+    - /home/irmak/Workspace/tactile-learning/buffer/2023.05.31T14-49_plier_picking_reward_ssim_last_frames_1_offset_expo_True_base_policy_vinn_openloop
+    # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.30T21-04_plier_picking
     # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.30T16-33_plier_picking
     # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.24T14-17_last_frames_5_mfb_True_offset_expo_True_all_positions_x_axis_expert_0
     # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.24T11-17_last_frames_5_mfb_True_all_positions_x_axis_expert_0
@@ -97,10 +98,12 @@ plot_all_rewards:
     # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.19T16-21_last_frames_1_se_False_endrepeat_1_one_expert
     # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.19T16-14_last_frames_1_se_False_endrepeat_1
   frames_to_match: 1
-  match_both: True
+  match_both: False
   expo_weight_init: False # This is how we initialize the beginning weight for the transport plan - TODO!
   device: cuda
   view_num: 0
+  rewards: ssim
+  ssim_base_factor: 0.6
   reward_representations: ['image']
 
 reward_changer:

@@ -19,7 +19,7 @@ seed: 42
 device: cuda
 
 num_train_frames: 10000 # Total training numbers
-num_seed_frames: 1500
+num_seed_frames: 1000
 
 eval_every_frames: 100
 # buffer_path: 2023.05.22T16-20_last_frames_5_se_False_endrepeat_1_mfb_True_ee_False_offset_lowered # If there is a buffer path given this will be used
@@ -37,7 +37,7 @@ expert_id: 0 # 24
 # expert_demo_nums: [22,26] # Bowl Unstacking
 expert_demo_nums: [15]
 
-reward_matching_steps: 5 # We will only match the last 20 steps through the demonstration
+reward_matching_steps: 1 # We will only match the last 20 steps through the demonstration
 match_from_both: True # If true we'll match the rewards from both of the 
 exponential_weight_init: False # If true the initial weight in the ot reward will be exponential - currently it's equal importance to all timeframes
 end_frames_repeat: 1 # Stack the last frames for 20 times
@@ -46,6 +46,8 @@ scale_representations: False
 exponential_exploration: False # This is to explore sometimes when it's stuck
 exponential_offset_exploration: True # TODO: Test this - offset added is lowered exponentially
 base_policy: vinn_openloop
+rewards: ssim # it was sinkhorn cosine
+ssim_base_factor: 0.7 # It's assumed to give higher rewards
 mock_env: False # If set to true we will be using mock demos as the environment interaction
 mock_demo_nums: [10, 12, 13, 15, 2, 7] # Use all of them # [13,15,2,7] # 15 is the expert demo in the agent
 camera_num: 0
@@ -66,11 +68,11 @@ save_train_video: True
 save_train_cost_matrices: True
 
 # Snapshot loading
-load_snapshot: True
+load_snapshot: False
 snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot_plier_picking.pt
 
-log: True
-experiment: ${now:%Y.%m.%d}T${now:%H-%M}_${object}_last_frames_${reward_matching_steps}_offset_expo_${exponential_offset_exploration}_base_policy_${base_policy}
+log: False
+experiment: ${now:%Y.%m.%d}T${now:%H-%M}_${object}_reward_${rewards}_last_frames_${reward_matching_steps}_offset_expo_${exponential_offset_exploration}_base_policy_${base_policy}
 
 # hydra configuration - should be received separately
 hydra:

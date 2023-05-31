@@ -76,6 +76,8 @@ class Rewarder:
         match_both, # If true frames to match is used in both the expert and the episode
         # reward_representations=['image']
         device,
+        rewards,
+        ssim_base_factor
     ):
         self.image_encoder = image_encoder
         self.episode_demos = episode_demos # This is 
@@ -86,6 +88,39 @@ class Rewarder:
         # self.reward_representations = reward_representations
         self.sinkhorn_rew_scale = 200
         self.auto_rew_scale_factor = 10
+        self.ssim_base_factor = ssim_base_factor
+        self.rewards = rewards
+
+        self.inv_image_transform = get_inverse_image_norm()
+
+    def get_single_reward(self, episode_id, expert_id, reward_representations, expo_weight_init):
+        if self.rewards == 'sinkhorn_cosine':
+            obs, exp = self.get_reprs_for_reward(episode_id, expert_id, reward_representations)
+            cost_matrix = cosine_distance(
+                    obs, exp)  # Get cost matrix for samples using critic network.
+            transport_plan = optimal_transport_plan(
+                obs, exp, cost_matrix, method='sinkhorn',
+                niter=100, exponential_weight_init=expo_weight_init).float()  # Getting optimal coupling
+            ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
+                torch.mm(transport_plan,
+                            cost_matrix.T)).detach().cpu().numpy()
+            
+        elif self.rewards == 'ssim':
+            if self.match_both:
+                expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'][-self.frames_to_match:,:])
+            else:
+                expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'])
+            episode_img = self.inv_image_transform(self.episode_demos[episode_id]['image_obs'][-self.frames_to_match:,:]) 
+            ot_rewards = structural_similarity_index(
+                x = expert_img,
+                y = episode_img
+            )
+            ot_rewards -= self.ssim_base_factor 
+            ot_rewards *= self.sinkhorn_rew_scale / (1 - self.ssim_base_factor) # We again scale it to 10 in the beginning
+            cost_matrix = torch.FloatTensor(ot_rewards) 
+
+        return ot_rewards, cost_matrix
+
 
     # Will get the reward for each episde with the best expert
     # and will return expert ids, and the rewards for each episode
@@ -100,17 +135,14 @@ class Rewarder:
             best_ot_reward_id = -1
 
             for expert_id in range(len(self.expert_demos)):
-
-                obs, exp = self.get_reprs_for_reward(episode_id, expert_id, reward_representations)
-                cost_matrix = cosine_distance(
-                        obs, exp)  # Get cost matrix for samples using critic network.
-                transport_plan = optimal_transport_plan(
-                    obs, exp, cost_matrix, method='sinkhorn',
-                    niter=100, exponential_weight_init=expo_weight_init).float()  # Getting optimal coupling
-                ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
-                    torch.mm(transport_plan,
-                                cost_matrix.T)).detach().cpu().numpy()
                 
+                ot_rewards, _ = self.get_single_reward(
+                    episode_id,
+                    expert_id,
+                    reward_representations,
+                    expo_weight_init
+                )
+
                 all_ot_rewards.append(ot_rewards)
                 sum_ot_rewards = np.sum(ot_rewards) 
                 if sum_ot_rewards > best_reward_sum:
@@ -120,15 +152,12 @@ class Rewarder:
             # Normalize the rewards
             if episode_id == 0:
                 self.sinkhorn_rew_scale = self.sinkhorn_rew_scale * self.auto_rew_scale_factor / float(np.abs(best_reward_sum))
-                obs, exp = self.get_reprs_for_reward(episode_id, best_ot_reward_id, reward_representations)
-                cost_matrix = cosine_distance(
-                        obs, exp)  # Get cost matrix for samples using critic network.
-                transport_plan = optimal_transport_plan(
-                    obs, exp, cost_matrix, method='sinkhorn',
-                    niter=100).float()  # Getting optimal coupling
-                ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
-                    torch.mm(transport_plan,
-                                cost_matrix.T)).detach().cpu().numpy()
+                ot_rewards, _ = self.get_single_reward(
+                    episode_id,
+                    expert_id,
+                    reward_representations,
+                    expo_weight_init
+                ) 
                 
                 best_reward_sum = np.sum(ot_rewards)
 
@@ -352,7 +381,9 @@ def get_all_rewards(cfg: DictConfig):
         expert_demos = expert_demos, 
         frames_to_match = cfg.frames_to_match,
         match_both = cfg.match_both,
-        device = cfg.device
+        device = cfg.device,
+        rewards = cfg.rewards,
+        ssim_base_factor = cfg.ssim_base_factor
     )
     best_rewards, best_expert_ids = rewarder.get_ot_rewards(
         reward_representations = cfg.reward_representations,
@@ -395,7 +426,7 @@ def get_all_rewards(cfg: DictConfig):
     plotter.plot_rewards(
         nrows = nrows,
         ncols = ncols,
-        figure_name = f'plot_all_rewards_outputs/{cfg.object}_{episode_ts}_experts_{cfg.expert_demo_nums}_match_frames_{cfg.frames_to_match}_mb_{cfg.match_both}_rewards_{cfg.reward_representations}_expo_{cfg.expo_weight_init}_sorted'
+        figure_name = f'plot_all_rewards_outputs/{cfg.object}_{cfg.rewards}_{episode_ts}_experts_{cfg.expert_demo_nums}_match_frames_{cfg.frames_to_match}_mb_{cfg.match_both}_rewards_{cfg.reward_representations}_expo_{cfg.expo_weight_init}_sorted'
     )
 
 if __name__ == '__main__':

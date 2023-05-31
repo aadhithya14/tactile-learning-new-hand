@@ -3,3 +3,4 @@ data_path: ???
 tactile_information_type: whole_hand #whole_hand, stacked - bc we use alexnet now
 tactile_img_size: ${tactile_image_size}
 vision_view_num: 0
+vision_img_size: ${vision_image_size}

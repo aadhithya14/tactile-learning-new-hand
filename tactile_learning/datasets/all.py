@@ -140,7 +140,9 @@ class TemporalVisionJointDiffDataset(data.Dataset): # Class to train an encoder 
         
     def _crop_transform(self, image):
         return crop_transform(image, camera_view=self.view_num, image_size=self.img_size)
-    
+
+    def __len__(self):
+        return len(self.data['image']['indices']) - self.frame_diff
 
     def _get_joint_state(self, index):
         demo_id, allegro_id = self.data['allegro_joint_states']['indices'][index]

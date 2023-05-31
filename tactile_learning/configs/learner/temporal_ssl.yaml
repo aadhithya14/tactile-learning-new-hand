@@ -1,0 +1,3 @@
+repr_loss_fn: infonce 
+joint_diff_loss_fn: mse
+joint_diff_scale_factor: 100

@@ -7,8 +7,9 @@ from .vicreg import VICRegLearner
 from .behavior_cloning import ImageTactileBC
 from .bet import BETLearner
 from .bc_gmm import BCGMM
-from .simclr import SIMCLRLearner
 from .mocov3 import MOCOLearner
+from .simclr import SIMCLRLearner
+from .temporal_ssl import TemporalSSLLearner
 
 from tactile_learning.utils import *
 from tactile_learning.models import  *
@@ -43,8 +44,16 @@ def init_learner(cfg, device, rank=0):
             cfg,
             device
         )
-    
+    elif cfg.learner_type == 'temporal_ssl':
+        return init_temporal_learner(
+            cfg,
+            device,
+            rank
+        )
+
     return None
+
+
 
 def init_tactile_moco(cfg, device, rank):
     encoder = hydra.utils.instantiate(cfg.encoder).to(device)
@@ -266,6 +275,27 @@ def init_image_byol(cfg, device, rank):
 
     return learner
 
+def init_temporal_learner(cfg, device, rank):
+    encoder = hydra.utils.instantiate(cfg.encoder.encoder).to(device)
+    encoder = DDP(encoder, device_ids=[rank], output_device=rank, broadcast_buffers=False)
+
+    linear_layer = hydra.utils.instantiate(cfg.encoder.linear_layer).to(device)
+    linear_layer = DDP(linear_layer, device_ids=[rank], output_device=rank, broadcast_buffers=False)
+
+    optim_params = list(encoder.parameters()) + list(linear_layer.parameters())
+    optimizer = hydra.utils.instantiate(cfg.optimizer, params=optim_params)
+
+    learner = TemporalSSLLearner(
+        optimizer = optimizer,
+        repr_loss_fn = cfg.learner.repr_loss_fn,
+        joint_diff_loss_fn = cfg.learner.joint_diff_loss_fn,
+        encoder = encoder,
+        linear_layer = linear_layer,
+        joint_diff_scale_factor = cfg.learner.joint_diff_scale_factor
+    )
+    learner.to(device)
+
+    return learner
 
 def init_bc(cfg, device, rank):
     image_encoder = hydra.utils.instantiate(cfg.encoder.image_encoder).to(device)
