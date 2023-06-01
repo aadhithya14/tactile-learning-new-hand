@@ -144,7 +144,7 @@ class TemporalVisionJointDiffDataset(data.Dataset): # Class to train an encoder 
     def __len__(self):
         return len(self.data['image']['indices']) - self.frame_diff
 
-    def _get_joint_state(self, index):
+    def _get_joint_state(self, index, kinova_index=None):
         demo_id, allegro_id = self.data['allegro_joint_states']['indices'][index]
         allegro_action = self.data['allegro_joint_states']['values'][demo_id][allegro_id]
         _, kinova_id = self.data['kinova']['indices'][index]
@@ -156,7 +156,8 @@ class TemporalVisionJointDiffDataset(data.Dataset): # Class to train an encoder 
     # Gets the kinova states and the commanded joint states for allegro
     def _get_joint_diff(self, index):
         curr_joint_state = self._get_joint_state(index)
-        next_joint_state = self._get_joint_state(index + self.frame_diff)
+        closest_joint_state = self._find_the_closest_last_frame(index, data_type='kinova')
+        next_joint_state = self._get_joint_state(closest_joint_state)
 
         joint_state_diff = next_joint_state - curr_joint_state
         return torch.FloatTensor(joint_state_diff)
@@ -167,10 +168,21 @@ class TemporalVisionJointDiffDataset(data.Dataset): # Class to train an encoder 
         image_path = os.path.join(image_root, 'cam_{}_rgb_images/frame_{}.png'.format(self.view_num, str(image_id).zfill(5)))
         img = self.vision_transform(loader(image_path))
         return torch.FloatTensor(img) 
+    
+    def _find_the_closest_last_frame(self, index, data_type):
+        old_demo_id, _ = self.data[data_type]['indices'][index]
+        for i in range(index+1, index+self.frame_diff, 1):
+            demo_id, _ = self.data[data_type]['indices'][i]
+            if demo_id != old_demo_id:
+                return i-1
+         
+        return index + self.frame_diff
+
 
     def __getitem__(self, index):
         curr_image = self._get_image(index)
-        next_image = self._get_image(index + self.frame_diff)
+        closest_img_id = self._find_the_closest_last_frame(index, data_type = 'image')
+        next_image = self._get_image(closest_img_id)
 
         joint_diff = self._get_joint_diff(index)
 
