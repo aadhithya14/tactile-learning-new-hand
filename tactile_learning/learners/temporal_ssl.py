@@ -76,6 +76,10 @@ class TemporalSSLLearner(Learner):
             pred_joint_diff = self.linear_layer(all_repr)
             joint_diff_loss = self.joint_diff_loss_fn(joint_diff, pred_joint_diff)
 
+            # print('repr_loss: {}, joint_diff_loss: {}'.format(
+            #     repr_loss, joint_diff_loss
+            # ))
+
             loss = repr_loss + joint_diff_loss * self.joint_diff_scale_factor
             train_loss += loss.item()
 
