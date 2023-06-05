@@ -1,0 +1,4 @@
+defaults:
+  - _self_
+
+task_name: CardFlipping-v1

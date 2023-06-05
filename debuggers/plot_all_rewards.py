@@ -65,6 +65,7 @@ class RewardPlotter:
                 ))
         pbar.close()
         plt.savefig(figure_name, bbox_inches='tight')
+        print('dumped the figure in: {}'.format(figure_name))
 
 class Rewarder:
     def __init__(
@@ -77,12 +78,16 @@ class Rewarder:
         # reward_representations=['image']
         device,
         rewards,
-        ssim_base_factor
+        ssim_base_factor,
+        episode_frame_matches=None, 
+        expert_frame_matches=None,
     ):
         self.image_encoder = image_encoder
         self.episode_demos = episode_demos # This is 
         self.expert_demos = expert_demos
         self.frames_to_match = frames_to_match
+        self.episode_frame_matches = episode_frame_matches
+        self.expert_frame_matches = expert_frame_matches
         self.match_both = match_both 
         self.device = device 
         # self.reward_representations = reward_representations
@@ -104,16 +109,33 @@ class Rewarder:
             ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
                 torch.mm(transport_plan,
                             cost_matrix.T)).detach().cpu().numpy()
-            
+
+        elif self.rewards == 'cosine':
+            obs, exp = self.get_reprs_for_reward(episode_id, expert_id, reward_representations)
+            # exp = torch.cat((exp, exp[-1].unsqueeze(0)))
+            cost_matrix = cosine_distance(
+                    obs, exp)
+            ot_rewards = cost_matrix
+            ot_rewards *= -self.sinkhorn_rew_scale
+            ot_rewards = ot_rewards.detach().cpu().numpy()
+            # print('cost_matrix: {}, ot_rewards: {}'.format(
+            #     cost_matrix, ot_rewards
+            # ))
+
         elif self.rewards == 'ssim':
-            if self.match_both:
-                expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'][-self.frames_to_match:,:])
+            if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+                episode_img = self.inv_image_transform(self.episode_demos[episode_id]['image_obs'][-self.episode_frame_matches:,:]) 
+                expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'][-self.expert_frame_matches:,:])
             else:
-                expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'])
-            episode_img = self.inv_image_transform(self.episode_demos[episode_id]['image_obs'][-self.frames_to_match:,:]) 
+                if self.match_both:
+                    episode_img = self.inv_image_transform(self.episode_demos[episode_id]['image_obs'][-self.frames_to_match:,:]) 
+                else:
+                    episode_img = self.inv_image_transform(self.episode_demos[episode_id]['image_obs']) 
+                expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'][-self.frames_to_match:,:])
+            
             ot_rewards = structural_similarity_index(
                 x = expert_img,
-                y = episode_img
+                y = episode_img,
             )
             ot_rewards -= self.ssim_base_factor 
             ot_rewards *= self.sinkhorn_rew_scale / (1 - self.ssim_base_factor) # We again scale it to 10 in the beginning
@@ -182,14 +204,28 @@ class Rewarder:
         curr_reprs = []
         exp_reprs = []
         if 'image' in reward_representations: # We will not be using features for reward for sure
-            image_reprs = self.image_encoder(self.episode_demos[episode_id]['image_obs'][-self.frames_to_match:,:].to(self.device))
-            expert_image_reprs = self.image_encoder(self.expert_demos[expert_id]['image_obs'][-self.frames_to_match:,:].to(self.device))
+            if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+                image_reprs = self.image_encoder(self.episode_demos[episode_id]['image_obs'][-self.episode_frame_matches:,:].to(self.device))
+                expert_image_reprs = self.image_encoder(self.expert_demos[expert_id]['image_obs'][-self.expert_frame_matches:,:].to(self.device))
+            else:
+                if self.match_both:
+                    image_reprs = self.image_encoder(self.episode_demos[episode_id]['image_obs'][-self.frames_to_match:,:].to(self.device))
+                else:
+                    image_reprs = self.image_encoder(self.episode_demos[episode_id]['image_obs'].to(self.device))
+                expert_image_reprs = self.image_encoder(self.expert_demos[expert_id]['image_obs'][-self.frames_to_match:,:].to(self.device))
             curr_reprs.append(image_reprs)
             exp_reprs.append(expert_image_reprs)
     
         if 'tactile' in reward_representations:
-            tactile_reprs = self.episode_demos[episode_id]['tactile_repr'][-self.frames_to_match:,:].to(self.device) # This will give all the representations of one episode
-            expert_tactile_reprs = self.expert_demos[expert_id]['tactile_repr'][-self.frames_to_match:,:].to(self.device)
+            if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+                tactile_reprs = self.episode_demos[episode_id]['tactile_repr'][-self.episode_frame_matches:,:].to(self.device)
+                expert_tactile_reprs = self.expert_demos[expert_id]['tactile_repr'][-self.expert_frame_matches:,:].to(self.device)
+            else:
+                if self.match_both:
+                    tactile_reprs = self.episode_demos[episode_id]['tactile_repr'][-self.frames_to_match:,:].to(self.device) # This will give all the representations of one episode
+                else:
+                    tactile_reprs = self.episode_demos[episode_id]['tactile_repr'].to(self.device)
+                expert_tactile_reprs = self.expert_demos[expert_id]['tactile_repr'][-self.frames_to_match:,:].to(self.device)
             curr_reprs.append(tactile_reprs)
             exp_reprs.append(expert_tactile_reprs)
 
@@ -373,7 +409,7 @@ def get_all_rewards(cfg: DictConfig):
         out_dir = cfg.image_out_dir,
         encoder_type = 'image',
         view_num = cfg.view_num,
-        model_type = 'bc'
+        model_type = 'temporal' # This
     )
     rewarder = Rewarder(
         image_encoder = image_encoder,
@@ -383,7 +419,9 @@ def get_all_rewards(cfg: DictConfig):
         match_both = cfg.match_both,
         device = cfg.device,
         rewards = cfg.rewards,
-        ssim_base_factor = cfg.ssim_base_factor
+        ssim_base_factor = cfg.ssim_base_factor,
+        expert_frame_matches = cfg.expert_frame_matches,
+        episode_frame_matches = cfg.episode_frame_matches
     )
     best_rewards, best_expert_ids = rewarder.get_ot_rewards(
         reward_representations = cfg.reward_representations,
@@ -426,7 +464,7 @@ def get_all_rewards(cfg: DictConfig):
     plotter.plot_rewards(
         nrows = nrows,
         ncols = ncols,
-        figure_name = f'plot_all_rewards_outputs/{cfg.object}_{cfg.rewards}_{episode_ts}_experts_{cfg.expert_demo_nums}_match_frames_{cfg.frames_to_match}_mb_{cfg.match_both}_rewards_{cfg.reward_representations}_expo_{cfg.expo_weight_init}_sorted'
+        figure_name = f'plot_all_rewards_outputs/{cfg.object}_{cfg.rewards}_{episode_ts}_experts_{cfg.expert_demo_nums}_len_episodes_{len(cfg.episode_roots)}_ex_match_{cfg.expert_frame_matches}_ep_match_{cfg.episode_frame_matches}_frames_to_match_{cfg.frames_to_match}_mb_{cfg.match_both}_rewards_{cfg.reward_representations}_expo_{cfg.expo_weight_init}_sorted'
     )
 
 if __name__ == '__main__':

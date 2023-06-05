@@ -2,13 +2,19 @@ defaults:
   - suite: gym
   - agent: fish # Optimizer will be initialized inside the agent
 
-object: plier_picking
+object: card_flipping
 data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.06/10-50_image_byol_bs_32_epochs_500_lr_1e-05_bowl_picking_after_rss
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.11/13-21_bc_bs_32_epochs_500_lr_1e-05_bowl_picking_after_rss - Bowl Picking BC
-image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.29/19-45_bc_bs_32_epochs_500_lr_1e-05_plier_picking
-image_model_type: bc
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.29/19-45_bc_bs_32_epochs_500_lr_1e-05_plier_picking
+# image_model_type: bc
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.31/21-12_temporal_ssl_bs_32_epochs_1000_lr_1e-05_card_flipping_frame_diff_8 # small env
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.31/21-20_temporal_ssl_bs_32_epochs_1000_lr_1e-05_card_flipping_frame_diff_8 # resnet
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.02/21-37_temporal_ssl_bs_32_epochs_1000_lr_1e-05_plier_picking_frame_diff_8 # small enc
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.02/21-37_temporal_ssl_bs_32_epochs_1000_lr_1e-05_plier_picking_frame_diff_8 # resnet
+image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.04/21-28_temporal_ssl_bs_32_epochs_1000_lr_1e-05_card_flipping_frame_diff_5_resnet
+image_model_type: temporal
 tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120 # - Play data encoder
 tactile_model_type: byol # It could be ssl/byol as well
 
@@ -19,7 +25,7 @@ seed: 42
 device: cuda
 
 num_train_frames: 10000 # Total training numbers
-num_seed_frames: 1000
+num_seed_frames: 1000 # Have the first episode random
 
 eval_every_frames: 100
 # buffer_path: 2023.05.22T16-20_last_frames_5_se_False_endrepeat_1_mfb_True_ee_False_offset_lowered # If there is a buffer path given this will be used
@@ -30,23 +36,37 @@ eval_every_frames: 100
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.26T14-17_last_frames_5_offset_expo_True_base_policy_vinn_openloop)experts_[22, 26]
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.26T15-53_last_frames_5_offset_expo_True_base_policy_vinn_openloop_experts_[22, 26]
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.30T16-33_plier_picking_last_frames_5_offset_expo_True_base_policy_vinn_openloop_experts_[20]_tactile_added
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.01T17-58_plier_picking_reward_sinkhorn_cosine_last_frames_1_offset_expo_True_base_policy_vinn_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.02T12-09_plier_picking_reward_ssim_exp_match_1_ep_match_10_diff_positions
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.02T19-51_plier_picking_reward_sinkhorn_cosine_exp_match_1_ep_match_10_diff_positions_arm_front
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.04T15-43_plier_picking_reward_sinkhorn_cosine_exp_match_1_ep_match_10_diff_positions_arm_front
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.04T16-35_card_flipping_reward_sinkhorn_cosine_exp_match_1_ep_match_10_diff_positions_arm_front
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.04T22-49_plier_picking_reward_reprs_['image']_policy_reprs_['image', 'tactile', 'features']
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.04T22-49_plier_picking_reward_reprs_[image]_policy_reprs_[image_tactile_features]
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.05T06-03_plier_picking_reward_reprs_[image_ tactile]_policy_reprs_[image_tactile_features]
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.04T22-49_plier_picking_reward_reprs_[image]_policy_reprs_[image_tactile_features]
 buffer_path: null
 
 # FISH and environment params
 expert_id: 0 # 24
 # expert_demo_nums: [22,26] # Bowl Unstacking
-expert_demo_nums: [15]
+# expert_demo_nums: [5] # Pre-Sponge Flipping
+# expert_demo_nums: [15] # Plier Picking
+expert_demo_nums: [24] # Sponge Flipping
 
 reward_matching_steps: 1 # We will only match the last 20 steps through the demonstration
 match_from_both: True # If true we'll match the rewards from both of the 
+episode_frame_matches: 10 
+expert_frame_matches: 1
 exponential_weight_init: False # If true the initial weight in the ot reward will be exponential - currently it's equal importance to all timeframes
 end_frames_repeat: 1 # Stack the last frames for 20 times
 sum_experts: False
 scale_representations: False
 exponential_exploration: False # This is to explore sometimes when it's stuck
-exponential_offset_exploration: True # TODO: Test this - offset added is lowered exponentially
+exponential_offset_exploration: False # TODO: Test this - offset added is lowered exponentially
+exploration: ou_noise
 base_policy: vinn_openloop
-rewards: ssim # it was sinkhorn cosine
+rewards: sinkhorn_cosine # it was sinkhorn cosine
 ssim_base_factor: 0.7 # It's assumed to give higher rewards
 mock_env: False # If set to true we will be using mock demos as the environment interaction
 mock_demo_nums: [10, 12, 13, 15, 2, 7] # Use all of them # [13,15,2,7] # 15 is the expert demo in the agent
@@ -68,11 +88,11 @@ save_train_video: True
 save_train_cost_matrices: True
 
 # Snapshot loading
-load_snapshot: False
-snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot_plier_picking.pt
+load_snapshot: False 
+snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot_plier_picking_reward_image_policy_image_tactile_features_2.pt
 
-log: False
-experiment: ${now:%Y.%m.%d}T${now:%H-%M}_${object}_reward_${rewards}_last_frames_${reward_matching_steps}_offset_expo_${exponential_offset_exploration}_base_policy_${base_policy}
+log: True
+experiment: ${now:%Y.%m.%d}T${now:%H-%M}_${object}_reward_reprs_${reward_representations}_policy_reprs_${policy_representations}
 
 # hydra configuration - should be received separately
 hydra:

@@ -48,8 +48,11 @@ def euclidean_distance(x, y):
     return c
 
 
-def structural_similarity_index(x, y):
+def structural_similarity_index(x, y, base_factor):
     # We assume that x and y are arrays of images
+    print('IN SSIM - x.shape: {}, y.shape: {}'.format(
+        x.shape, y.shape
+    ))
     ssim_matrix = np.zeros((x.shape[0], y.shape[0]))
     for i,x_img in enumerate(x):
         for j,y_img in enumerate(y):
@@ -62,15 +65,24 @@ def structural_similarity_index(x, y):
                 x_img.shape, y_img.shape
             ))
 
-            x_img = x_img.numpy()
-            y_img = y_img.numpy() 
+            try:
+                x_img = x_img.numpy()
+            except:
+                pass
+            try:
+                y_img = y_img.numpy() 
+            except:
+                pass
 
-            ssim_matrix[i,j] = ssim(
+            ssim_value = ssim(
                 x_img,
                 y_img,
                 data_range = max(x_img.max(), y_img.max()) - min(x_img.min(), y_img.min()),
                 channel_axis = channel_axis
             )
+            # Normalize the ssim value to have a distinctive reward 
+            ssim_value = (ssim_value - base_factor) / (1 - base_factor)
+            ssim_matrix[i,j] = ssim_value 
 
     return ssim_matrix
 

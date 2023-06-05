@@ -114,7 +114,7 @@ def main(cfg : DictConfig) -> None:
     workspace = Workspace(cfg)
 
     os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "29506"
+    os.environ["MASTER_PORT"] = "29505"
     
     print("Distributed training enabled. Spawning {} processes.".format(workspace.cfg.world_size))
     mp.spawn(workspace.train, nprocs=workspace.cfg.world_size)

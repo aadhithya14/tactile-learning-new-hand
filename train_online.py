@@ -257,12 +257,50 @@ class Workspace:
  
         return time_steps, observations
 
+    def eval(self):
+		step, episode, total_reward = 0, 0, 0
+		eval_until_episode = utils.Until(self.cfg.suite.num_eval_episodes)
+
+		self.video_recorder.init(self.train_env, enabled=True)
+		while eval_until_episode(episode):
+			print(f"Eval Episode {episode}")
+			time_step = self.train_env.reset()
+			while not time_step.last():
+				with torch.no_grad(), utils.eval_mode(self.agent):
+					action, vinn_action = self.agent.act(time_step.observation[self.cfg.obs_type],
+											self.global_step,
+											eval_mode=True)
+				time_step = self.train_env.step(action, vinn_action)
+				self.video_recorder.record(self.train_env)
+				total_reward += time_step.reward
+				step += 1
+
+			episode += 1
+			x = input("Press Enter to continue... after reseting env")
+			# reset buffer and openloop count
+			self.agent.buffer.reset()
+			self.agent.openloop_step_count = 0
+			self.agent.count = 0
+
+		self.video_recorder.save(f'{self.global_frame}.mp4')
+		
+		with self.logger.log_and_dump_ctx(self.global_frame, ty='eval') as log:
+			log('episode_reward', total_reward / episode)
+			log('episode_length', step * self.cfg.suite.action_repeat / episode)
+			log('episode', self.global_episode)
+			log('step', self.global_step)
+			if repr(self.agent) != 'drqv2':
+				log('expert_reward', self.expert_reward)
+		
+		# Reset env
+		self.train_env.reset()
+
     # Main online training code - this will be giving the rewards only for now
     def train_online(self):
         # Set the predicates for training
         train_until_step = Until(self.cfg.num_train_frames)
         seed_until_step = Until(self.cfg.num_seed_frames)
-        # eval_every_step = Every(self.cfg.eval_every_frames) # Evaluate in every these steps
+        eval_every_step = Every(self.cfg.eval_every_frames) # Evaluate in every these steps
 
         episode_step, episode_reward = 0, 0
 
@@ -282,7 +320,7 @@ class Workspace:
             self.agent.sinkhorn_rew_scale = 1. # This will be set after the first episode
 
         self.train_video_recorder.init(self.train_env.render())
-        metrics = None 
+        metrics = dict() 
         is_episode_done = False
         while train_until_step(self.global_step): # We're going to behave as if we act and the observations and the representations are coming from the mock_demo but all the rest should be the same
             
@@ -328,12 +366,6 @@ class Workspace:
                 obs_length = len(time_steps)
                 avg_reward = new_rewards_sum / obs_length
                 for i, elt in enumerate(time_steps):
-                    # Give average reward to steps that are lower than reward_matching_steps
-                    # if i < (obs_length - self.cfg.reward_matching_steps):
-                    #     new_reward = avg_reward
-                    # else:
-                    #     # If not give the actual reward
-                    #     new_reward = new_rewards[self.cfg.reward_matching_steps - (obs_length - i)]
                     if i > (obs_length - self.cfg.reward_matching_steps):
                         new_reward = new_rewards[self.cfg.reward_matching_steps - (obs_length - i)]
                         elt = elt._replace(reward=new_reward) # Update the reward of the object accordingly
@@ -378,7 +410,7 @@ class Workspace:
                         # eval_mode=False 
                     )
                 else:
-                    action, base_action, is_episode_done = self.agent.act(
+                    action, base_action, is_episode_done, metrics = self.agent.act(
                         obs = dict(
                             image_obs = torch.FloatTensor(time_step.observation['pixels']),
                             tactile_repr = torch.FloatTensor(time_step.observation['tactile']),
@@ -388,6 +420,8 @@ class Workspace:
                         episode_step = episode_step,
                         eval_mode = False
                     )
+                    if self.cfg.log:
+                        self.logger.log_metrics(metrics, self.global_frame, 'global_frame')
 
             print('STEP: {}'.format(self.global_step))
             print('---------')

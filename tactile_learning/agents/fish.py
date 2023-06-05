@@ -30,7 +30,8 @@ class FISHAgent:
         data_path, expert_demo_nums, expert_id, reward_matching_steps, mock_demo_nums,
         features_repeat, sum_experts, experiment_name, end_frames_repeat,
         scale_representations, exponential_exploration, base_policy,
-        exponential_offset_exploration, match_from_both,
+        exponential_offset_exploration, match_from_both, expert_frame_matches,
+        episode_frame_matches, ssim_base_factor, exploration,
         image_out_dir, tactile_out_dir, image_model_type, tactile_model_type, # This is used to get the tactile representation size
         reward_representations, policy_representations, view_num,
         action_shape, device, lr, feature_dim,
@@ -83,7 +84,12 @@ class FISHAgent:
         self.exponential_offset_exploration = exponential_offset_exploration
         self.last_offset = None # This will be changed if expo offset is set to true
         self.match_from_both = match_from_both
+        self.expert_frame_matches = expert_frame_matches
+        self.episode_frame_matches = episode_frame_matches
+        self.ssim_base_factor = ssim_base_factor
         self.base_policy = base_policy
+        self.exploration = exploration
+        
         if base_policy:
             self.first_frame_encoder = resnet18(pretrained=True, out_dim=512) # NOTE: Set this differently
 
@@ -95,8 +101,9 @@ class FISHAgent:
         image_cfg, self.image_encoder, self.image_transform  = init_encoder_info(self.device, image_out_dir, 'image', view_num=view_num, model_type=image_model_type)
         self._set_image_transform()
 
-        image_repr_dim = image_cfg.encoder.image_encoder.out_dim if image_model_type == 'bc' else image_cfg.encoder.out_dim
-        
+        print('image_cfg.encoder: {}'.format(image_cfg.encoder))
+        # image_repr_dim = image_cfg.encoder.image_encoder.out_dim if image_model_type == 'bc' else image_cfg.encoder.out_dim # TODO: Merge these in a better hydra config
+        image_repr_dim = 512
 
         tactile_cfg, self.tactile_encoder, _ = init_encoder_info(self.device, tactile_out_dir, 'tactile', view_num=view_num, model_type=tactile_model_type)
         tactile_img = TactileImage(
@@ -310,6 +317,12 @@ class FISHAgent:
 
         if self.base_policy == 'vinn_openloop' and episode_step == 0: # Get the expert id that has the closest representaiton in the beginning
             self.expert_id, self.l2_distances = self._get_closest_expert_id(obs)
+            # Set the exploration
+            if self.exploration == 'ou_noise':
+                self.ou_noise = OrnsteinUhlenbeckActionNoise(
+                    mu = np.zeros(len(self.offset_mask)), # The mean of the offsets should be 0
+                    sigma = 0.8 # It will give bw -1 and 1 - then this gets multiplied by the scale factors ...
+                )
         
         print('EXPERT ID: {}, L2 DIST: {}'.format(
             self.expert_id, self.l2_distances
@@ -329,7 +342,7 @@ class FISHAgent:
         return torch.FloatTensor(action).to(self.device).unsqueeze(0), is_done
 
 
-    def act(self, obs, global_step, episode_step, eval_mode):
+    def act(self, obs, global_step, episode_step, eval_mode, metrics=None):
         with torch.no_grad():
             base_action, is_done = self.base_act(obs, episode_step)
 
@@ -365,6 +378,11 @@ class FISHAgent:
                     print('EXPLORING!!!')
                     offset_action.uniform_(-1.0, 1.0)
                     offset_action *= self.offset_mask
+            elif self.exploration == 'ou_noise':
+                if global_step < self.num_expl_steps:
+                    offset_action = torch.FloatTensor(self.ou_noise()).to(self.device).unsqueeze(0)
+                    print('ou_noise offset: {}'.format(offset_action.shape))
+                    offset_action *= self.offset_mask 
             else:
                 if global_step < self.num_expl_steps:
                     offset_action.uniform_(-1.0, 1.0)
@@ -385,12 +403,22 @@ class FISHAgent:
         # Check if the offset action is higher than the limits
         offset_action = self._check_limits(offset_action)
 
-        print('OFFSET ACTION: {}'.format(
+        print('HAND OFFSET ACTION: {}'.format(
             offset_action[:,:-7]
+        ))
+        print('ARM OFFSET ACTION: {}'.format(
+            offset_action[:,-7:]
         ))
 
         action = base_action + offset_action
-        return action.cpu().numpy()[0], base_action.cpu().numpy()[0], is_done
+
+        # If metrics are not None then plot the offsets
+        metrics = dict()
+        for i in range(len(self.offset_mask)):
+            offset_key = f'offset_{i}'
+            metrics[offset_key] = offset_action[:,i]
+
+        return action.cpu().numpy()[0], base_action.cpu().numpy()[0], is_done, metrics
 
     def _find_closest_mock_step(self, curr_step):
         offset_step = 0
@@ -552,6 +580,7 @@ class FISHAgent:
             reprs.append(image_reprs)
 
         if 'tactile' in self.policy_representations:
+            # tactile_repr *= 50 # In order to scale the image and the tactile representations
             print('tactile_repr.mean(): {}'.format(tactile_repr.mean()))
             tactile_reprs = tactile_repr.to(self.device) # This will give all the representations of one batch
             reprs.append(tactile_reprs)
@@ -573,6 +602,13 @@ class FISHAgent:
         image_obs, tactile_repr, features, action, base_action, reward, discount, next_image_obs, next_tactile_repr, next_features, base_next_action = to_torch(
             batch, self.device)
         
+        # Multiply action with the offset mask just incase if the buffer was not saved that way
+        # action *= self.offset_mask
+        offset_action = action - base_action
+        print('prev offset: {} - shape: {}'.format(offset_action[-1], offset_action.shape))
+        offset_action *= self.offset_mask 
+        action = base_action + offset_action
+        print('new offset: {} - shape: {}'.format(offset_action[-1], offset_action.shape))
         print('UPDATE - image_obs.shape: {}'.format(image_obs.shape))
 
         # Get the representations
@@ -623,17 +659,23 @@ class FISHAgent:
         # Get the episode representations
         curr_reprs = []
         if 'image' in self.reward_representations: # We will not be using features for reward for sure
-            if self.match_from_both:
-                image_reprs = self.image_encoder(episode_obs['image_obs'][-self.reward_matching_steps:,:].to(self.device))
+            if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+                image_reprs = self.image_encoder(episode_obs['image_obs'][-self.episode_frame_matches:,:].to(self.device))
             else:
-                image_reprs = self.image_encoder(episode_obs['image_obs'].to(self.device))
+                if self.match_from_both:
+                    image_reprs = self.image_encoder(episode_obs['image_obs'][-self.reward_matching_steps:,:].to(self.device))
+                else:
+                    image_reprs = self.image_encoder(episode_obs['image_obs'].to(self.device))
             curr_reprs.append(image_reprs) # NOTE: We should alwasys get all of the observation
 
         if 'tactile' in self.reward_representations:
-            if self.match_from_both:
-                tactile_reprs = episode_obs['tactile_repr'][-self.reward_matching_steps:,:].to(self.device) # This will give all the representations of one episode
+            if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+                tactile_reprs = episode_obs['tactile_repr'][-self.episode_frame_matches:,:].to(self.device)
             else:
-                tactile_reprs = episode_obs['tactile_repr'].to(self.device)
+                if self.match_from_both:
+                    tactile_reprs = episode_obs['tactile_repr'][-self.reward_matching_steps:,:].to(self.device) # This will give all the representations of one episode
+                else:
+                    tactile_reprs = episode_obs['tactile_repr'].to(self.device)
             curr_reprs.append(tactile_reprs)
 
         # Concatenate everything now
@@ -644,11 +686,17 @@ class FISHAgent:
             # Get the expert representations
             exp_reprs = []
             if 'image' in self.reward_representations: # We will not be using features for reward for sure
-                expert_image_reprs = self.image_encoder(self.expert_demos[expert_id]['image_obs'][-self.reward_matching_steps:,:].to(self.device))
+                if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+                    expert_image_reprs = self.image_encoder(self.expert_demos[expert_id]['image_obs'][-self.expert_frame_matches:,:].to(self.device))
+                else:
+                    expert_image_reprs = self.image_encoder(self.expert_demos[expert_id]['image_obs'][-self.reward_matching_steps:,:].to(self.device))
                 exp_reprs.append(expert_image_reprs)
 
             if 'tactile' in self.reward_representations:
-                expert_tactile_reprs = self.expert_demos[expert_id]['tactile_repr'][-self.reward_matching_steps:,:].to(self.device)
+                if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+                    expert_tactile_reprs = self.expert_demos[expert_id]['tactile_repr'][-self.expert_frame_matches:,:].to(self.device)
+                else:
+                    expert_tactile_reprs = self.expert_demos[expert_id]['tactile_repr'][-self.reward_matching_steps:,:].to(self.device)
                 exp_reprs.append(expert_tactile_reprs)
 
             # Concatenate everything now
@@ -688,14 +736,24 @@ class FISHAgent:
                 ot_rewards = ot_rewards.detach().cpu().numpy()
 
             elif self.rewards == 'ssim': # Use structural similarity index match
-                expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'][-self.reward_matching_steps:,:])
-                episode_img = self.inv_image_transform(episode_obs['image_obs'][-self.reward_matching_steps:,:]) 
+                if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+                    episode_img = self.inv_image_transform(episode_obs['image_obs'][-self.episode_frame_matches:,:]) 
+                    expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'][-self.expert_frame_matches:,:])
+                else:
+                    if self.match_from_both:
+                        episode_img = self.inv_image_transform(episode_obs['image_obs'][-self.reward_matching_steps:,:]) 
+                    else:
+                        episode_img = self.inv_image_transform(episode_obs['image_obs'])
+                    expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'][-self.reward_matching_steps:,:])
+
                 ot_rewards = structural_similarity_index(
                     x = expert_img,
-                    y = episode_img
+                    y = episode_img,
+                    base_factor = self.ssim_base_factor
                 )
-                ot_rewards -= self.ssim_base_factor 
-                ot_rewards *= self.sinkhorn_rew_scale / (1 - self.ssim_base_factor) # We again scale it to 10 in the beginning
+                # ot_rewards -= self.ssim_base_factor 
+                # ot_rewards *= self.sinkhorn_rew_scale / (1 - self.ssim_base_factor) # We again scale it to 10 in the beginning
+                ot_rewards *= self.sinkhorn_rew_scale
                 cost_matrix = torch.FloatTensor(ot_rewards)
                 
             else:

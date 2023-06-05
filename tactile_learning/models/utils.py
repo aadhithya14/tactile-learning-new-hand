@@ -50,13 +50,14 @@ def init_encoder_info(device, out_dir, encoder_type='tactile', view_num=1, model
         
         else:
             cfg = OmegaConf.load(os.path.join(out_dir, '.hydra/config.yaml'))
-            bc_model_type = None # TODO: Clean this code
-            if model_type == 'byol': # We assume that the model path is byol directly
-                model_path = os.path.join(out_dir, f'models/{model_type}_encoder_best.pt')
-            elif model_type == 'bc':
-                model_path = os.path.join(out_dir, f'models/{model_type}_{encoder_type}_encoder_best.pt')
-                bc_model_type = encoder_type
-            encoder = load_model(cfg, device, model_path, bc_model_type)
+
+            if 'byol' in cfg.learner_type: # We assume that the model path is byol directly
+                model_path = os.path.join(out_dir, f'models/byol_encoder_best.pt')
+            elif cfg.learner_type == 'bc': # NOTE: Check these in the future lol
+                model_path = os.path.join(out_dir, f'models/bc_{encoder_type}_encoder_best.pt')
+            else:
+                model_path = os.path.join(out_dir, f'models/{encoder_type}_encoder_best.pt')
+            encoder = load_model(cfg, device, model_path, encoder_type)
         encoder.eval() 
         
         if encoder_type == 'image':
@@ -76,20 +77,25 @@ def init_encoder_info(device, out_dir, encoder_type='tactile', view_num=1, model
         return cfg, encoder, transform
 
 
-def load_model(cfg, device, model_path, bc_model_type=None):
+def load_model(cfg, device, model_path, model_type=None):
     # Initialize the model
     # TODO: Make all these initialization more general - init_learner and load_model!
     if cfg.learner_type == 'bc':
-        if bc_model_type == 'image':
+        if model_type == 'image':
             model = hydra.utils.instantiate(cfg.encoder.image_encoder)
-        elif bc_model_type == 'tactile':
+        elif model_type == 'tactile':
             model = hydra.utils.instantiate(cfg.encoder.tactile_encoder)
-        elif bc_model_type == 'last_layer':
+        elif model_type == 'last_layer':
             model = hydra.utils.instantiate(cfg.encoder.last_layer)
     elif cfg.learner_type == 'bc_gmm':
         model = hydra.utils.instantiate(cfg.learner.gmm_layer)
     elif 'byol' in cfg.learner_type: # load the encoder
         model = hydra.utils.instantiate(cfg.encoder)  
+    elif cfg.learner_type == 'temporal_ssl':
+        if model_type == 'image':
+            model = hydra.utils.instantiate(cfg.encoder.encoder)
+        elif model_type == 'linear_layer':
+            model = hydra.utils.instantiate(cfg.encoder.linear_layer)
 
     state_dict = torch.load(model_path) # All the parameters by default gets installed to cuda 0
     

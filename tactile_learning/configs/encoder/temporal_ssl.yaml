@@ -1,7 +1,4 @@
 encoder:
-  # _target_: tactile_learning.models.ImageBCEncoder
-  # out_dim: 512
-  # in_channels: 3
   _target_: tactile_learning.models.pretrained.resnet18
   pretrained: true
   out_dim: 512

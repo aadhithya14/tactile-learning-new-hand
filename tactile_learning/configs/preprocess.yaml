@@ -1,4 +1,4 @@
-data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/plier_picking
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/card_flipping
 process_single_demo: false
 
 # Preprocessing for different types - if both false then preprocessing is done for deployment
@@ -16,7 +16,7 @@ view_num: 0 # Camera ID to dump the images
 
 shorten_demo:
   apply: true
-  times: [13, 2, 3.5, 3, 0, 10, 2] # Times in seconds for each demo - if only one value is given then we'll only use that
+  times: [8,1,1,1,1,1,1] # Times in seconds for each demo - if only one value is given then we'll only use that
 
 repr_preprocessor: # NOTE: This was for BET  and IBC - we're just getting the representations in bet
   apply: false

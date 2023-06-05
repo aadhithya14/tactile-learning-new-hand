@@ -2,4 +2,4 @@ _target_: tactile_learning.datasets.TemporalVisionJointDiffDataset
 data_path: ???
 vision_view_num: 0
 vision_img_size: ${vision_image_size}
-frame_diff: 8
+frame_diff: 5
