@@ -73,7 +73,7 @@ encoder_targets:
 # trained_targets:
 
 plot_all_rewards:
-  object: plier_picking
+  object: card_turning
   data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/${plot_all_rewards.object}
   tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
   # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.11/13-21_bc_bs_32_epochs_500_lr_1e-05_bowl_picking_after_rss
@@ -82,11 +82,13 @@ plot_all_rewards:
   # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.31/21-12_temporal_ssl_bs_32_epochs_1000_lr_1e-05_card_flipping_frame_diff_8
   # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.31/21-20_temporal_ssl_bs_32_epochs_1000_lr_1e-05_card_flipping_frame_diff_8
   # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.02/19-41_temporal_ssl_bs_32_epochs_1000_lr_1e-05_plier_picking_frame_diff_8 # - tempoeral small enc
-  image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.02/21-37_temporal_ssl_bs_32_epochs_1000_lr_1e-05_plier_picking_frame_diff_8 # temporal resnet
-  expert_demo_nums: [15]
+  # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.02/21-37_temporal_ssl_bs_32_epochs_1000_lr_1e-05_plier_picking_frame_diff_8 # temporal resnet
+  image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.05/19-59_temporal_ssl_bs_32_epochs_1000_lr_1e-05_card_turning_frame_diff_5_resnet
+  expert_demo_nums: [16]
   episode_root_path: /home/irmak/Workspace/tactile-learning/buffer
   episode_roots:
-    - /home/irmak/Workspace/tactile-learning/buffer/2023.06.02T19-51_plier_picking_reward_sinkhorn_cosine_exp_match_1_ep_match_10_diff_positions_arm_front
+    - /home/irmak/Workspace/tactile-learning/buffer/2023.06.05T22-34_card_turning_reward_reprs_[image]_policy_reprs_[image_tactile_features]
+    # - /home/irmak/Workspace/tactile-learning/buffer/2023.06.02T19-51_plier_picking_reward_sinkhorn_cosine_exp_match_1_ep_match_10_diff_positions_arm_front
     # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.31T14-49_plier_picking_reward_ssim_last_frames_1_offset_expo_True_base_policy_vinn_openloop
     # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.30T21-04_plier_picking
     # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.30T16-33_plier_picking
@@ -101,13 +103,13 @@ plot_all_rewards:
     # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.19T19-30_last_frames_1_se_False_endrepeat_1_transform_and_training_fixed
     # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.19T18-35_last_frames_1_se_False_endrepeat_1_one_expert_both_last_frame_image_transform_changed
     # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.19T16-21_last_frames_1_se_False_endrepeat_1_one_expert
-    # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.19T16-14_last_frames_1_se_False_endrepeat_1
+  # - /home/irmak/Workspace/tactile-learning/buffer/2023.05.19T16-14_last_frames_1_se_False_endrepeat_1
   episode_frame_matches: 10 
   expert_frame_matches: 1
   frames_to_match: null # 10
   match_both: null # True
   expo_weight_init: False # This is how we initialize the beginning weight for the transport plan - TODO!
-  device: cuda
+  device: cuda:1
   view_num: 0
   rewards: sinkhorn_cosine
   ssim_base_factor: 0.6
@@ -128,3 +130,14 @@ reward_changer:
   device: cuda
   view_num: 1
   reward_representations: ['image']
+
+encoder_metric_calculator:
+  model_path: null
+  model_type: null
+  view_num: null 
+  encoder_fn: null
+  device: null
+
+  task_name: bowl_unstacking
+  expert_demo_nums: []
+  view_num: 1

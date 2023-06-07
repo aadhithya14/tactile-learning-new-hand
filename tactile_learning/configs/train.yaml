@@ -14,6 +14,7 @@ self_supervised: false
 batch_size: 32
 tactile_image_size: 64 # 224 # This could be changed for stacked or shared architectures
 vision_image_size: 480
+vision_view_num: 0
 train_epochs: 1000
 save_frequency: 10
 train_dset_split: 0.95
@@ -24,8 +25,8 @@ world_size: 1
 num_gpus: 4
 
 # Data path to be set
-object: card_flipping
-experiment: ${learner_type}_bs_${batch_size}_epochs_${train_epochs}_lr_${optimizer.lr}_${object}_frame_diff_${dataset.frame_diff}_resnet # Name of the experiment that the models are saved
+object: peg_insertion
+experiment: ${learner_type}_bs_${batch_size}_epochs_${train_epochs}_view_${vision_view_num}_${object}_frame_diff_${dataset.frame_diff}_resnet # Name of the experiment that the models are saved
 data_dir: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}
 # data_dir: /data/tactile_dexterity/play_data
 checkpoint_dir: ??? # Will be set to hydra dir inside the code

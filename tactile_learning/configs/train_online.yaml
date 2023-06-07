@@ -2,7 +2,7 @@ defaults:
   - suite: gym
   - agent: fish # Optimizer will be initialized inside the agent
 
-object: card_flipping
+object: peg_insertion # plier_picking
 data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.06/10-50_image_byol_bs_32_epochs_500_lr_1e-05_bowl_picking_after_rss
@@ -12,22 +12,29 @@ data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.31/21-12_temporal_ssl_bs_32_epochs_1000_lr_1e-05_card_flipping_frame_diff_8 # small env
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.31/21-20_temporal_ssl_bs_32_epochs_1000_lr_1e-05_card_flipping_frame_diff_8 # resnet
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.02/21-37_temporal_ssl_bs_32_epochs_1000_lr_1e-05_plier_picking_frame_diff_8 # small enc
-# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.02/21-37_temporal_ssl_bs_32_epochs_1000_lr_1e-05_plier_picking_frame_diff_8 # resnet
-image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.04/21-28_temporal_ssl_bs_32_epochs_1000_lr_1e-05_card_flipping_frame_diff_5_resnet
+
+image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.02/21-37_temporal_ssl_bs_32_epochs_1000_lr_1e-05_plier_picking_frame_diff_8 # resnet - plier picking 
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.04/21-28_temporal_ssl_bs_32_epochs_1000_lr_1e-05_card_flipping_frame_diff_5_resnet # sponge flipping
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.05/19-59_temporal_ssl_bs_32_epochs_1000_lr_1e-05_card_turning_frame_diff_5_resnet # eraser turning
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.06/18-27_temporal_ssl_bs_32_epochs_1000_view_1_bowl_picking_frame_diff_5_resnet # bowl unstacking
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.06/22-59_temporal_ssl_bs_32_epochs_1000_view_0_peg_insertion_frame_diff_5_resnet # peg insertion 
+
 image_model_type: temporal
 tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120 # - Play data encoder
 tactile_model_type: byol # It could be ssl/byol as well
 
-reward_representations: ['image']
+reward_representations: ['image', 'tactile']
 policy_representations: ['image', 'tactile', 'features']
 
 seed: 42 
 device: cuda
 
 num_train_frames: 10000 # Total training numbers
-num_seed_frames: 1000 # Have the first episode random
+num_seed_frames: 0 # Have the first episode random
+eval_every_frames: 600 # Evaluate in each every 600 frames
+num_eval_episodes: 20
+evaluate: true
 
-eval_every_frames: 100
 # buffer_path: 2023.05.22T16-20_last_frames_5_se_False_endrepeat_1_mfb_True_ee_False_offset_lowered # If there is a buffer path given this will be used
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.23T19-14_last_frames_5_mfb_True_all_positions_x_axis
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.05.23T15-17_last_frames_5_se_False_endrepeat_1_mfb_True_ee_False_offset_lowered_position_8
@@ -45,14 +52,29 @@ eval_every_frames: 100
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.04T22-49_plier_picking_reward_reprs_[image]_policy_reprs_[image_tactile_features]
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.05T06-03_plier_picking_reward_reprs_[image_ tactile]_policy_reprs_[image_tactile_features]
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.04T22-49_plier_picking_reward_reprs_[image]_policy_reprs_[image_tactile_features]
-buffer_path: null
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.05T13-36_card_flipping_reward_reprs_[image]_policy_reprs_[image_tactile_features]
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.05T22-34_card_turning_reward_reprs_[image]_policy_reprs_[image_tactile_features]
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.06T00-00_card_turning_reward_reprs_[image]_policy_reprs_[image_tactile_features]
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.06T06-57_card_flipping_reward_reprs_[image]_policy_reprs_[image_features]
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.06T11-31_card_turning_reward_reprs_[image]_policy_reprs_[image_tactile_features]
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.06T13-23_card_turning_reward_reprs_[image]_policy_reprs_[image_tactile_features] - final success
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.06T16-42_plier_picking_reward_reprs_[image]_policy_reprs_[image_tactile_features]
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.06T21-50_bowl_picking_reward_reprs_[image]_policy_reprs_[image_tactile_features]
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.07T01-04_card_turning_reward_reprs_[image]_policy_reprs_[image_features]
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.07T03-05_card_turning_reward_reprs_[image]_policy_reprs_[image_features]
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.07T05-03_card_turning_reward_reprs_[image_tactile]_policy_reprs_[image_tactile_features]
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.07T06-27_plier_picking_reward_reprs_[image]_policy_reprs_[image_features]
+buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.07T07-24_plier_picking_reward_reprs_[image_tactile]_policy_reprs_[image_tactile_features]
 
 # FISH and environment params
 expert_id: 0 # 24
 # expert_demo_nums: [22,26] # Bowl Unstacking
 # expert_demo_nums: [5] # Pre-Sponge Flipping
-# expert_demo_nums: [15] # Plier Picking
-expert_demo_nums: [24] # Sponge Flipping
+
+expert_demo_nums: [15] # Plier Picking
+# expert_demo_nums: [24] # Sponge Flipping
+# expert_demo_nums: [16] # Eraser Turning
+# expert_demo_nums: [22] # Bowl Unstacking
 
 reward_matching_steps: 1 # We will only match the last 20 steps through the demonstration
 match_from_both: True # If true we'll match the rewards from both of the 
@@ -83,13 +105,13 @@ nstep: 3
 batch_size: 256
 
 # Recorder
-save_video: False 
+save_eval_video: True 
 save_train_video: True 
 save_train_cost_matrices: True
 
 # Snapshot loading
-load_snapshot: False 
-snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot_plier_picking_reward_image_policy_image_tactile_features_2.pt
+load_snapshot: True
+snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/corl_trainings/plier_picking_5_offsets/snapshot_plier_picking_reward_image_tactile_policy_image_tactile_features_scale_0.25_2.pt
 
 log: True
 experiment: ${now:%Y.%m.%d}T${now:%H-%M}_${object}_reward_reprs_${reward_representations}_policy_reprs_${policy_representations}

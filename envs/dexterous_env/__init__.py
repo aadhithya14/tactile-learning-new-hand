@@ -24,3 +24,10 @@ register(
     entry_point='dexterous_env.card_flipping_env:CardFlipping',
 	max_episode_steps=80, # For the 16th demo
 )
+
+
+register(
+    id = 'CardTurning-v1',
+    entry_point='dexterous_env.card_turning_env:CardTurning',
+	max_episode_steps=80, # For the 16th demo
+)

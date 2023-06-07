@@ -19,11 +19,13 @@ class TemporalSSLLearner(Learner):
         joint_diff_loss_fn, # mse
         encoder, # Get the image representations 
         linear_layer, # Predict the joint difference given the image reprs 
-        joint_diff_scale_factor # Will be used to scale the joint difference loss with the representation loss
+        joint_diff_scale_factor, # Will be used to scale the joint difference loss with the representation loss
+        total_loss_type, # contrastive, joint, contrastive_joint 
     ):
         self.optimizer = optimizer
         self.encoder = encoder
         self.linear_layer = linear_layer
+        self.total_loss_type = total_loss_type
 
         if repr_loss_fn == 'infonce':
             self.repr_loss_fn = InfoNCE()
@@ -68,19 +70,25 @@ class TemporalSSLLearner(Learner):
             curr_repr = self.encoder(curr_img)
             next_repr = self.encoder(next_img)
 
-            repr_loss = self.repr_loss_fn(
-                curr_repr,
-                next_repr
-            )
-            all_repr = torch.concat([curr_repr, next_repr], dim=-1)
-            pred_joint_diff = self.linear_layer(all_repr)
-            joint_diff_loss = self.joint_diff_loss_fn(joint_diff, pred_joint_diff)
+            loss = 0
+            if 'contrastive' in self.total_loss_type:
+                repr_loss = self.repr_loss_fn(
+                    curr_repr,
+                    next_repr
+                )
+                loss += repr_loss
+
+            if 'joint' in self.total_loss_type:
+                all_repr = torch.concat([curr_repr, next_repr], dim=-1)
+                pred_joint_diff = self.linear_layer(all_repr)
+                joint_diff_loss = self.joint_diff_loss_fn(joint_diff, pred_joint_diff)
+                loss += joint_diff_loss * self.joint_diff_scale_factor
 
             # print('repr_loss: {}, joint_diff_loss: {}'.format(
             #     repr_loss, joint_diff_loss
             # ))
 
-            loss = repr_loss + joint_diff_loss * self.joint_diff_scale_factor
+            # loss = repr_loss + joint_diff_loss * self.joint_diff_scale_factor
             train_loss += loss.item()
 
             loss.backward() 
@@ -98,16 +106,29 @@ class TemporalSSLLearner(Learner):
             with torch.no_grad():
                 curr_repr = self.encoder(curr_img)
                 next_repr = self.encoder(next_img)
-                
-                repr_loss = self.repr_loss_fn(
-                    curr_repr,
-                    next_repr
-                )
-                all_repr = torch.concat([curr_repr, next_repr], dim=-1)
-                pred_joint_diff = self.linear_layer(all_repr)
-                joint_diff_loss = self.joint_diff_loss_fn(joint_diff, pred_joint_diff)
 
-            loss = repr_loss + joint_diff_loss * self.joint_diff_scale_factor
+                loss = 0
+                if 'contrastive' in self.total_loss_type:
+                    repr_loss = self.repr_loss_fn(
+                        curr_repr,
+                        next_repr
+                    )
+                    loss += repr_loss
+
+                if 'joint' in self.total_loss_type:
+                    all_repr = torch.concat([curr_repr, next_repr], dim=-1)
+                    pred_joint_diff = self.linear_layer(all_repr)
+                    joint_diff_loss = self.joint_diff_loss_fn(joint_diff, pred_joint_diff)
+                    loss += joint_diff_loss * self.joint_diff_scale_factor 
+                # repr_loss = self.repr_loss_fn(
+                #     curr_repr,
+                #     next_repr
+                # )
+            #     all_repr = torch.concat([curr_repr, next_repr], dim=-1)
+            #     pred_joint_diff = self.linear_layer(all_repr)
+            #     joint_diff_loss = self.joint_diff_loss_fn(joint_diff, pred_joint_diff)
+
+            # loss = repr_loss + joint_diff_loss * self.joint_diff_scale_factor
             test_loss += loss.item()
 
         return test_loss / len(test_loader)

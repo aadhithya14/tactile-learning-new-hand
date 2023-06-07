@@ -12,6 +12,7 @@ class OpenLoop(Deployer):
         data_path, # root in string
         demo_to_run,
         apply_allegro_states = False, # boolean to indicate if we should apply commanded allegro states or actual allegro states
+        deployment_dump_dir = None
     ):
 
         roots = glob.glob(f'{data_path}/demonstration_*')

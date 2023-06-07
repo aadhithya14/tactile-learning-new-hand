@@ -277,10 +277,12 @@ def init_image_byol(cfg, device, rank):
 
 def init_temporal_learner(cfg, device, rank):
     encoder = hydra.utils.instantiate(cfg.encoder.encoder).to(device)
-    encoder = DDP(encoder, device_ids=[rank], output_device=rank, broadcast_buffers=False)
+    if cfg.distributed:
+        encoder = DDP(encoder, device_ids=[rank], output_device=rank, broadcast_buffers=False)
 
     linear_layer = hydra.utils.instantiate(cfg.encoder.linear_layer).to(device)
-    linear_layer = DDP(linear_layer, device_ids=[rank], output_device=rank, broadcast_buffers=False)
+    if cfg.distributed:
+        linear_layer = DDP(linear_layer, device_ids=[rank], output_device=rank, broadcast_buffers=False)
 
     optim_params = list(encoder.parameters()) + list(linear_layer.parameters())
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=optim_params)
@@ -291,7 +293,8 @@ def init_temporal_learner(cfg, device, rank):
         joint_diff_loss_fn = cfg.learner.joint_diff_loss_fn,
         encoder = encoder,
         linear_layer = linear_layer,
-        joint_diff_scale_factor = cfg.learner.joint_diff_scale_factor
+        joint_diff_scale_factor = cfg.learner.joint_diff_scale_factor,
+        total_loss_type = cfg.learner.total_loss_type
     )
     learner.to(device)
 

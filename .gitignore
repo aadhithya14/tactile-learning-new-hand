@@ -149,5 +149,6 @@ notebooks/.ipynb_checkpoints/*
 buffer/*
 weights/*
 *video*/*
+*outs/*
 
 debuggers/outputs/*

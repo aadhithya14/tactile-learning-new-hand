@@ -42,6 +42,7 @@ class TrainVideoRecorder:
         if save_dir is not None:
             self.save_dir = save_dir
             self.save_dir.mkdir(exist_ok=True)
+            print('self.save_dir in TrainVideoRecorder: {}'.format(self.save_dir))
         elif root_dir is not None:
             self.save_dir = root_dir / 'train_video/videos'
             self.save_dir.mkdir(exist_ok=True)

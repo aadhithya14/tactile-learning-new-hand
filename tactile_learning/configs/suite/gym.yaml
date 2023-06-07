@@ -1,7 +1,7 @@
 # @package suite
 defaults:
   - _self_
-  - task: card_flipping
+  - task: plier_picking # plier_picking
 
 suite: dexterousgym
 name: 'dexterous_gym'
@@ -20,8 +20,8 @@ num_train_frames: 2010
 num_seed_frames: 200
 
 # eval
-eval_every_frames: 700
-num_eval_episodes: 10
+# eval_every_frames: 700
+# num_eval_episodes: 10 # When it evaluates - evaluate it for 10 episodes
 
 task_make_fn:
   _target_: tactile_learning.environments.make

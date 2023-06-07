@@ -146,10 +146,12 @@ class Workspace:
         if self.cfg.bc_regularize: # NOTE: If we use bc regularize you should create an expert replay buffer
             self.expert_replay_iter = None
         
-        self.video_recorder = VideoRecorder(
-            self.work_dir if self.cfg.save_video else None)
+        if self.cfg.evaluate:
+            self.eval_video_recorder = TrainVideoRecorder( # It is the same recorder for our case
+                save_dir = Path(self.work_dir) / 'online_training_outs/eval_video/videos' / self.cfg.experiment if self.cfg.save_eval_video else None,
+                root_dir = None)
         self.train_video_recorder = TrainVideoRecorder(
-            save_dir = Path(self.work_dir) / 'train_video/videos' / self.cfg.experiment if self.cfg.save_train_video else None,
+            save_dir = Path(self.work_dir) / 'online_training_outs/train_video/videos' / self.cfg.experiment if self.cfg.save_train_video else None,
             root_dir = None)
 
     def _set_mock_demos(self):
@@ -226,7 +228,7 @@ class Workspace:
         snapshot = self.work_dir / 'weights'
         snapshot.mkdir(parents=True, exist_ok=True)
         if eval:
-            snapshot = snapshot / ('snapshot.pt' if not save_step else f'snapshot_{self.global_step}_eval.pt')
+            snapshot = snapshot / ('snapshot_eval.pt' if not save_step else f'snapshot_{self.global_step}_eval.pt')
         else:
             snapshot = snapshot / ('snapshot.pt' if not save_step else f'snapshot_{self.global_step}.pt')
         keys_to_save = ['_global_step', '_global_episode']
@@ -257,43 +259,52 @@ class Workspace:
  
         return time_steps, observations
 
-    def eval(self):
-		step, episode, total_reward = 0, 0, 0
-		eval_until_episode = utils.Until(self.cfg.suite.num_eval_episodes)
+    def eval(self, evaluation_step):
+        step, episode = 0, 0
+        eval_until_episode = Until(self.cfg.num_eval_episodes)
+        while eval_until_episode(episode):
+            episode_step = 0
+            is_episode_done = False
+            print(f"Eval Episode {episode}")
+            time_steps = list() 
+            observations = dict(
+                image_obs = list(),
+                tactile_repr = list(),
+                features = list()
+            )
+            time_step = self.train_env.reset()
+            time_steps, observations = self._add_time_step(time_step, time_steps, observations)
+            self.eval_video_recorder.init(time_step.observation['pixels'])
 
-		self.video_recorder.init(self.train_env, enabled=True)
-		while eval_until_episode(episode):
-			print(f"Eval Episode {episode}")
-			time_step = self.train_env.reset()
-			while not time_step.last():
-				with torch.no_grad(), utils.eval_mode(self.agent):
-					action, vinn_action = self.agent.act(time_step.observation[self.cfg.obs_type],
-											self.global_step,
-											eval_mode=True)
-				time_step = self.train_env.step(action, vinn_action)
-				self.video_recorder.record(self.train_env)
-				total_reward += time_step.reward
-				step += 1
+            while not (time_step.last() or is_episode_done):
+                with torch.no_grad(), utils.eval_mode(self.agent):
 
-			episode += 1
-			x = input("Press Enter to continue... after reseting env")
-			# reset buffer and openloop count
-			self.agent.buffer.reset()
-			self.agent.openloop_step_count = 0
-			self.agent.count = 0
+                    action, base_action, is_episode_done, metrics = self.agent.act(
+                        obs = dict(
+                            image_obs = torch.FloatTensor(time_step.observation['pixels']),
+                            tactile_repr = torch.FloatTensor(time_step.observation['tactile']),
+                            features = torch.FloatTensor(time_step.observation['features'])
+                        ),
+                        global_step = self.global_step, 
+                        episode_step = episode_step,
+                        eval_mode = True # When set to true this will return the mean of the offsets learned from the model
+                    )
+                time_step = self.train_env.step(action, base_action)
+                time_steps, observations = self._add_time_step(time_step, time_steps, observations)
+                self.eval_video_recorder.record(time_step.observation['pixels'])
+                step += 1
+                episode_step += 1
+                
+                if self.cfg.log:
+                    self.logger.log_metrics(metrics, self.global_frame, 'global_frame')
 
-		self.video_recorder.save(f'{self.global_frame}.mp4')
-		
-		with self.logger.log_and_dump_ctx(self.global_frame, ty='eval') as log:
-			log('episode_reward', total_reward / episode)
-			log('episode_length', step * self.cfg.suite.action_repeat / episode)
-			log('episode', self.global_episode)
-			log('step', self.global_step)
-			if repr(self.agent) != 'drqv2':
-				log('expert_reward', self.expert_reward)
-		
-		# Reset env
-		self.train_env.reset()
+            episode += 1
+            x = input("Press Enter to continue... after reseting env")
+
+            self.eval_video_recorder.save(f'{self.cfg.object}_eval_{evaluation_step}_{episode}.mp4')
+        
+        # Reset env
+        self.train_env.reset()
 
     # Main online training code - this will be giving the rewards only for now
     def train_online(self):
@@ -319,13 +330,13 @@ class Workspace:
         if self.agent.auto_rew_scale:
             self.agent.sinkhorn_rew_scale = 1. # This will be set after the first episode
 
-        self.train_video_recorder.init(self.train_env.render())
+        self.train_video_recorder.init(time_step.observation['pixels'])
         metrics = dict() 
         is_episode_done = False
         while train_until_step(self.global_step): # We're going to behave as if we act and the observations and the representations are coming from the mock_demo but all the rest should be the same
             
             # At the end of an episode actions
-            if time_step.last() or is_episode_done: # TODO: This could require more checks in the real world
+            if time_step.last() or is_episode_done:
                 
                 self._global_episode += 1 # Episode has been finished
                 
@@ -437,6 +448,9 @@ class Workspace:
                 )
                 if self.cfg.log:
                     self.logger.log_metrics(metrics, self.global_frame, 'global_frame')
+
+            if self.cfg.evaluate and eval_every_step(self.cfg.eval_every_frames):
+                self.eval(evaluation_step = int(self.global_step/self.cfg.eval_every_frames))
              
             # Take the environment steps    
             time_step = self.train_env.step(action, base_action)

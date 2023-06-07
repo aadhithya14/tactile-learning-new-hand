@@ -1,20 +1,5 @@
 # Main script for hand interractions 
-import cv2 
-import gym
 import numpy as np
-import os
-import torch
-import torchvision.transforms as T
-
-from gym import spaces
-from holobot_api import DeployAPI
-from holobot.robot.allegro.allegro_kdl import AllegroKDL
-from holobot.utils.network import ZMQCameraSubscriber
-from PIL import Image as im
-
-from tactile_learning.tactile_data import TactileImage, TactileRepresentation
-from tactile_learning.models import init_encoder_info
-from tactile_learning.utils import *
 
 from .env import DexterityEnv
 

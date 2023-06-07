@@ -315,14 +315,16 @@ class FISHAgent:
     def base_act(self, obs, episode_step): # Returns the action for the base policy - openloop
         # TODO: You should get the nearest neighbor at the beginning and maybe at each step as well?
 
-        if self.base_policy == 'vinn_openloop' and episode_step == 0: # Get the expert id that has the closest representaiton in the beginning
-            self.expert_id, self.l2_distances = self._get_closest_expert_id(obs)
+        if episode_step == 0:
             # Set the exploration
             if self.exploration == 'ou_noise':
                 self.ou_noise = OrnsteinUhlenbeckActionNoise(
                     mu = np.zeros(len(self.offset_mask)), # The mean of the offsets should be 0
                     sigma = 0.8 # It will give bw -1 and 1 - then this gets multiplied by the scale factors ...
                 )
+
+            if self.base_policy == 'vinn_openloop': # Get the expert id that has the closest representaiton in the beginning
+                self.expert_id, self.l2_distances = self._get_closest_expert_id(obs)
         
         print('EXPERT ID: {}, L2 DIST: {}'.format(
             self.expert_id, self.l2_distances
@@ -377,17 +379,18 @@ class FISHAgent:
                 if rand_num < epsilon:
                     print('EXPLORING!!!')
                     offset_action.uniform_(-1.0, 1.0)
-                    offset_action *= self.offset_mask
+                    # offset_action *= self.offset_mask
             elif self.exploration == 'ou_noise':
                 if global_step < self.num_expl_steps:
                     offset_action = torch.FloatTensor(self.ou_noise()).to(self.device).unsqueeze(0)
                     print('ou_noise offset: {}'.format(offset_action.shape))
-                    offset_action *= self.offset_mask 
+                    # offset_action *= self.offset_mask 
             else:
                 if global_step < self.num_expl_steps:
                     offset_action.uniform_(-1.0, 1.0)
-                    offset_action *= self.offset_mask
-         
+                    # offset_action *= self.offset_mask
+
+        offset_action *= self.offset_mask 
         is_explore = global_step < self.num_expl_steps or (self.exponential_exploration and rand_num < epsilon)
 
         if is_explore and self.exponential_offset_exploration:  # TODO: Do the OU Noise
@@ -415,8 +418,12 @@ class FISHAgent:
         # If metrics are not None then plot the offsets
         metrics = dict()
         for i in range(len(self.offset_mask)):
-            offset_key = f'offset_{i}'
-            metrics[offset_key] = offset_action[:,i]
+            if self.offset_mask[i] == 1: # Only log the times when there is an allowed offset
+                if eval_mode:
+                    offset_key = f'offset_{i}_eval'
+                else:
+                    offset_key = f'offset_{i}_train'
+                metrics[offset_key] = offset_action[:,i]
 
         return action.cpu().numpy()[0], base_action.cpu().numpy()[0], is_done, metrics
 
@@ -605,10 +612,8 @@ class FISHAgent:
         # Multiply action with the offset mask just incase if the buffer was not saved that way
         # action *= self.offset_mask
         offset_action = action - base_action
-        print('prev offset: {} - shape: {}'.format(offset_action[-1], offset_action.shape))
         offset_action *= self.offset_mask 
         action = base_action + offset_action
-        print('new offset: {} - shape: {}'.format(offset_action[-1], offset_action.shape))
         print('UPDATE - image_obs.shape: {}'.format(image_obs.shape))
 
         # Get the representations
@@ -797,7 +802,7 @@ class FISHAgent:
         plt.ylabel('Observation Timesteps')
         plt.title(file_name)
 
-        dump_dir = Path('/home/irmak/Workspace/tactile-learning/train_video/costs') / self.experiment_name
+        dump_dir = Path('/home/irmak/Workspace/tactile-learning/online_training_outs/costs') / self.experiment_name
         # dump_dir = os.path.join('/home/irmak/Workspace/tactile-learning/train_video/costs/{}')
         os.makedirs(dump_dir, exist_ok=True)
         dump_file = os.path.join(dump_dir, file_name)

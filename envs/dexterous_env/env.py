@@ -38,16 +38,6 @@ class DexterityEnv(gym.Env):
 
         self.set_home_state()
 
-        # self.home_state = dict(
-        #     kinova = np.array( [-0.49514708,  0.29150361,  0.34026781, -0.07374543, -0.72189188, -0.04998896,  0.68624681]), 
-        #     allegro = np.array([
-        #         0, -0.17453293, 0.78539816, 0.78539816,           # Index
-        #         0, -0.17453293,  0.78539816,  0.78539816,         # Middle
-        #         0.08726646, -0.08726646, 0.87266463,  0.78539816, # Ring 
-        #         1.04719755,  0.43633231,  0.26179939, 0.78539816  # Thumb
-        #     ])
-        # )
-
         self._hand = AllegroKDL()
         
         # Get the tactile encoder

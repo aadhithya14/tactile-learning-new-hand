@@ -31,7 +31,7 @@ class Workspace:
         self.cfg = cfg
 
     def train(self) -> None:
-        device = torch.device('cuda')
+        device = torch.device(self.cfg.device)
 
         # It looks at the datatype type and returns the train and test loader accordingly
         train_loader, test_loader, _ = get_dataloaders(self.cfg)
@@ -40,8 +40,6 @@ class Workspace:
         learner = init_learner(self.cfg, device)
 
         best_loss = torch.inf 
-
-
         pbar = tqdm(total=self.cfg.train_epochs)
         # Initialize logger (wandb)
         if self.cfg.logger:
@@ -52,7 +50,10 @@ class Workspace:
         for epoch in range(self.cfg.train_epochs):
 
             # Train the models for one epoch
-            train_loss, loss_dict = learner.train_epoch(train_loader)
+            if self.cfg.learner_type == 'bet':
+                train_loss, loss_dict = learner.train_epoch(train_loader)
+            else:
+                train_loss = learner.train_epoch(train_loader)
 
             pbar.set_description(f'Epoch {epoch}, Train loss: {train_loss:.5f}, Best loss: {best_loss:.5f}')
             pbar.update(1) # Update for each batch
@@ -61,14 +62,18 @@ class Workspace:
             if self.cfg.logger and epoch % self.cfg.log_frequency == 0:
                 self.logger.log({'epoch': epoch,
                                  'train loss': train_loss})
-                self.logger.log({"train/{}".format(x): y for (x, y) in loss_dict.items()})
+                if self.cfg.learner_type == 'bet':
+                    self.logger.log({"train/{}".format(x): y for (x, y) in loss_dict.items()})
 
             # Testing and saving the model
             if epoch % self.cfg.save_frequency == 0: # NOTE: Not sure why this is a problem but this could be the fix
                 learner.save(self.cfg.checkpoint_dir, model_type='latest') # Always save the latest encoder
                 # Test for one epoch
-                if not self.cfg.self_supervised:
-                    test_loss, test_loss_dict = learner.test_epoch(test_loader)
+                if not self.cfg.self_supervised: 
+                    if self.cfg.learner_type == 'bet':
+                        test_loss, _ = learner.test_epoch(test_loader)
+                    else:
+                        test_loss = learner.test_epoch(test_loader)
                 else:
                     test_loss = train_loss # In BYOL (for ex) test loss is not important
 
