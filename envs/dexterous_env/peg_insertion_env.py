@@ -18,7 +18,7 @@ from tactile_learning.utils import *
 
 from .env import DexterityEnv
 
-class PlierPicking(DexterityEnv):
+class PegInsertion(DexterityEnv):
     def __init__(
         self,
         **kwargs
@@ -27,11 +27,11 @@ class PlierPicking(DexterityEnv):
 
     def set_home_state(self):
         self.home_state = dict(
-            kinova = np.array( [-0.49514708,  0.29150361,  0.34026781, -0.07374543, -0.72189188, -0.04998896,  0.68624681]), 
+            kinova = np.array([-0.51666868,  0.31732166,  0.29643977, -0.10299692, -0.71015126, -0.03510073,  0.69558954]), 
             allegro = np.array([
-                0, -0.17453293, 0.78539816, 0.78539816,           # Index
-                0, -0.17453293,  0.78539816,  0.78539816,         # Middle
-                0.08726646, -0.08726646, 0.87266463,  0.78539816, # Ring 
-                1.04719755,  0.43633231,  0.26179939, 0.78539816  # Thumb
-            ])
+            0, -0.17453293, 0.78539816, 0.78539816,           # Index
+            0, -0.17453293,  0.78539816,  0.78539816,         # Middle
+            0.08726646, -0.08726646, 0.87266463,  0.78539816, # Ring 
+            1.04719755,  0.43633231,  0.26179939, 0.78539816  # Thumb
+        ])
         )

@@ -16,18 +16,24 @@ register(
 register(
     id = 'PlierPicking-v1',
     entry_point='dexterous_env.plier_picking_env:PlierPicking',
-	max_episode_steps=80, # For the 16th demo
+	max_episode_steps=80,
 )
 
 register(
     id = 'CardFlipping-v1',
     entry_point='dexterous_env.card_flipping_env:CardFlipping',
-	max_episode_steps=80, # For the 16th demo
+	max_episode_steps=80,
 )
 
 
 register(
     id = 'CardTurning-v1',
     entry_point='dexterous_env.card_turning_env:CardTurning',
-	max_episode_steps=80, # For the 16th demo
+	max_episode_steps=80,
+)
+
+register(
+    id = 'PegInsertion-v1',
+    entry_point='dexterous_env.peg_insertion_env:PegInsertion',
+	max_episode_steps=80,
 )
