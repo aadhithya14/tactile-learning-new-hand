@@ -14,12 +14,10 @@ from omegaconf import OmegaConf
 from tqdm import tqdm 
 
 from holobot.constants import *
-from holobot.utils.network import ZMQCameraSubscriber
-from holobot.robot.allegro.allegro_kdl import AllegroKDL
 
-from tactile_learning.models import load_model, resnet18, alexnet, ScaledKNearestNeighbors 
 from tactile_learning.tactile_data import *
 from tactile_learning.utils import *
+from tactile_learning.models import *
 
 # Class that will take all the representations and dump them to the given data directory
 
@@ -31,12 +29,13 @@ class RepresentationPreprocessor: # It should only take image and tactile inout 
         image_out_dir=None,
         representation_types = ['image', 'tactile', 'kinova', 'allegro', 'torque'],
         view_num = 0, # View number to use for image
-        demos_to_use = []
+        demos_to_use = [],
+        image_model_type = 'byol'
     ):
         
+        self.device = torch.device('cuda:0')
         self.set_up_env()
 
-        self.device = torch.device('cuda:0')
         self.view_num = view_num
         self.representation_types = representation_types
 
@@ -51,7 +50,14 @@ class RepresentationPreprocessor: # It should only take image and tactile inout 
             representation_type = 'tdex'
         )
 
-        self.image_cfg, self.image_encoder, self.image_transform = self._init_encoder_info(self.device, image_out_dir, 'image')
+        self.image_cfg, self.image_encoder, self.image_transform = init_encoder_info(
+            device = self.device,
+            out_dir = image_out_dir,
+            encoder_type = 'image',
+            view_num = view_num,
+            model_type = image_model_type
+        )
+        # self.image_cfg, self.image_encoder, self.image_transform = self._init_encoder_info(self.device, image_out_dir, 'image')
         self.inv_image_transform = get_inverse_image_norm()
 
         self.roots = sorted(glob.glob(f'{data_path}/demonstration_*'))
@@ -63,7 +69,7 @@ class RepresentationPreprocessor: # It should only take image and tactile inout 
         os.environ["MASTER_PORT"] = "29506"
 
         torch.distributed.init_process_group(backend='gloo', rank=0, world_size=1)
-        torch.cuda.set_device(0)
+        torch.cuda.set_device(self.device)
     
     def _init_encoder_info(self, device, out_dir, encoder_type='tactile'): # encoder_type: either image or tactile
         if encoder_type == 'tactile' and  out_dir is None:
@@ -128,7 +134,7 @@ class RepresentationPreprocessor: # It should only take image and tactile inout 
         if 'allegro' in self.representation_types:  repr_dim += ALLEGRO_EE_REPR_SIZE
         if 'kinova' in self.representation_types: repr_dim += KINOVA_CARTESIAN_POS_SIZE
         if 'torque' in self.representation_types: repr_dim += ALLEGRO_JOINT_NUM # There are 16 joint values
-        if 'image' in self.representation_types: repr_dim += self.image_cfg.encoder.out_dim
+        if 'image' in self.representation_types: repr_dim += 512
 
         print('repr_dim: {}, self.repr_rtypes: {}'.format(
             repr_dim, self.representation_types

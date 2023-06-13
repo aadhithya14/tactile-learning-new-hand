@@ -1,9 +1,9 @@
 defaults:
-  - deployer: openloop # This fails almost anywhere! 
+  - deployer: bet # This fails almost anywhere! 
 
 visualize: false
 loop: true
 frequency: 4
 deployment_dump_dir: null
 # deployment_dump_dir: /home/irmak/Workspace/tactile-learning/deployment_data/book_opening/after_rss/bc_gmm/1
-data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/peg_insertion # User should fill this
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/card_flipping # User should fill this

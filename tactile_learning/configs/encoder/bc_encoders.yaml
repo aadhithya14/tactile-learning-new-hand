@@ -17,6 +17,6 @@ tactile_encoder:
 
 last_layer:
   _target_: tactile_learning.models.create_fc 
-  input_dim: 576 # 64 + 512 1536 # 1024 + 512
+  input_dim: 512 # i'm just using image rn - tdex: 576 # 64 + 512 1536 # 1024 + 512
   output_dim: 23 # 16 + 7
   hidden_dims: [256, 64] # [512, 128, 64]

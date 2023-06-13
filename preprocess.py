@@ -44,7 +44,8 @@ def main(cfg : DictConfig) -> None:
             image_out_dir = cfg.repr_preprocessor.image_out_dir,
             view_num = cfg.view_num,
             demos_to_use = cfg.repr_preprocessor.demos_to_use,
-            representation_types=cfg.repr_preprocessor.representation_types
+            representation_types=cfg.repr_preprocessor.representation_types,
+            image_model_type = cfg.repr_preprocessor.image_model_type
         )
         preprocessor.get_all_representations()
         print(f'Dumping - all_representations.shape: {preprocessor.all_representations.shape}')

@@ -55,6 +55,8 @@ def init_encoder_info(device, out_dir, encoder_type='tactile', view_num=1, model
                 model_path = os.path.join(out_dir, f'models/byol_encoder_best.pt')
             elif cfg.learner_type == 'bc': # NOTE: Check these in the future lol
                 model_path = os.path.join(out_dir, f'models/bc_{encoder_type}_encoder_best.pt')
+            elif 'vicreg' in cfg.learner_type:
+                model_path = os.path.join(out_dir, f'models/{model_type}_encoder_best.pt')
             else:
                 model_path = os.path.join(out_dir, f'models/{encoder_type}_encoder_best.pt')
             encoder = load_model(cfg, device, model_path, encoder_type)
@@ -89,24 +91,25 @@ def load_model(cfg, device, model_path, model_type=None):
             model = hydra.utils.instantiate(cfg.encoder.last_layer)
     elif cfg.learner_type == 'bc_gmm':
         model = hydra.utils.instantiate(cfg.learner.gmm_layer)
-    elif 'byol' in cfg.learner_type: # load the encoder
-        model = hydra.utils.instantiate(cfg.encoder)  
     elif cfg.learner_type == 'temporal_ssl':
         if model_type == 'image':
             model = hydra.utils.instantiate(cfg.encoder.encoder)
         elif model_type == 'linear_layer':
             model = hydra.utils.instantiate(cfg.encoder.linear_layer)
+    else:
+        model = hydra.utils.instantiate(cfg.encoder)  
 
     state_dict = torch.load(model_path) # All the parameters by default gets installed to cuda 0
     
     # Modify the state dict accordingly - this is needed when multi GPU saving was done
-    new_state_dict = modify_multi_gpu_state_dict(state_dict)
+    if cfg.distributed:
+        state_dict = modify_multi_gpu_state_dict(state_dict)
     
-    if 'byol' in cfg.learner_type:
-        new_state_dict = modify_byol_state_dict(new_state_dict)
+    if 'byol' in cfg.learner_type or 'vicreg' in cfg.learner_type:
+        state_dict = modify_byol_state_dict(state_dict)
 
     # Load the new state dict to the model 
-    model.load_state_dict(new_state_dict)
+    model.load_state_dict(state_dict)
     model = model.to(device)
 
     return model
@@ -121,9 +124,12 @@ def modify_multi_gpu_state_dict(state_dict):
 def modify_byol_state_dict(state_dict):
     new_state_dict = OrderedDict()
     for k, v in state_dict.items():
-        if 'encoder.net' in k:
-            name = k[12:] # Everything after encoder.net
+        if '.net.' in k:
+            name = k.split('.net.')[-1] # This is hard coded fixes for vicreg
             new_state_dict[name] = v
+    # print('new state_dict : {}'.format(
+    #     new_state_dict.keys()
+    # ))
     return new_state_dict
 
 def weight_init(m):

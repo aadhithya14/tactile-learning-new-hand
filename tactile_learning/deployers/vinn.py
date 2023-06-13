@@ -15,7 +15,7 @@ from holobot.constants import *
 
 from holobot.robot.allegro.allegro_kdl import AllegroKDL
 
-from tactile_learning.models import load_model, resnet18, alexnet, ScaledKNearestNeighbors 
+from tactile_learning.models import *
 from tactile_learning.tactile_data import *
 from tactile_learning.utils import *
 
@@ -29,6 +29,7 @@ class VINN(Deployer):
         deployment_dump_dir,
         tactile_out_dir=None, # If these are None then it's considered we'll use non trained encoders
         image_out_dir=None,
+        image_model_type = 'byol',
         representation_types = ['image', 'tactile', 'kinova', 'allegro', 'torque'], # Torque could be used
         representation_importance = [1,1,1,1], 
         tactile_repr_type = 'tdex', # raw, shared, stacked, tdex, sumpool, pca (uses the encoder passed)
@@ -62,7 +63,14 @@ class VINN(Deployer):
             representation_type = tactile_repr_type
         )
 
-        self.image_cfg, self.image_encoder, self.image_transform = self._init_encoder_info(self.device, image_out_dir, 'image')
+        # self.image_cfg, self.image_encoder, self.image_transform = self._init_encoder_info(self.device, image_out_dir, 'image')
+        self.image_cfg, self.image_encoder, self.image_transform = init_encoder_info(
+            device = self.device,
+            out_dir = image_out_dir,
+            view_num = view_num, 
+            model_type = image_model_type,
+            encoder_type = 'image'
+        )
         self.inv_image_transform = get_inverse_image_norm()
 
         self.roots = sorted(glob.glob(f'{data_path}/demonstration_*'))
@@ -84,7 +92,8 @@ class VINN(Deployer):
         )
 
         self.deployment_dump_dir = deployment_dump_dir
-        os.makedirs(self.deployment_dump_dir, exist_ok=True)
+        if dump_deployment_info:
+            os.makedirs(self.deployment_dump_dir, exist_ok=True)
         self.dump_deployment_info = dump_deployment_info
         if dump_deployment_info:
             self.deployment_info = dict(
@@ -170,7 +179,7 @@ class VINN(Deployer):
         if 'allegro' in self.representation_types:  repr_dim += ALLEGRO_EE_REPR_SIZE
         if 'kinova' in self.representation_types: repr_dim += KINOVA_CARTESIAN_POS_SIZE
         if 'torque' in self.representation_types: repr_dim += ALLEGRO_JOINT_NUM # There are 16 joint values
-        if 'image' in self.representation_types: repr_dim += self.image_cfg.encoder.out_dim
+        if 'image' in self.representation_types: repr_dim += 512 # self.image_cfg.encoder.out_dim
 
         self.all_representations = np.zeros((
             len(self.data['tactile']['indices']), repr_dim

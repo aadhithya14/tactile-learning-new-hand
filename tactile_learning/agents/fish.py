@@ -326,9 +326,9 @@ class FISHAgent:
             if self.base_policy == 'vinn_openloop': # Get the expert id that has the closest representaiton in the beginning
                 self.expert_id, self.l2_distances = self._get_closest_expert_id(obs)
         
-        print('EXPERT ID: {}, L2 DIST: {}'.format(
-            self.expert_id, self.l2_distances
-        ))
+        # print('EXPERT ID: {}, L2 DIST: {}'.format(
+        #     self.expert_id, self.l2_distances
+        # ))
 
         # Use expert_demos for base action retrieval
         is_done = False

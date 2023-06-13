@@ -17,12 +17,11 @@ from holobot.constants import *
 from holobot.utils.network import ZMQCameraSubscriber
 from holobot.robot.allegro.allegro_kdl import AllegroKDL
 
-from tactile_learning.models import load_model, resnet18, alexnet, ScaledKNearestNeighbors 
+from tactile_learning.models import * 
 from tactile_learning.tactile_data import *
 from tactile_learning.utils import *
 
 from .deployer import Deployer
-from .utils.nn_buffer import NearestNeighborBuffer
 
 class BET(Deployer):
     def __init__(
@@ -32,6 +31,7 @@ class BET(Deployer):
         seq_length,
         tactile_out_dir=None, # If these are None then it's considered we'll use non trained encoders
         image_out_dir=None,
+        image_model_type='byol',
         bet_model_out_dir=None,
         representation_types=['image', 'tactile', 'kinova', 'allegro', 'torque'],
         view_num = 0, # View number to use for image
@@ -60,7 +60,7 @@ class BET(Deployer):
             tactile_image = self.tactile_img,
             representation_type = 'tdex'
         )
-        self.image_cfg, self.image_encoder, self.image_transform = self._init_encoder_info(self.device, image_out_dir, 'image')
+        self.image_cfg, self.image_encoder, self.image_transform = init_encoder_info(self.device, image_out_dir, encoder_type='image', model_type=image_model_type)
         self.inv_image_transform = get_inverse_image_norm()
         
         # Load the BET model
@@ -75,11 +75,12 @@ class BET(Deployer):
         self.data = load_data(self.roots, demos_to_use=demos_to_use) # This will return all the desired indices and the values
 
         self.deployment_dump_dir = deployment_dump_dir
-        os.makedirs(self.deployment_dump_dir, exist_ok=True)
+        if not self.deployment_dump_dir is None:
+            os.makedirs(self.deployment_dump_dir, exist_ok=True)
     
     def _load_bet_model(self, device, out_dir):
         cfg = OmegaConf.load(os.path.join(out_dir, '.hydra/config.yaml'))
-        bet_model = hydra.utils.instantiate(cfg.learner.model).to(cfg.device)
+        bet_model = hydra.utils.instantiate(cfg.learner.model).to(self.device)
 
         model_path = Path(os.path.join(out_dir, 'models/cbet_model.pt'))
         bet_model.load_model(model_path)
