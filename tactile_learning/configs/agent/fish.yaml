@@ -10,7 +10,7 @@ sum_experts: ${sum_experts}
 scale_representations: ${scale_representations}
 exponential_exploration: ${exponential_exploration}
 exponential_offset_exploration: ${exponential_offset_exploration}
-base_policy_cfg: ???
+# cfg: ???
 max_vinn_steps: ${max_steps}
 vinn_image_out_dir: ${vinn_image_out_dir}
 vinn_image_model_type: ${vinn_image_model_type}

@@ -30,7 +30,7 @@ class FISHAgent:
     def __init__(self,
         data_path, expert_demo_nums, expert_id, reward_matching_steps, mock_demo_nums,
         features_repeat, sum_experts, experiment_name, end_frames_repeat,
-        scale_representations, exponential_exploration, base_policy_cfg,
+        scale_representations, exponential_exploration,
         exponential_offset_exploration, match_from_both, expert_frame_matches,
         episode_frame_matches, ssim_base_factor, exploration,
         vinn_image_out_dir, vinn_image_model_type, max_vinn_steps,
@@ -196,15 +196,15 @@ class FISHAgent:
         # Initialize and start the base policy
         # print('BASE POLCY CFG : {}, expert_demos: {}'.format(
         #     base_policy_cfg, self.expert_demos))
-        base_policy_cfg = OmegaConf.create(base_policy_cfg)
+        # base_policy_cfg = OmegaConf.create(base_policy_cfg)
+    #     self.base_policy_cfg = base_policy_cfg
+
+    def initialize_base_policy(self, base_policy_cfg): 
         self.base_policy = hydra.utils.instantiate(
             base_policy_cfg,
             expert_demos = self.expert_demos,
             tactile_repr_size = self.tactile_repr.size,
         )
-    #     self.base_policy_cfg = base_policy_cfg
-
-    # def initialize_base_policy(self): 
 
     def __repr__(self):
         return "fish_agent"
