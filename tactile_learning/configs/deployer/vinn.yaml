@@ -6,7 +6,7 @@ data_path: ???
 deployment_dump_dir: ???
 tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss # CUP PICKING 
-# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.04/18-56_tactile_byol_bs_32_epochs_500_lr_1e-05_bowl_picking_after_rss # Bowl picking old
+# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.06/10-50_image_byol_bs_32_epochs_500_lr_1e-05_bowl_picking_after_rss # Bowl picking old
 
 # TISH corl baselines
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.05/19-59_temporal_ssl_bs_32_epochs_1000_lr_1e-05_card_turning_frame_diff_5_resnet 

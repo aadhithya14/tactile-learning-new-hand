@@ -330,7 +330,6 @@ class VINN(Deployer):
 
         # Visualize if given 
         if visualize: 
-
             self.visualization_info['state_ids'].append(self.state_id)
             self.visualization_info['images'].append(image)
             self.visualization_info['tactile_values'].append(curr_tactile_values)

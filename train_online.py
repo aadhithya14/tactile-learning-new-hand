@@ -59,7 +59,10 @@ class Workspace:
         action_spec = self.train_env.action_spec()
         print(f'IN _INITIALIZE_AGENT TRAIN_ONLINE - ACTION_SPEC: {action_spec}')
         self.cfg.agent.action_shape = action_spec.shape
-        self.agent = hydra.utils.instantiate(self.cfg.agent)
+        print('BASE POLICY CFG IN TRAIN ONLINE: {}'.format(self.cfg.base_policy))
+        self.agent = hydra.utils.instantiate(self.cfg.agent, base_policy_cfg=str(self.cfg.base_policy))
+        # print('EXPERT DEMOS OF AGENT: {}'.format(self.agent.expert_demos))
+        # self.agent.initialize_base_policy()
 
     def _set_logger(self, cfg):
         if self.cfg.log:

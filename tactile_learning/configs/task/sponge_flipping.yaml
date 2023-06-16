@@ -1,0 +1,9 @@
+image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.04/21-28_temporal_ssl_bs_32_epochs_1000_lr_1e-05_card_flipping_frame_diff_5_resnet
+image_model_type: temporal
+
+vinn_image_out_dir: null
+vinn_image_model_type: byol
+
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/sponge_flipping
+
+name: sponge_flipping

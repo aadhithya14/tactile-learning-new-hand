@@ -142,6 +142,7 @@ wandb/*
 
 notebooks/*.pt
 notebooks/*.pth
+notebooks/*/*.mp4
 notebooks/generated_gifs/*
 notebooks/*.gif
 notebooks/.ipynb_checkpoints/*

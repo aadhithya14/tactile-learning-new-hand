@@ -123,6 +123,7 @@ class ScaledKNearestNeighbors(object):
         if k == 1:
             return self.get_nearest_neighbor(datapoint)
 
+        print(f'self.input_values[0].shape: {self.input_values[0].shape}')
         assert datapoint.shape == self.input_values[0].shape
 
         sorted_idxs, sorted_separate_l2_dists = self.get_sorted_idxs(datapoint)

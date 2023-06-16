@@ -2,14 +2,15 @@ defaults:
     # - learner: bet
     # - dataset: bet # tactile_tdex_dataset
     # - encoder: bc_encoders
-    - learner: bet
-    - dataset: bet
+    # - learner: bet
+    - encoder: resnet18
+    - dataset: vision_dataset
     - optimizer: adam 
 
 seed: 42
 device: 1
 
-learner_type: bet # Can be bet, image_byol, tactile_stacked_byol # tactile_stacked_byol tactile_linear_byol, bc, tactile_byol
+learner_type: image_byol # Can be bet, image_byol, tactile_stacked_byol # tactile_stacked_byol tactile_linear_byol, bc, tactile_byol
 self_supervised: true
 
 # Demos to use 
@@ -31,8 +32,8 @@ distributed: false
 num_workers: 4
 
 # Data path to be set
-object: plier_picking
-experiment: ${learner_type}_${object}_view_${vision_view_num}_bet # For now let's only train resnet
+object: mint_opening
+experiment: ${learner_type}_${object}_view_${vision_view_num} # For now let's only train resnet
 # experiment: ${learner_type}_bs_${batch_size}_view_${vision_view_num}_${object}_frame_diff_${dataset.frame_diff}_resnet # Name of the experiment that the models are saved
 data_dir: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}
 checkpoint_dir: ??? # Will be set to hydra dir inside the code
