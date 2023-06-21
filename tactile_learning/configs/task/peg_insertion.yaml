@@ -7,3 +7,5 @@ vinn_image_model_type: byol
 data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/peg_insertion
 
 name: peg_insertion
+
+expert_demo_nums: [4]

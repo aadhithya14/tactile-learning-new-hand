@@ -47,20 +47,25 @@ auto_rew_scale: True
 auto_rew_scale_factor: 10
 bc_weight_type: 'qfilter'
 bc_weight_schedule: 'linear(1.0,0.1,20000)'
-arm_offset_scale_factor: 0.05
+# arm_offset_scale_factor: 0.05
+arm_offset_scale_factor: ${task.arm_offset_scale_factor}
+
 # hand_offset_scale_factor: 0.25 # eraser turning (card turning)
 # hand_offset_scale_factor: 0.25 # plier picking For this task we'll try very little variations
-hand_offset_scale_factor: 0.25 # bowl unstacking
+# hand_offset_scale_factor: 0.25 # bowl unstacking
 # hand_offset_scale_factor: 0.4 #sponge flipping
 # hand_offset_scale_factor: 0.07 # Peg insertion
+hand_offset_scale_factor: ${task.hand_offset_scale_factor}
 
 # offset_scale_factor: -0.1 # Output of the model is -1,1 -> we can set the offset to whatever
 # offset_mask: [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] # sponge flipping
 # offset_mask: [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] # sponge flipping gen0
 # offset_mask: [1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0] # eraser turning 
 # offset_mask: [0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0] # plier picking
-offset_mask: [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0] # bowl unstacking
+# offset_mask: [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0] # bowl unstacking
 # offset_mask: [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0] # bowl unstacking gen1
 # offset_mask: [1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] # bowl unstacking gen2
 # offset_mask: [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] # peg insertion
 # offset_mask: [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] # peg insertion gen1
+
+offset_mask: ${task.offset_mask}

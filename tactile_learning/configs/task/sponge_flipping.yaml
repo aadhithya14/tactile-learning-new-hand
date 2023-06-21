@@ -7,3 +7,5 @@ vinn_image_model_type: byol
 data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/sponge_flipping
 
 name: sponge_flipping
+
+expert_demo_nums: [24]

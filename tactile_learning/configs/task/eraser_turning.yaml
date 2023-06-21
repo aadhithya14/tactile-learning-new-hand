@@ -7,3 +7,5 @@ vinn_image_model_type: byol
 data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/card_turning
 
 name: eraser_turning
+
+expert_demo_nums: [16]

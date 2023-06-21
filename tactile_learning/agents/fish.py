@@ -64,10 +64,6 @@ class FISHAgent:
         self.arm_offset_scale_factor = arm_offset_scale_factor
         self.hand_offset_scale_factor= hand_offset_scale_factor
 
-        # NOTE: What is the q-filter mentioned?
-        # NOTE: We might need to lower the representation dimenstion at some point
-
-        # TODO: Load the data for that one demonstration
         self.data_path = data_path
         self.roots = sorted(glob.glob(f'{data_path}/demonstration_*'))
         self.data = load_data(self.roots, demos_to_use=expert_demo_nums)
@@ -88,18 +84,7 @@ class FISHAgent:
         self.expert_frame_matches = expert_frame_matches
         self.episode_frame_matches = episode_frame_matches
         self.ssim_base_factor = ssim_base_factor
-        # self.base_policy_cfg = base_policy_cfg
         self.exploration = exploration
-        
-        # if base_policy == 'vinn_openloop':
-        #     self.first_frame_encoder = resnet18(pretrained=True, out_dim=512) # NOTE: Set this differently
-        # elif base_policy == 'vinn': # We'll need to load another encoder for getting the neigbors
-        #    _, self.vinn_encoder, _ = init_encoder_info(
-        #        self.device,
-        #        out_dir = vinn_image_out_dir,
-        #        encoder_type = 'image',
-        #        model_type = vinn_image_model_type)
-        #    self.max_vinn_steps = max_vinn_steps
 
         # Set the mock data
         self.mock_data = load_data(self.roots, demos_to_use=mock_demo_nums) # TODO: Delete this
@@ -176,28 +161,6 @@ class FISHAgent:
         self.count = 0
         # Openloop tracker
         self.curr_step = 0
-
-        # # If the base policy is vinn should get all the representations first
-        # if base_policy == 'vinn':
-        #     self._get_all_representations()
-        #     self.nn_k = 10 # We set these to what works for now - it never becomes more than 10 in our tasks
-        #     self.buffer = NearestNeighborBuffer(10)
-        #     self.knn = ScaledKNearestNeighbors(
-        #         self.all_representations, # Both the input and the output of the nearest neighbors are
-        #         self.all_representations,
-        #         ['image', 'tactile'],
-        #         [1, 1], # Could have tactile doubled
-        #         self.tactile_repr.size
-        #     )
-
-        # elif base_policy == 'vinn_openloop':
-        #     self.first_frame_img_encoder = resnet18(pretrained=True, out_dim=512).to(self.device).eval()
-        #     self._get_first_frame_exp_representations()
-        # Initialize and start the base policy
-        # print('BASE POLCY CFG : {}, expert_demos: {}'.format(
-        #     base_policy_cfg, self.expert_demos))
-        # base_policy_cfg = OmegaConf.create(base_policy_cfg)
-    #     self.base_policy_cfg = base_policy_cfg
 
     def initialize_base_policy(self, base_policy_cfg): 
         self.base_policy = hydra.utils.instantiate(
@@ -292,91 +255,6 @@ class FISHAgent:
             actions.append(demo_action)
 
             old_demo_id = demo_id
-        
-    # def _get_all_representations(self):
-    #     print('Getting all representations')
-    #     all_representations = []
-
-    #     pbar = tqdm(total=len(self.data['tactile']['indices']))
-    #     for index in range(len(self.data['tactile']['indices'])):
-    #         # Get the representation data
-    #         demo_id, tactile_id = self.data['tactile']['indices'][index]
-    #         tactile_value = self.data['tactile']['values'][demo_id][tactile_id]
-    #         tactile_repr = self.tactile_repr.get(tactile_value, detach=False)
-
-    #         _, image_id = self.data['image']['indices'][index]
-    #         image = load_dataset_image(
-    #             data_path = self.data_path, 
-    #             demo_id = demo_id, 
-    #             image_id = image_id,
-    #             view_num = self.view_num,
-    #             transform = self.image_transform
-    #         )
-    #         image_repr = self.vinn_encoder(image.unsqueeze(0).to(self.device)).squeeze()
-    #         all_repr = torch.concat([image_repr, tactile_repr], dim=-1).detach().cpu()
-    #         all_representations.append(all_repr)
-
-    #         pbar.update(1)
-
-    #     pbar.close()
-    #     self.all_representations = torch.stack(all_representations, dim=0)
-    #     print('all_representations.shape: {}'.format(self.all_representations.shape))
-
-    # def _get_vinn_action(self, obs, episode_step):
-    #     # Get the current representation
-    #     image_obs = obs['image_obs'].unsqueeze(0) / 255.
-    #     tactile_repr = obs['tactile_repr'].numpy()
-    #     image_obs = self.image_normalize(image_obs.float()).to(self.device)
-    #     image_repr = self.vinn_encoder(image_obs).detach().cpu().numpy().squeeze()
-    #     curr_repr = np.concatenate([image_repr, tactile_repr], axis=0)
-
-    #     print('curr_repr.shape in _get_vinn_action: {}'.format(curr_repr.shape))
-
-    #     # Choose the action with the buffer 
-    #     _, nn_idxs, _ = self.knn.get_k_nearest_neighbors(curr_repr, k=self.nn_k)
-    #     id_of_nn = self.buffer.choose(nn_idxs)
-    #     nn_id = nn_idxs[id_of_nn]
-    #     if nn_id+1 >= len(self.data['allegro_actions']['indices']): # If the chosen action is the action after the last action
-    #         nn_idxs = np.delete(nn_idxs, id_of_nn)
-    #         id_of_nn = self.buffer.choose(nn_idxs)
-    #         nn_id = nn_idxs[id_of_nn]
-    #     # Check if the closest neighbor is the last frame
-    #     is_done = False
-    #     curr_demo_id, _ = self.data['allegro_actions']['indices'][nn_id]
-    #     next_demo_id, _ = self.data['allegro_actions']['indices'][nn_id+1]
-    #     if next_demo_id != curr_demo_id:
-    #         is_done = True
-    #         nn_id -= 1 # Just send the last frame action
-    #     elif episode_step > self.max_vinn_steps: 
-    #         is_done = True
-
-    #     demo_id, action_id = self.data['allegro_actions']['indices'][nn_id+1]  # Get the next commanded action (commanded actions are saved in that timestamp)
-    #     nn_allegro_action = self.data['allegro_actions']['values'][demo_id][action_id]
-    #     _, kinova_id = self.data['kinova']['indices'][nn_id+1] # Get the next kinova state (which is for kinova robot the same as the next commanded action)
-    #     nn_kinova_action = self.data['kinova']['values'][demo_id][kinova_id]
-
-    #     print('EPISODE STEP: {} self.max_vinn_steps: {} ID OF NN: {} NEAREST NEIGHBOR DEMO ID: {}, IS DONE IN VINN: {}'.format(
-    #         episode_step, self.max_vinn_steps, id_of_nn, demo_id, is_done))
-
-    #     action = np.concatenate([nn_allegro_action, nn_kinova_action], axis=-1)
-
-    #     return action, is_done
-
-    # def _get_first_frame_exp_representations(self): # This will be used for VINN
-        
-    #     exp_representations = [] 
-    #     for expert_id in range(len(self.expert_demos)):
-    #         first_frame_exp_obs = self.expert_demos[expert_id]['image_obs'][0:1,:].to(self.device)
-    #         plt.imshow(np.transpose(first_frame_exp_obs[0].detach().cpu().numpy(), (1,2,0)))
-    #         plt.savefig(f'expert_id_{expert_id}.png')
-    #         print(f'expert_{expert_id} mean: {first_frame_exp_obs[0].mean()}')
-
-    #         # NOTE: Expert demos should already be normalized
-    #         first_frame_exp_representation = self.first_frame_img_encoder(first_frame_exp_obs)
-    #         exp_representations.append(first_frame_exp_representation.detach().cpu().numpy().squeeze())
-
-    #     self.exp_first_frame_reprs = np.stack(exp_representations, axis=0)
-    #     print('self.exp_reprs.shape: {}'.format(self.exp_first_frame_reprs.shape))
 
     def _check_limits(self, offset_action):
         # limits = [-0.1, 0.1]
@@ -385,26 +263,6 @@ class FISHAgent:
         offset_action[:,:-7] = torch.clamp(offset_action[:,:-7], min=hand_limits[0], max=hand_limits[1])
         offset_action[:,-7:] = torch.clamp(offset_action[:,-7:], min=arm_limits[0], max=arm_limits[1])
         return offset_action
-
-    # def _get_closest_expert_id(self, obs):
-    #     # Get the representation of the current observation
-    #     image_transform = T.Compose([
-    #         T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
-    #     ])
-        
-    #     image_obs = image_transform(obs['image_obs'] / 255.).unsqueeze(0).to(self.device)
-    #     plt.imshow(np.transpose(image_obs[0].detach().cpu().numpy(), (1,2,0)))
-    #     plt.savefig(f'first_obs.png')
-    #     curr_repr = self.first_frame_img_encoder(image_obs).detach().cpu().numpy().squeeze()
-
-    #     # Get the distance of the curr_repr to the expert representaitons of the first frame
-    #     l1_distances = self.exp_first_frame_reprs - curr_repr
-    #     l2_distances = np.linalg.norm(l1_distances, axis=1)
-    #     print('l2_distances.shape: {} - should be NUM_EXPERTS'.format(l2_distances.shape))
-    #     sorted_idxs = np.argsort(l2_distances)
-
-    #     print('SORTED EXPERTS: {}'.format(sorted_idxs))
-    #     return sorted_idxs[0], l2_distances
 
     # Will give the next action in the step
     def base_act(self, obs, episode_step): # Returns the action for the base policy - openloop
@@ -416,24 +274,6 @@ class FISHAgent:
                     mu = np.zeros(len(self.offset_mask)), # The mean of the offsets should be 0
                     sigma = 0.8 # It will give bw -1 and 1 - then this gets multiplied by the scale factors ...
                 )
-
-            # if self.base_policy == 'vinn_openloop': # Get the expert id that has the closest representaiton in the beginning
-            #     self.expert_id, self.l2_distances = self._get_closest_expert_id(obs)
-
-        # Use expert_demos for base action retrieval
-        # is_done = False
-        # if episode_step >= len(self.expert_demos[self.expert_id]['actions']):
-        #     episode_step = len(self.expert_demos[self.expert_id]['actions'])-1
-        #     is_done = True
-
-        # print('episode step: {}, len(self.expert_demos[self.expert_id][actions]: {}'.format(
-        #     episode_step, len(self.expert_demos[self.expert_id]['actions'])
-        # ))
-
-        # if self.base_policy == 'vinn':
-        #     action, is_done = self._get_vinn_action(obs, episode_step)
-        # else:
-        #     action = self.expert_demos[self.expert_id]['actions'][episode_step]
 
         action, is_done = self.base_policy.act( # TODO: Make sure these are good
             obs, episode_step
