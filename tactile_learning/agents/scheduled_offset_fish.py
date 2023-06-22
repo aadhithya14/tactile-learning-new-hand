@@ -124,7 +124,7 @@ class ScheduledOffsetFISH:
     def __repr__(self):
         return 'offset_scheduled_fish_agent'
 
-    def initialize_modules(self, base_policy_cfg, rewarder_cfg): 
+    def initialize_modules(self, base_policy_cfg, rewarder_cfg, explorer_cfg): 
         self.base_policy = hydra.utils.instantiate(
             base_policy_cfg,
             expert_demos = self.expert_demos,
@@ -136,6 +136,9 @@ class ScheduledOffsetFISH:
             image_encoder = self.image_encoder if 'image' in self.reward_representations else None,
             tactile_encoder = self.tactile_encoder if 'tactile' in self.reward_representations else None
         )
+        self.explorer = hydra.utils.instantiate(
+            explorer_cfg
+        )
 
     def train(self, training=True):
         self.training = training
@@ -143,17 +146,10 @@ class ScheduledOffsetFISH:
         self.critic.train(training)
 
     def _set_image_transform(self):
-        image_act_transform_arr = []
-        if self.augment:
-            image_act_transform_arr.append(
-                RandomShiftsAug(pad=4)
-            )
-        image_act_transform_arr.append(
+        self.image_act_transform = T.Compose([
+            RandomShiftsAug(pad=4),
             T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
-        )
-
-        self.image_act_transform = T.Compose(image_act_transform_arr)
-
+        ])
         self.image_normalize = T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
 
     def _set_expert_demos(self): # Will stack the end frames back to back
@@ -167,18 +163,6 @@ class ScheduledOffsetFISH:
             # Set observations
             demo_id, tactile_id = self.data['tactile']['indices'][step_id]
             if (demo_id != old_demo_id and step_id > 0) or (step_id == len(self.data['image']['indices'])-1):
-                
-                if self.end_frames_repeat > 1:
-                    # Stack the frame previous to the end - the end frame is not good - the last frame is the first frame...
-                    frame_id_to_stack= -1 # Get the -2nd frame to stack - NOTE: This is a hack for the dataset - the end frame could be noisy sometimes and the last frame shouldn't be added!
-                    image_to_append, tactile_to_append, action_to_append = image_obs[frame_id_to_stack], tactile_reprs[frame_id_to_stack], actions[frame_id_to_stack]                
-                    image_obs = image_obs[:frame_id_to_stack]
-                    tactile_reprs = tactile_reprs[:frame_id_to_stack]
-                    actions = actions[:frame_id_to_stack]
-                    for i in range(self.end_frames_repeat):
-                        image_obs.append(image_to_append)
-                        tactile_reprs.append(tactile_to_append)
-                        actions.append(action_to_append)
                 
                 self.expert_demos.append(dict(
                     image_obs = torch.stack(image_obs, 0), # NOTE: I don't think there is a problem here 
@@ -204,16 +188,12 @@ class ScheduledOffsetFISH:
             # Set actions
             _, allegro_action_id = self.data['allegro_actions']['indices'][step_id]
             allegro_joint_action = self.data['allegro_actions']['values'][demo_id][allegro_action_id]
-            if self.action_shape == 19:
-                allegro_action = self.kdl_solver.get_fingertip_coords(allegro_joint_action)
-            else:
-                allegro_action = allegro_joint_action 
+            allegro_action = allegro_joint_action 
 
             # Set kinova action 
             _, kinova_id = self.data['kinova']['indices'][step_id]
             kinova_action = self.data['kinova']['values'][demo_id][kinova_id]
             demo_action = np.concatenate([allegro_action, kinova_action], axis=-1)
-
 
             image_obs.append(image)
             tactile_reprs.append(tactile_repr)
@@ -231,26 +211,15 @@ class ScheduledOffsetFISH:
 
     # Will give the next action in the step
     def base_act(self, obs, episode_step): # Returns the action for the base policy - openloop
-        if episode_step == 0:
-            # Set the exploration
-            if self.exploration == 'ou_noise':
-                self.ou_noise = OrnsteinUhlenbeckActionNoise(
-                    mu = np.zeros(len(self.offset_mask)), # The mean of the offsets should be 0
-                    sigma = 0.8 # It will give bw -1 and 1 - then this gets multiplied by the scale factors ...
-                )
-
         action, is_done = self.base_policy.act( # TODO: Make sure these are good
             obs, episode_step
         )
 
         return torch.FloatTensor(action).to(self.device).unsqueeze(0), is_done
 
-
     def act(self, obs, global_step, episode_step, eval_mode, metrics=None):
         with torch.no_grad():
             base_action, is_done = self.base_act(obs, episode_step)
-
-        print('base_action.shape: {}'.format(base_action.shape))
 
         with torch.no_grad():
             # Get the action image_obs
@@ -270,36 +239,17 @@ class ScheduledOffsetFISH:
         else:
             offset_action = dist.sample(clip=None)
 
-            # Exploration
-            if self.exponential_exploration:
-                epsilon = exponential_epsilon_decay(
-                    step_idx=global_step,
-                    epsilon_decay=self.num_expl_steps
-                )
-                rand_num = random.random()
-                if rand_num < epsilon:
-                    print('EXPLORING!!!')
-                    offset_action.uniform_(-1.0, 1.0)
-            elif self.exploration == 'ou_noise':
-                if global_step < self.num_expl_steps:
-                    offset_action = torch.FloatTensor(self.ou_noise()).to(self.device).unsqueeze(0)
-                    print('ou_noise offset: {}'.format(offset_action.shape))
-            else:
-                if global_step < self.num_expl_steps:
-                    offset_action.uniform_(-1.0, 1.0)
+            offset_action = self.explorer.explore(
+                offset_action = offset_action,
+                global_step = global_step, 
+                episode_step = episode_step,
+                device = self.device
+            )
 
         offset_action *= self.offset_mask 
-        is_explore = global_step < self.num_expl_steps or (self.exponential_exploration and rand_num < epsilon)
 
-        if is_explore and self.exponential_offset_exploration:  # TODO: Do the OU Noise
-            offset_action[:,:-7] *= self.hand_offset_scale_factor / ((episode_step+1)/2) 
-            offset_action[:,-7:] *= self.arm_offset_scale_factor / ((episode_step+1)/2)
-            if episode_step > 0:
-                offset_action += self.last_offset
-            self.last_offset = offset_action
-        else:
-            offset_action[:,:-7] *= self.hand_offset_scale_factor
-            offset_action[:,-7:] *= self.arm_offset_scale_factor
+        offset_action[:,:-7] *= self.hand_offset_scale_factor
+        offset_action[:,-7:] *= self.arm_offset_scale_factor
 
         # Check if the offset action is higher than the limits
         offset_action = self._check_limits(offset_action)
@@ -384,17 +334,17 @@ class ScheduledOffsetFISH:
 
         # compute action offset
         dist = self.actor(obs, base_action, stddev)
-        action_offset = dist.sample(clip=self.stddev_clip)
-        log_prob = dist.log_prob(action_offset).sum(-1, keepdim=True)
+        offset_action = dist.sample(clip=self.stddev_clip)
+        log_prob = dist.log_prob(offset_action).sum(-1, keepdim=True)
 
         # compute action
-        action_offset[:-7] *= self.hand_offset_scale_factor
-        action_offset[-7:] *= self.arm_offset_scale_factor 
-        action = base_action + action_offset 
+        offset_action[:,:-7] *= self.hand_offset_scale_factor
+        offset_action[:,-7:] *= self.arm_offset_scale_factor 
+        action = base_action + offset_action 
         Q1, Q2 = self.critic(obs, action)
         Q = torch.min(Q1, Q2)
 
-        actor_loss = - Q.mean()  # BC weight is not added
+        actor_loss = - Q.mean()  # BC weight is not added to this
 
         # optimize actor
         self.actor_opt.zero_grad(set_to_none=True)
@@ -462,7 +412,6 @@ class ScheduledOffsetFISH:
         # update critic target
         soft_update_params(self.critic, self.critic_target,
                                     self.critic_target_tau)
-
         return metrics
 
     def ot_rewarder(self, episode_obs, episode_id, visualize=False, exponential_weight_init=False): # TODO: Delete the mock option
@@ -495,11 +444,10 @@ class ScheduledOffsetFISH:
         plt.title(file_name)
 
         dump_dir = Path('/home/irmak/Workspace/tactile-learning/online_training_outs/costs') / self.experiment_name
-        # dump_dir = os.path.join('/home/irmak/Workspace/tactile-learning/train_video/costs/{}')
         os.makedirs(dump_dir, exist_ok=True)
         dump_file = os.path.join(dump_dir, file_name)
         plt.savefig(dump_file, bbox_inches='tight')
-        plt.close()   
+        plt.close() 
 
     def save_snapshot(self):
         keys_to_save = ['actor', 'critic', 'image_encoder']
@@ -514,7 +462,6 @@ class ScheduledOffsetFISH:
                 loaded_encoder = v
 
         self.critic_target.load_state_dict(self.critic.state_dict())
-        
         self.image_encoder.load_state_dict(loaded_encoder.state_dict()) # NOTE: In the actual repo they use self.vinn_encoder rather than loaded_encoder 
 
         self.image_encoder.eval()
@@ -527,6 +474,4 @@ class ScheduledOffsetFISH:
     def load_snapshot_eval(self, payload, bc=False):
         for k, v in payload.items():
             self.__dict__[k] = v
-        # NOTE: In the FISH-main code we're loading the state dictionary for the encoder as well
-        # here we're freezing the encoder - so not necessary
         self.critic_target.load_state_dict(self.critic.state_dict()) 

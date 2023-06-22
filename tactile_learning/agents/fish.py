@@ -210,7 +210,7 @@ class FISHAgent:
                     image_obs = image_obs[:frame_id_to_stack]
                     tactile_reprs = tactile_reprs[:frame_id_to_stack]
                     actions = actions[:frame_id_to_stack]
-                    for i in range(self.end_frames_repeat):
+                    for _ in range(self.end_frames_repeat):
                         image_obs.append(image_to_append)
                         tactile_reprs.append(tactile_to_append)
                         actions.append(action_to_append)
@@ -239,10 +239,7 @@ class FISHAgent:
             # Set actions
             _, allegro_action_id = self.data['allegro_actions']['indices'][step_id]
             allegro_joint_action = self.data['allegro_actions']['values'][demo_id][allegro_action_id]
-            if self.action_shape == 19:
-                allegro_action = self.kdl_solver.get_fingertip_coords(allegro_joint_action)
-            else:
-                allegro_action = allegro_joint_action 
+            allegro_action = allegro_joint_action 
 
             # Set kinova action 
             _, kinova_id = self.data['kinova']['indices'][step_id]
@@ -266,13 +263,13 @@ class FISHAgent:
 
     # Will give the next action in the step
     def base_act(self, obs, episode_step): # Returns the action for the base policy - openloop
-        if episode_step == 0:
-            # Set the exploration
-            if self.exploration == 'ou_noise':
-                self.ou_noise = OrnsteinUhlenbeckActionNoise(
-                    mu = np.zeros(len(self.offset_mask)), # The mean of the offsets should be 0
-                    sigma = 0.8 # It will give bw -1 and 1 - then this gets multiplied by the scale factors ...
-                )
+        # if episode_step == 0:
+        #     # Set the exploration
+        #     if self.exploration == 'ou_noise':
+        #         self.ou_noise = OrnsteinUhlenbeckActionNoise(
+        #             mu = np.zeros(len(self.offset_mask)), # The mean of the offsets should be 0
+        #             sigma = 0.8 # It will give bw -1 and 1 - then this gets multiplied by the scale factors ...
+        #         )
 
         action, is_done = self.base_policy.act( # TODO: Make sure these are good
             obs, episode_step
@@ -304,7 +301,6 @@ class FISHAgent:
             offset_action = dist.mean
         else:
             offset_action = dist.sample(clip=None)
-
 
             offset_action = self.explorer.explore(
                 offset_action = offset_action,
@@ -346,7 +342,6 @@ class FISHAgent:
         offset_action[:,:-7] *= self.hand_offset_scale_factor
         offset_action[:,-7:] *= self.arm_offset_scale_factor
 
-
         # Check if the offset action is higher than the limits
         offset_action = self._check_limits(offset_action)
 
@@ -371,44 +366,44 @@ class FISHAgent:
 
         return action.cpu().numpy()[0], base_action.cpu().numpy()[0], is_done, metrics
 
-    def _find_closest_mock_step(self, curr_step):
-        offset_step = 0
-        if curr_step == 0:
-            return curr_step
+    # def _find_closest_mock_step(self, curr_step):
+    #     offset_step = 0
+    #     if curr_step == 0:
+    #         return curr_step
 
-        curr_demo_id, _ = self.mock_data['allegro_actions']['indices'][curr_step]
-        next_demo_id, _ = self.mock_data['allegro_actions']['indices'][curr_step+offset_step]
-        while curr_demo_id == next_demo_id:
-            offset_step += 1
-            next_demo_id, _ = self.mock_data['allegro_actions']['indices'][(curr_step+offset_step) % len(self.mock_data['allegro_actions']['indices'])]
+    #     curr_demo_id, _ = self.mock_data['allegro_actions']['indices'][curr_step]
+    #     next_demo_id, _ = self.mock_data['allegro_actions']['indices'][curr_step+offset_step]
+    #     while curr_demo_id == next_demo_id:
+    #         offset_step += 1
+    #         next_demo_id, _ = self.mock_data['allegro_actions']['indices'][(curr_step+offset_step) % len(self.mock_data['allegro_actions']['indices'])]
             
 
-        next_demo_step = (curr_step+offset_step) % len(self.mock_data['allegro_actions']['indices'])
-        return next_demo_step
+    #     next_demo_step = (curr_step+offset_step) % len(self.mock_data['allegro_actions']['indices'])
+    #     return next_demo_step
 
-    # Method that returns the next action in the mock data
-    def mock_act(self, obs, step, max_step): # Returns the action for the base policy - TODO: This will be used after we have the environment
-        if step > 0 and step % max_step == 0:
-            self.curr_step = self._find_closest_mock_step(self.curr_step)
+    # # Method that returns the next action in the mock data
+    # def mock_act(self, obs, step, max_step): # Returns the action for the base policy - TODO: This will be used after we have the environment
+    #     if step > 0 and step % max_step == 0:
+    #         self.curr_step = self._find_closest_mock_step(self.curr_step)
         
-        # Get the action in the current step
-        demo_id, action_id = self.mock_data['allegro_actions']['indices'][self.curr_step]
-        allegro_joint_action = self.mock_data['allegro_actions']['values'][demo_id][action_id]
-        if self.action_shape == 19:
-            allegro_action = self.kdl_solver.get_fingertip_coords(allegro_joint_action)
-        else:
-            allegro_action = allegro_joint_action
+    #     # Get the action in the current step
+    #     demo_id, action_id = self.mock_data['allegro_actions']['indices'][self.curr_step]
+    #     allegro_joint_action = self.mock_data['allegro_actions']['values'][demo_id][action_id]
+    #     if self.action_shape == 19:
+    #         allegro_action = self.kdl_solver.get_fingertip_coords(allegro_joint_action)
+    #     else:
+    #         allegro_action = allegro_joint_action
         
-        # Get the kinova action 
-        _, kinova_id = self.mock_data['kinova']['indices'][self.curr_step]
-        kinova_action = self.mock_data['kinova']['values'][demo_id][kinova_id]
+    #     # Get the kinova action 
+    #     _, kinova_id = self.mock_data['kinova']['indices'][self.curr_step]
+    #     kinova_action = self.mock_data['kinova']['values'][demo_id][kinova_id]
 
-        # Concatenate the actions 
-        demo_action = np.concatenate([allegro_action, kinova_action], axis=-1)
+    #     # Concatenate the actions 
+    #     demo_action = np.concatenate([allegro_action, kinova_action], axis=-1)
 
-        self.curr_step = (self.curr_step+1) % (len(self.mock_data['allegro_actions']['indices']))
+    #     self.curr_step = (self.curr_step+1) % (len(self.mock_data['allegro_actions']['indices']))
 
-        return demo_action, np.zeros(self.action_shape) # Base action will be 0s only for now
+    #     return demo_action, np.zeros(self.action_shape) # Base action will be 0s only for now
 
     def update_critic(self, obs, action, base_next_action, reward, discount, next_obs, step):
         metrics = dict()
@@ -449,13 +444,13 @@ class FISHAgent:
 
         # compute action offset
         dist = self.actor(obs, base_action, stddev)
-        action_offset = dist.sample(clip=self.stddev_clip)
-        log_prob = dist.log_prob(action_offset).sum(-1, keepdim=True)
+        offset_action = dist.sample(clip=self.stddev_clip)
+        log_prob = dist.log_prob(offset_action).sum(-1, keepdim=True)
 
         # compute action
-        action_offset[:-7] *= self.hand_offset_scale_factor
-        action_offset[-7:] *= self.arm_offset_scale_factor 
-        action = base_action + action_offset 
+        offset_action[:,:-7] *= self.hand_offset_scale_factor
+        offset_action[:,-7:] *= self.arm_offset_scale_factor 
+        action = base_action + offset_action 
         Q1, Q2 = self.critic(obs, action)
         Q = torch.min(Q1, Q2)
 
