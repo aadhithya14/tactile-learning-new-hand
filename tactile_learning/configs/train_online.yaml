@@ -1,5 +1,6 @@
 defaults:
   - base_policy: vinn_cont
+  - explorer: ou_noise
   - rewarder: sinkhorn_cosine # Type of the reward 
   - task: bowl_unstacking
   - suite: gym
@@ -56,7 +57,7 @@ expert_frame_matches: 1
 # scale_representations: False
 # exponential_exploration: False # This is to explore sometimes when it's stuck
 # exponential_offset_exploration: False # TODO: Test this - offset added is lowered exponentially
-exploration: ou_noise
+# exploration: ou_noise
 # rewards: sinkhorn_cosine # it was sinkhorn cosine
 # ssim_base_factor: 0.7 # It's assumed to give higher rewards
 # mock_env: False # If set to true we will be using mock demos as the environment interaction

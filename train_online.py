@@ -62,7 +62,8 @@ class Workspace:
         self.agent = hydra.utils.instantiate(self.cfg.agent)
         self.agent.initialize_modules(
             base_policy_cfg = self.cfg.base_policy,
-            rewarder_cfg = self.cfg.rewarder
+            rewarder_cfg = self.cfg.rewarder,
+            explorer_cfg = self.cfg.explorer
         )
 
     def _set_logger(self, cfg):

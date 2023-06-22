@@ -153,7 +153,7 @@ class FISHAgent:
         # Openloop tracker
         self.curr_step = 0
 
-    def initialize_modules(self, base_policy_cfg, rewarder_cfg): 
+    def initialize_modules(self, base_policy_cfg, rewarder_cfg, explorer_cfg): 
         self.base_policy = hydra.utils.instantiate(
             base_policy_cfg,
             expert_demos = self.expert_demos,
@@ -164,6 +164,9 @@ class FISHAgent:
             expert_demos = self.expert_demos, 
             image_encoder = self.image_encoder if 'image' in self.reward_representations else None,
             tactile_encoder = self.tactile_encoder if 'tactile' in self.reward_representations else None
+        )
+        self.explorer = hydra.utils.instantiate(
+            explorer_cfg
         )
 
     def __repr__(self):
@@ -302,36 +305,47 @@ class FISHAgent:
         else:
             offset_action = dist.sample(clip=None)
 
+
+            offset_action = self.explorer.explore(
+                offset_action = offset_action,
+                global_step = global_step, 
+                episode_step = episode_step,
+                device = self.device
+            )
             # Exploration
-            if self.exponential_exploration:
-                epsilon = exponential_epsilon_decay(
-                    step_idx=global_step,
-                    epsilon_decay=self.num_expl_steps
-                )
-                rand_num = random.random()
-                if rand_num < epsilon:
-                    print('EXPLORING!!!')
-                    offset_action.uniform_(-1.0, 1.0)
-            elif self.exploration == 'ou_noise':
-                if global_step < self.num_expl_steps:
-                    offset_action = torch.FloatTensor(self.ou_noise()).to(self.device).unsqueeze(0)
-                    print('ou_noise offset: {}'.format(offset_action.shape))
-            else:
-                if global_step < self.num_expl_steps:
-                    offset_action.uniform_(-1.0, 1.0)
+            # if self.exponential_exploration:
+            #     epsilon = exponential_epsilon_decay(
+            #         step_idx=global_step,
+            #         epsilon_decay=self.num_expl_steps
+            #     )
+            #     rand_num = random.random()
+            #     if rand_num < epsilon:
+            #         print('EXPLORING!!!')
+            #         offset_action.uniform_(-1.0, 1.0)
+            # elif self.exploration == 'ou_noise':
+            #     if global_step < self.num_expl_steps:
+            #         offset_action = torch.FloatTensor(self.ou_noise()).to(self.device).unsqueeze(0)
+            #         print('ou_noise offset: {}'.format(offset_action.shape))
+            # else:
+            #     if global_step < self.num_expl_steps:
+            #         offset_action.uniform_(-1.0, 1.0)
 
         offset_action *= self.offset_mask 
-        is_explore = global_step < self.num_expl_steps or (self.exponential_exploration and rand_num < epsilon)
+        # is_explore = global_step < self.num_expl_steps or (self.exponential_exploration and rand_num < epsilon)
 
-        if is_explore and self.exponential_offset_exploration:  # TODO: Do the OU Noise
-            offset_action[:,:-7] *= self.hand_offset_scale_factor / ((episode_step+1)/2) 
-            offset_action[:,-7:] *= self.arm_offset_scale_factor / ((episode_step+1)/2)
-            if episode_step > 0:
-                offset_action += self.last_offset
-            self.last_offset = offset_action
-        else:
-            offset_action[:,:-7] *= self.hand_offset_scale_factor
-            offset_action[:,-7:] *= self.arm_offset_scale_factor
+        # if is_explore and self.exponential_offset_exploration: 
+        #     offset_action[:,:-7] *= self.hand_offset_scale_factor / ((episode_step+1)/2) 
+        #     offset_action[:,-7:] *= self.arm_offset_scale_factor / ((episode_step+1)/2)
+        #     if episode_step > 0:
+        #         offset_action += self.last_offset
+        #     self.last_offset = offset_action
+        # else:
+            # offset_action[:,:-7] *= self.hand_offset_scale_factor
+            # offset_action[:,-7:] *= self.arm_offset_scale_factor
+
+        offset_action[:,:-7] *= self.hand_offset_scale_factor
+        offset_action[:,-7:] *= self.arm_offset_scale_factor
+
 
         # Check if the offset action is higher than the limits
         offset_action = self._check_limits(offset_action)
