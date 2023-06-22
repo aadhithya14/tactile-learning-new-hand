@@ -63,7 +63,7 @@ class VINN(BasePolicy):
             self.all_representations, # Both the input and the output of the nearest neighbors are
             self.all_representations,
             ['image', 'tactile'],
-            [1, 2], # Could have tactile doubled
+            [1, 1], # Could have tactile doubled
             tactile_repr_size=tactile_repr_size
         )
 
@@ -118,7 +118,8 @@ class VINN(BasePolicy):
         image_obs = obs['image_obs'].unsqueeze(0) / 255.
         tactile_repr = obs['tactile_repr'].numpy()
         image_obs = self.image_normalize(image_obs.float()).to(self.device)
-        image_repr = self.image_encoder(image_obs).detach().cpu().numpy().squeeze()
+        with torch.no_grad():
+            image_repr = self.image_encoder(image_obs).detach().cpu().numpy().squeeze()
         curr_repr = np.concatenate([image_repr, tactile_repr], axis=0)
 
         # Choose the action with the buffer 

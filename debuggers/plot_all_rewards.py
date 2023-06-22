@@ -1,6 +1,7 @@
 # Script to plot all the rewards of all trajectories and the closest
 # end frame
 
+import datetime
 import os
 import hydra
 import numpy as np
@@ -348,6 +349,45 @@ def load_expert_demos(data_path, expert_demo_nums, tactile_repr_module, image_tr
 
     return expert_demos
 
+# Load the human demo
+def load_human_demo(data_path, demo_id, view_num, image_transform=None): # This will have the exact same demo
+    human_demos = []
+    image_obs = [] 
+
+    if image_transform is None: 
+        def viewed_crop_transform(image):
+            return crop_transform(image, camera_view=view_num)
+        image_transform = T.Compose([
+            T.Resize((480,640)),
+            T.Lambda(viewed_crop_transform),
+            T.Resize(480),
+            T.ToTensor(),
+            T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS), 
+        ])
+
+    roots = glob.glob(f'{data_path}/demonstration_*')
+    roots = sorted(roots)
+    image_root = roots[demo_id]
+
+    image_ids = glob.glob(f'{image_root}/cam_{view_num}_rgb_images/*')
+    image_ids = sorted([int(image_id.split('_')[-1].split('.')[0]) for image_id in image_ids])
+    print('image_ids: {}'.format(image_ids))
+    for image_id in image_ids:
+        image = load_dataset_image( # We only have images in human demonstrations
+            data_path = data_path, 
+            demo_id = demo_id, 
+            image_id = image_id,
+            view_num = view_num,
+            transform = image_transform
+        )
+        image_obs.append(image)
+
+    human_demos.append(dict(
+        image_obs = torch.stack(image_obs, 0), 
+    ))
+
+    return human_demos
+
 # @hydra.main(version_base=None, config_path='../tactile_learning/configs', config_name='debug')
 def get_all_demos(cfg: DictConfig):
     # cfg = cfg.plot_all_rewards
@@ -367,19 +407,28 @@ def get_all_demos(cfg: DictConfig):
 
     def viewed_crop_transform(image):
         return crop_transform(image, camera_view=cfg.view_num)
-    expert_demos = load_expert_demos(
-        data_path = cfg.data_path,
-        expert_demo_nums=cfg.expert_demo_nums,
-        tactile_repr_module=tactile_repr_module,
-        image_transform = T.Compose([
-            T.Resize((480,640)),
-            T.Lambda(viewed_crop_transform),
-            T.Resize(480),
-            T.ToTensor(),
-            T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS), 
-        ]),
-        view_num = cfg.view_num
-    )
+    image_transform = T.Compose([
+        T.Resize((480,640)),
+        T.Lambda(viewed_crop_transform),
+        T.Resize(480),
+        T.ToTensor(),
+        T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS), 
+    ])
+    if cfg.human_expert:
+        expert_demos = load_human_demo(
+            data_path = cfg.data_path,
+            demo_id = cfg.expert_demo_nums,
+            view_num = cfg.view_num,
+            image_transform = image_transform
+        )
+    else:
+        expert_demos = load_expert_demos(
+            data_path = cfg.data_path,
+            expert_demo_nums = cfg.expert_demo_nums,
+            tactile_repr_module = tactile_repr_module,
+            image_transform = image_transform,
+            view_num = cfg.view_num
+        )
 
     all_episodes = load_all_episodes(
         roots = cfg.episode_roots, # Either one of them will be none
@@ -461,10 +510,11 @@ def get_all_rewards(cfg: DictConfig):
     ts_arr = episode_time_step.split('.')
     episode_ts = ''.join(ts_arr)
     print('episode_ts: {}'.format(episode_ts))
+    ts = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
     plotter.plot_rewards(
         nrows = nrows,
         ncols = ncols,
-        figure_name = f'plot_all_rewards_outputs/{cfg.object}_{cfg.rewards}_{episode_ts}_experts_{cfg.expert_demo_nums}_len_episodes_{len(cfg.episode_roots)}_ex_match_{cfg.expert_frame_matches}_ep_match_{cfg.episode_frame_matches}_frames_to_match_{cfg.frames_to_match}_mb_{cfg.match_both}_rewards_{cfg.reward_representations}_expo_{cfg.expo_weight_init}_sorted'
+        figure_name = f'plot_all_rewards_outputs/{ts}_{cfg.object}_human_expert'
     )
 
 if __name__ == '__main__':

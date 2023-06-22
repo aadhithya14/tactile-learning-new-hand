@@ -48,7 +48,8 @@ class VINNContinuous(VINN):
             image_obs = obs['image_obs'].unsqueeze(0) / 255.
             tactile_repr = obs['tactile_repr'].numpy()
             image_obs = self.image_normalize(image_obs.float()).to(self.device)
-            image_repr = self.image_encoder(image_obs).detach().cpu().numpy().squeeze()
+            with torch.no_grad():
+                image_repr = self.image_encoder(image_obs).detach().cpu().numpy().squeeze()
             curr_repr = np.concatenate([image_repr, tactile_repr], axis=0)
 
             # Choose the action with the buffer 

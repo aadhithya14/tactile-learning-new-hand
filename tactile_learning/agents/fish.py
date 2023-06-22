@@ -8,22 +8,16 @@ import os
 import hydra
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import sys
 
 from pathlib import Path
-from PIL import Image
 
-from torchvision.utils import save_image
 from torchvision import transforms as T
-# from agent.encoder import Encoder
 
 from tactile_learning.models import *
 from tactile_learning.utils import *
 from tactile_learning.tactile_data import *
-from tactile_learning.deployers.utils.nn_buffer import NearestNeighborBuffer
-
 from holobot.robot.allegro.allegro_kdl import AllegroKDL
 
 class FISHAgent:
@@ -93,9 +87,6 @@ class FISHAgent:
         # TODO: Load the encoders - both the normal ones and the target ones
         image_cfg, self.image_encoder, self.image_transform  = init_encoder_info(self.device, image_out_dir, 'image', view_num=view_num, model_type=image_model_type)
         self._set_image_transform()
-
-        print('image_cfg.encoder: {}'.format(image_cfg.encoder))
-        # image_repr_dim = image_cfg.encoder.image_encoder.out_dim if image_model_type == 'bc' else image_cfg.encoder.out_dim # TODO: Merge these in a better hydra config
         image_repr_dim = 512
 
         tactile_cfg, self.tactile_encoder, _ = init_encoder_info(self.device, tactile_out_dir, 'tactile', view_num=view_num, model_type=tactile_model_type)
@@ -162,11 +153,17 @@ class FISHAgent:
         # Openloop tracker
         self.curr_step = 0
 
-    def initialize_base_policy(self, base_policy_cfg): 
+    def initialize_modules(self, base_policy_cfg, rewarder_cfg): 
         self.base_policy = hydra.utils.instantiate(
             base_policy_cfg,
             expert_demos = self.expert_demos,
             tactile_repr_size = self.tactile_repr.size,
+        )
+        self.rewarder = hydra.utils.instantiate(
+            rewarder_cfg,
+            expert_demos = self.expert_demos, 
+            image_encoder = self.image_encoder if 'image' in self.reward_representations else None,
+            tactile_encoder = self.tactile_encoder if 'tactile' in self.reward_representations else None
         )
 
     def __repr__(self):
@@ -266,7 +263,6 @@ class FISHAgent:
 
     # Will give the next action in the step
     def base_act(self, obs, episode_step): # Returns the action for the base policy - openloop
-        # TODO: You should get the nearest neighbor at the beginning and maybe at each step as well?
         if episode_step == 0:
             # Set the exploration
             if self.exploration == 'ou_noise':
@@ -580,135 +576,137 @@ class FISHAgent:
         
         # NOTE: In this code we're not using target encoder since the encoders are already frozen
 
-        all_ot_rewards = []
-        cost_matrices = []
-        best_reward_sum = - sys.maxsize
-        best_ot_reward_id = -1
+        # all_ot_rewards = []
+        # cost_matrices = []
+        # best_reward_sum = - sys.maxsize
+        # best_ot_reward_id = -1
 
-        # Get the episode representations
-        curr_reprs = []
-        if 'image' in self.reward_representations: # We will not be using features for reward for sure
-            if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
-                image_reprs = self.image_encoder(episode_obs['image_obs'][-self.episode_frame_matches:,:].to(self.device))
-            else:
-                if self.match_from_both:
-                    image_reprs = self.image_encoder(episode_obs['image_obs'][-self.reward_matching_steps:,:].to(self.device))
-                else:
-                    image_reprs = self.image_encoder(episode_obs['image_obs'].to(self.device))
-            curr_reprs.append(image_reprs) # NOTE: We should alwasys get all of the observation
+        # # Get the episode representations
+        # curr_reprs = []
+        # if 'image' in self.reward_representations: # We will not be using features for reward for sure
+        #     if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+        #         image_reprs = self.image_encoder(episode_obs['image_obs'][-self.episode_frame_matches:,:].to(self.device))
+        #     else:
+        #         if self.match_from_both:
+        #             image_reprs = self.image_encoder(episode_obs['image_obs'][-self.reward_matching_steps:,:].to(self.device))
+        #         else:
+        #             image_reprs = self.image_encoder(episode_obs['image_obs'].to(self.device))
+        #     curr_reprs.append(image_reprs) # NOTE: We should alwasys get all of the observation
 
-        if 'tactile' in self.reward_representations:
-            if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
-                tactile_reprs = episode_obs['tactile_repr'][-self.episode_frame_matches:,:].to(self.device)
-            else:
-                if self.match_from_both:
-                    tactile_reprs = episode_obs['tactile_repr'][-self.reward_matching_steps:,:].to(self.device) # This will give all the representations of one episode
-                else:
-                    tactile_reprs = episode_obs['tactile_repr'].to(self.device)
-            curr_reprs.append(tactile_reprs)
+        # if 'tactile' in self.reward_representations:
+        #     if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+        #         tactile_reprs = episode_obs['tactile_repr'][-self.episode_frame_matches:,:].to(self.device)
+        #     else:
+        #         if self.match_from_both:
+        #             tactile_reprs = episode_obs['tactile_repr'][-self.reward_matching_steps:,:].to(self.device) # This will give all the representations of one episode
+        #         else:
+        #             tactile_reprs = episode_obs['tactile_repr'].to(self.device)
+        #     curr_reprs.append(tactile_reprs)
 
-        # Concatenate everything now
-        obs = torch.concat(curr_reprs, dim=-1).detach()
-        print('obs.shape in ot_rewarder: {}'.format(obs.shape))
+        # # Concatenate everything now
+        # obs = torch.concat(curr_reprs, dim=-1).detach()
+        # print('obs.shape in ot_rewarder: {}'.format(obs.shape))
 
-        for expert_id in range(len(self.expert_demos)):
-            # Get the expert representations
-            exp_reprs = []
-            if 'image' in self.reward_representations: # We will not be using features for reward for sure
-                if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
-                    expert_image_reprs = self.image_encoder(self.expert_demos[expert_id]['image_obs'][-self.expert_frame_matches:,:].to(self.device))
-                else:
-                    expert_image_reprs = self.image_encoder(self.expert_demos[expert_id]['image_obs'][-self.reward_matching_steps:,:].to(self.device))
-                exp_reprs.append(expert_image_reprs)
+        # for expert_id in range(len(self.expert_demos)):
+        #     # Get the expert representations
+        #     exp_reprs = []
+        #     if 'image' in self.reward_representations: # We will not be using features for reward for sure
+        #         if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+        #             expert_image_reprs = self.image_encoder(self.expert_demos[expert_id]['image_obs'][-self.expert_frame_matches:,:].to(self.device))
+        #         else:
+        #             expert_image_reprs = self.image_encoder(self.expert_demos[expert_id]['image_obs'][-self.reward_matching_steps:,:].to(self.device))
+        #         exp_reprs.append(expert_image_reprs)
 
-            if 'tactile' in self.reward_representations:
-                if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
-                    expert_tactile_reprs = self.expert_demos[expert_id]['tactile_repr'][-self.expert_frame_matches:,:].to(self.device)
-                else:
-                    expert_tactile_reprs = self.expert_demos[expert_id]['tactile_repr'][-self.reward_matching_steps:,:].to(self.device)
-                exp_reprs.append(expert_tactile_reprs)
+        #     if 'tactile' in self.reward_representations:
+        #         if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+        #             expert_tactile_reprs = self.expert_demos[expert_id]['tactile_repr'][-self.expert_frame_matches:,:].to(self.device)
+        #         else:
+        #             expert_tactile_reprs = self.expert_demos[expert_id]['tactile_repr'][-self.reward_matching_steps:,:].to(self.device)
+        #         exp_reprs.append(expert_tactile_reprs)
 
-            # Concatenate everything now
-            exp = torch.concat(exp_reprs, dim=-1).detach()
-            print('exp[{}].shape in ot_rewarder : {}'.format(expert_id, exp.shape))
+        #     # Concatenate everything now
+        #     exp = torch.concat(exp_reprs, dim=-1).detach()
+        #     print('exp[{}].shape in ot_rewarder : {}'.format(expert_id, exp.shape))
 
-            if self.rewards == 'sinkhorn_cosine':
-                cost_matrix = cosine_distance(
-                        obs, exp)  # Get cost matrix for samples using critic network.
-                transport_plan = optimal_transport_plan(
-                    obs, exp, cost_matrix, method='sinkhorn',
-                    niter=100, exponential_weight_init=exponential_weight_init).float()  # Getting optimal coupling
-                ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
-                    torch.mm(transport_plan,
-                                cost_matrix.T)).detach().cpu().numpy()
+        #     if self.rewards == 'sinkhorn_cosine':
+        #         cost_matrix = cosine_distance(
+        #                 obs, exp)  # Get cost matrix for samples using critic network.
+        #         transport_plan = optimal_transport_plan(
+        #             obs, exp, cost_matrix, method='sinkhorn',
+        #             niter=100, exponential_weight_init=exponential_weight_init).float()  # Getting optimal coupling
+        #         ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
+        #             torch.mm(transport_plan,
+        #                         cost_matrix.T)).detach().cpu().numpy()
                 
-            elif self.rewards == 'sinkhorn_euclidean':
-                cost_matrix = euclidean_distance(
-                    obs, exp)  # Get cost matrix for samples using critic network.
-                transport_plan = optimal_transport_plan(
-                    obs, exp, cost_matrix, method='sinkhorn',
-                    niter=100, exponential_weight_init=exponential_weight_init).float()  # Getting optimal coupling
-                ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
-                    torch.mm(transport_plan,
-                                cost_matrix.T)).detach().cpu().numpy()
+        #     elif self.rewards == 'sinkhorn_euclidean':
+        #         cost_matrix = euclidean_distance(
+        #             obs, exp)  # Get cost matrix for samples using critic network.
+        #         transport_plan = optimal_transport_plan(
+        #             obs, exp, cost_matrix, method='sinkhorn',
+        #             niter=100, exponential_weight_init=exponential_weight_init).float()  # Getting optimal coupling
+        #         ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
+        #             torch.mm(transport_plan,
+        #                         cost_matrix.T)).detach().cpu().numpy()
                 
-            elif self.rewards == 'cosine':
-                exp = torch.cat((exp, exp[-1].unsqueeze(0)))
-                ot_rewards = -(1. - F.cosine_similarity(obs, exp))
-                ot_rewards *= self.sinkhorn_rew_scale
-                ot_rewards = ot_rewards.detach().cpu().numpy()
+        #     elif self.rewards == 'cosine':
+        #         exp = torch.cat((exp, exp[-1].unsqueeze(0)))
+        #         ot_rewards = -(1. - F.cosine_similarity(obs, exp))
+        #         ot_rewards *= self.sinkhorn_rew_scale
+        #         ot_rewards = ot_rewards.detach().cpu().numpy()
                 
-            elif self.rewards == 'euclidean':
-                exp = torch.cat((exp, exp[-1].unsqueeze(0)))
-                ot_rewards = -(obs - exp).norm(dim=1)
-                ot_rewards *= self.sinkhorn_rew_scale
-                ot_rewards = ot_rewards.detach().cpu().numpy()
+        #     elif self.rewards == 'euclidean':
+        #         exp = torch.cat((exp, exp[-1].unsqueeze(0)))
+        #         ot_rewards = -(obs - exp).norm(dim=1)
+        #         ot_rewards *= self.sinkhorn_rew_scale
+        #         ot_rewards = ot_rewards.detach().cpu().numpy()
 
-            elif self.rewards == 'ssim': # Use structural similarity index match
-                if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
-                    episode_img = self.inv_image_transform(episode_obs['image_obs'][-self.episode_frame_matches:,:]) 
-                    expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'][-self.expert_frame_matches:,:])
-                else:
-                    if self.match_from_both:
-                        episode_img = self.inv_image_transform(episode_obs['image_obs'][-self.reward_matching_steps:,:]) 
-                    else:
-                        episode_img = self.inv_image_transform(episode_obs['image_obs'])
-                    expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'][-self.reward_matching_steps:,:])
+        #     elif self.rewards == 'ssim': # Use structural similarity index match
+        #         if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+        #             episode_img = self.inv_image_transform(episode_obs['image_obs'][-self.episode_frame_matches:,:]) 
+        #             expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'][-self.expert_frame_matches:,:])
+        #         else:
+        #             if self.match_from_both:
+        #                 episode_img = self.inv_image_transform(episode_obs['image_obs'][-self.reward_matching_steps:,:]) 
+        #             else:
+        #                 episode_img = self.inv_image_transform(episode_obs['image_obs'])
+        #             expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'][-self.reward_matching_steps:,:])
 
-                ot_rewards = structural_similarity_index(
-                    x = expert_img,
-                    y = episode_img,
-                    base_factor = self.ssim_base_factor
-                )
-                # ot_rewards -= self.ssim_base_factor 
-                # ot_rewards *= self.sinkhorn_rew_scale / (1 - self.ssim_base_factor) # We again scale it to 10 in the beginning
-                ot_rewards *= self.sinkhorn_rew_scale
-                cost_matrix = torch.FloatTensor(ot_rewards)
+        #         ot_rewards = structural_similarity_index(
+        #             x = expert_img,
+        #             y = episode_img,
+        #             base_factor = self.ssim_base_factor
+        #         )
+        #         ot_rewards *= self.sinkhorn_rew_scale
+        #         cost_matrix = torch.FloatTensor(ot_rewards)
                 
-            else:
-                raise NotImplementedError()
+        #     else:
+        #         raise NotImplementedError()
             
-            all_ot_rewards.append(ot_rewards)
-            sum_ot_rewards = np.sum(ot_rewards) 
-            cost_matrices.append(cost_matrix)
-            if sum_ot_rewards > best_reward_sum:
-                best_reward_sum = sum_ot_rewards
-                best_ot_reward_id = expert_id
+        #     all_ot_rewards.append(ot_rewards)
+        #     sum_ot_rewards = np.sum(ot_rewards) 
+        #     cost_matrices.append(cost_matrix)
+        #     if sum_ot_rewards > best_reward_sum:
+        #         best_reward_sum = sum_ot_rewards
+        #         best_ot_reward_id = expert_id
         
-        if self.sum_experts:
-            final_cost_matrix = sum(cost_matrices) # Sum it through all of the cost matrices
-            final_ot_reward = sum(all_ot_rewards)
-        else:
-            final_cost_matrix = cost_matrices[best_ot_reward_id]
-            final_ot_reward = all_ot_rewards[best_ot_reward_id]
+        # if self.sum_experts:
+        #     final_cost_matrix = sum(cost_matrices) # Sum it through all of the cost matrices
+        #     final_ot_reward = sum(all_ot_rewards)
+        # else:
+        #     final_cost_matrix = cost_matrices[best_ot_reward_id]
+        #     final_ot_reward = all_ot_rewards[best_ot_reward_id]
 
-        print('all_ot_rewards: {}'.format(all_ot_rewards))
-        print('final_ot_reward: {}'.format(final_ot_reward))
+        final_reward, final_cost_matrix, best_expert_id = self.rewarder.get(
+            obs = episode_obs
+        )
+
+        # print('all_ot_rewards: {}'.format(all_ot_rewards)) 
+        print('final_reward: {}'.format(final_reward))
 
         if visualize:
-            self.plot_cost_matrix(final_cost_matrix, expert_id=best_ot_reward_id, episode_id=episode_id)
+            self.plot_cost_matrix(final_cost_matrix, expert_id=best_expert_id, episode_id=episode_id)
 
-        return final_ot_reward
+        return final_reward
     
     def plot_cost_matrix(self, cost_matrix, expert_id, episode_id, file_name=None):
         if file_name is None:

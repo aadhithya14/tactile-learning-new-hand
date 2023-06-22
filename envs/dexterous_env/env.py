@@ -147,7 +147,8 @@ class DexterityEnv(gym.Env):
         
         sensor_state = self.deploy_api.get_sensor_state()
         tactile_values = sensor_state['xela']['sensor_values']
-        obs['tactile'] = self.tactile_repr.get(tactile_values)
+        with torch.no_grad():
+            obs['tactile'] = self.tactile_repr.get(tactile_values)
 
         reward, done, infos = 0, False, {'is_success': False} 
 

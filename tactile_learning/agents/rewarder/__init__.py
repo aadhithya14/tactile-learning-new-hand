@@ -1,0 +1,1 @@
+from .sinkhorn_cosine import SinkhornCosine
