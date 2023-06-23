@@ -263,13 +263,6 @@ class FISHAgent:
 
     # Will give the next action in the step
     def base_act(self, obs, episode_step): # Returns the action for the base policy - openloop
-        # if episode_step == 0:
-        #     # Set the exploration
-        #     if self.exploration == 'ou_noise':
-        #         self.ou_noise = OrnsteinUhlenbeckActionNoise(
-        #             mu = np.zeros(len(self.offset_mask)), # The mean of the offsets should be 0
-        #             sigma = 0.8 # It will give bw -1 and 1 - then this gets multiplied by the scale factors ...
-        #         )
 
         action, is_done = self.base_policy.act( # TODO: Make sure these are good
             obs, episode_step
@@ -708,6 +701,14 @@ class FISHAgent:
         final_reward, final_cost_matrix, best_expert_id = self.rewarder.get(
             obs = episode_obs
         )
+
+        # Update the reward scale if it's the first episode
+        if episode_id == 1:
+            # Auto update the reward scale and get the rewards again
+            self.rewarder.update_scale(current_rewards = final_reward)
+            final_reward, final_cost_matrix, best_expert_id = self.rewarder.get(
+                obs = episode_obs
+            )
 
         # print('all_ot_rewards: {}'.format(all_ot_rewards)) 
         print('final_reward: {}'.format(final_reward))

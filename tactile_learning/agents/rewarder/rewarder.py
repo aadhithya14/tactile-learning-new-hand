@@ -1,5 +1,5 @@
 # Script for overall rewarder
-
+import numpy as np
 import torch
 from abc import ABC, abstractmethod
 
@@ -9,6 +9,7 @@ class Rewarder(ABC):
         expert_demos,
         device,
         sinkhorn_rew_scale,
+        auto_rew_scale_factor = 10,
         representation_types=['image'],
         expert_frame_matches=-1, 
         episode_frame_matches=-1,
@@ -20,12 +21,17 @@ class Rewarder(ABC):
         self.episode_frame_matches = episode_frame_matches
         self.device = device # This could be in a separate device as well
         self.sinkhorn_rew_scale = sinkhorn_rew_scale
+        self.auto_rew_scale_factor = auto_rew_scale_factor
         self.set_expert_demos(expert_demos)
         self.set_encoders(image_encoder, tactile_encoder)
 
     @abstractmethod
     def get(self, obs): # Method to get the reward
         pass # This should be implemented by each rewarder
+
+    def update_scale(self, current_rewards): 
+        sum_rewards = np.sum(current_rewards)
+        self.sinkhorn_rew_scale = self.sinkhorn_rew_scale * self.auto_rew_scale_factor / float(np.abs(sum_rewards))
 
     def set_rew_scale(self, new_rew_scale): # This will be used after the first episode
         self.sinkhorn_rew_scale = new_rew_scale

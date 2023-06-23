@@ -327,7 +327,7 @@ class ScheduledOffsetFISH:
             
         return metrics
 
-    def update_actor(self, obs, obs_expert, obs_qfilter, action_expert, base_action, base_action_expert, bc_regularize, step):
+    def update_actor(self, obs, base_action, step):
         metrics = dict()
 
         stddev = schedule(self.stddev_schedule, step)
@@ -360,7 +360,7 @@ class ScheduledOffsetFISH:
         return metrics
 
     
-    def update(self, replay_iter, step, bc_regularize=False, expert_replay_iter=None, ssl_replay_iter=None):
+    def update(self, replay_iter, step):
         metrics = dict()
 
         if step % self.update_every_steps != 0:
@@ -391,15 +391,6 @@ class ScheduledOffsetFISH:
             representation_types=self.policy_representations
         )
 
-        print('obs.shape: {}, next_obs.shape: {}'.format(
-        	obs.shape, next_obs.shape
-        ))
-
-        obs_qfilter = None
-        obs_expert = None 
-        action_expert = None
-        base_action_expert = None
-
         metrics['batch_reward'] = reward.mean().item()
 
         # update critic
@@ -407,7 +398,7 @@ class ScheduledOffsetFISH:
             self.update_critic(obs, action, base_next_action, reward, discount, next_obs, step))
 
         # update actor
-        metrics.update(self.update_actor(obs.detach(), obs_expert, obs_qfilter, action_expert, base_action, base_action_expert, bc_regularize, step))
+        metrics.update(self.update_actor(obs.detach(), base_action, step))
 
         # update critic target
         soft_update_params(self.critic, self.critic_target,

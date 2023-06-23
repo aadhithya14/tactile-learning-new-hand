@@ -358,18 +358,19 @@ class Workspace:
                 )
                 new_rewards_sum = np.sum(new_rewards)
 
+                 # NOTE: This is done inside the agent
                 # Scale the rewards to -10 for the first demo
-                if self.agent.auto_rew_scale:
-                    if self._global_episode == 1:
-                        self.agent.sinkhorn_rew_scale = self.agent.sinkhorn_rew_scale * self.agent.auto_rew_scale_factor / float(
-                            np.abs(new_rewards_sum))
-                        new_rewards = self.agent.ot_rewarder(
-                            episode_obs = observations,
-                            episode_id = self.global_episode,
-                            visualize = False,
-                            exponential_weight_init = self.cfg.exponential_weight_init
-                        )
-                        new_rewards_sum = np.sum(new_rewards)
+                # if self.agent.auto_rew_scale:
+                #     if self._global_episode == 1:
+                #         self.agent.sinkhorn_rew_scale = self.agent.sinkhorn_rew_scale * self.agent.auto_rew_scale_factor / float(
+                #             np.abs(new_rewards_sum))
+                #         new_rewards = self.agent.ot_rewarder(
+                #             episode_obs = observations,
+                #             episode_id = self.global_episode,
+                #             visualize = False,
+                #             exponential_weight_init = self.cfg.exponential_weight_init
+                #         )
+                #         new_rewards_sum = np.sum(new_rewards)
    
                 print(f'REWARD = {new_rewards_sum}')
                 ts = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
@@ -382,8 +383,8 @@ class Workspace:
                 obs_length = len(time_steps)
                 avg_reward = new_rewards_sum / obs_length
                 for i, elt in enumerate(time_steps):
-                    if i > (obs_length - self.cfg.reward_matching_steps):
-                        new_reward = new_rewards[self.cfg.reward_matching_steps - (obs_length - i)]
+                    if i > (obs_length - self.cfg.episode_frame_matches):
+                        new_reward = new_rewards[self.cfg.episode_frame_matches - (obs_length - i)]
                         elt = elt._replace(reward=new_reward) # Update the reward of the object accordingly
                     self.replay_storage.add(elt, last = (i == len(time_steps) - 1))
 
@@ -446,10 +447,7 @@ class Workspace:
             if not seed_until_step(self.global_step):
                 metrics = self.agent.update(
                     replay_iter = self.replay_iter,
-                    step = self.global_step,
-                    bc_regularize = self.cfg.bc_regularize,
-                    expert_replay_iter = None, # These could be used in the future
-                    ssl_replay_iter = None 
+                    step = self.global_step
                 )
                 if self.cfg.log:
                     self.logger.log_metrics(metrics, self.global_frame, 'global_frame')

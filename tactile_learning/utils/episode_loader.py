@@ -14,8 +14,8 @@ from torchvision import transforms as T
 from PIL import Image
 # from agent.encoder import Encoder
 
-from tactile_learning.models import *
-from tactile_learning.utils import load_dataset_image
+from tactile_learning.models import init_encoder_info, crop_transform
+from tactile_learning.utils import load_dataset_image, VISION_IMAGE_MEANS, VISION_IMAGE_STDS
 from tactile_learning.tactile_data import *
 
 def load_one_episode(fn):
