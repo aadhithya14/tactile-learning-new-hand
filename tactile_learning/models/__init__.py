@@ -3,6 +3,7 @@ from .ebm import EBMMLP
 from .encoders import *
 from .gmm import GMMLayer
 from .knn import *
+from .mlp import MLP
 from .pretrained import *
 from .tactile_encoders import *
 from .utils import *

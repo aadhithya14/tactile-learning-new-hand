@@ -448,37 +448,38 @@ class FISHAgent:
         Q = torch.min(Q1, Q2)
 
         # Compute bc weight
-        if not bc_regularize: # This will be false
-            bc_weight = 0.0
-        elif self.bc_weight_type == "linear":
-            bc_weight = schedule(self.bc_weight_schedule, step)
-        elif self.bc_weight_type == "qfilter": # NOTE: This is for ROT but in FISH they had it set to false
-            """
-            Soft Q-filtering inspired from 			
-            Nair, Ashvin, et al. "Overcoming exploration in reinforcement 
-            learning with demonstrations." 2018 IEEE international 
-            conference on robotics and automation (ICRA). IEEE, 2018.
-            """
-            with torch.no_grad():
-                stddev = 0.1
-                action_qf = base_action.clone()
-                Q1_qf, Q2_qf = self.critic(obs_qfilter.clone(), action_qf)
-                Q_qf = torch.min(Q1_qf, Q2_qf)
-                bc_weight = (Q_qf>Q).float().mean().detach()
+        # if not bc_regularize: # This will be false
+        #     bc_weight = 0.0
+        # elif self.bc_weight_type == "linear":
+        #     bc_weight = schedule(self.bc_weight_schedule, step)
+        # elif self.bc_weight_type == "qfilter": # NOTE: This is for ROT but in FISH they had it set to false
+        #     """
+        #     Soft Q-filtering inspired from 			
+        #     Nair, Ashvin, et al. "Overcoming exploration in reinforcement 
+        #     learning with demonstrations." 2018 IEEE international 
+        #     conference on robotics and automation (ICRA). IEEE, 2018.
+        #     """
+        #     with torch.no_grad():
+        #         stddev = 0.1
+        #         action_qf = base_action.clone()
+        #         Q1_qf, Q2_qf = self.critic(obs_qfilter.clone(), action_qf)
+        #         Q_qf = torch.min(Q1_qf, Q2_qf)
+        #         bc_weight = (Q_qf>Q).float().mean().detach()
 
-        actor_loss = - Q.mean() * (1-bc_weight)
+        # actor_loss = - Q.mean() * (1-bc_weight)
+        actor_loss = - Q.mean()
 
-        if bc_regularize:
-            stddev = 0.1
-            dist_expert = self.actor(obs_expert, base_action_expert, stddev)
-            action_expert_offset = dist_expert.sample(clip=self.stddev_clip)
-            action_expert_offset[:-7] *= self.hand_offset_scale_factor
-            action_expert_offset[-7:] *= self.arm_offset_scale_factor 
-            # action_expert_offset = dist_expert.sample(clip=self.stddev_clip) * self.offset_scale_factor
+        # if bc_regularize:
+        #     stddev = 0.1
+        #     dist_expert = self.actor(obs_expert, base_action_expert, stddev)
+        #     action_expert_offset = dist_expert.sample(clip=self.stddev_clip)
+        #     action_expert_offset[:-7] *= self.hand_offset_scale_factor
+        #     action_expert_offset[-7:] *= self.arm_offset_scale_factor 
+        #     # action_expert_offset = dist_expert.sample(clip=self.stddev_clip) * self.offset_scale_factor
 
-            true_offset = torch.zeros(action_expert_offset.shape).to(self.device)
-            log_prob_expert = dist_expert.log_prob(true_offset).sum(-1, keepdim=True)
-            actor_loss += - log_prob_expert.mean()*bc_weight*0.03
+        #     true_offset = torch.zeros(action_expert_offset.shape).to(self.device)
+        #     log_prob_expert = dist_expert.log_prob(true_offset).sum(-1, keepdim=True)
+        #     actor_loss += - log_prob_expert.mean()*bc_weight*0.03
 
         # optimize actor
         self.actor_opt.zero_grad(set_to_none=True)
@@ -489,14 +490,14 @@ class FISHAgent:
         metrics['actor_logprob'] = log_prob.mean().item()
         metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
         metrics['actor_q'] = Q.mean().item()
-        if bc_regularize and self.bc_weight_type == "qfilter":
-            metrics['actor_qf'] = Q_qf.mean().item()
-        metrics['bc_weight'] = bc_weight
-        metrics['regularized_rl_loss'] = -Q.mean().item()* (1-bc_weight)
-        metrics['rl_loss'] = -Q.mean().item()
-        if bc_regularize:
-            metrics['regularized_bc_loss'] = - log_prob_expert.mean().item()*bc_weight*0.03
-            metrics['bc_loss'] = - log_prob_expert.mean().item()*0.03
+        # if bc_regularize and self.bc_weight_type == "qfilter":
+        #     metrics['actor_qf'] = Q_qf.mean().item()
+        # metrics['bc_weight'] = bc_weight
+        # metrics['regularized_rl_loss'] = -Q.mean().item()* (1-bc_weight)
+        # metrics['rl_loss'] = -Q.mean().item()
+        # if bc_regularize:
+        #     metrics['regularized_bc_loss'] = - log_prob_expert.mean().item()*bc_weight*0.03
+        #     metrics['bc_loss'] = - log_prob_expert.mean().item()*0.03
             
         return metrics
 
