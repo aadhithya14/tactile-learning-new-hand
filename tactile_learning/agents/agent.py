@@ -18,7 +18,8 @@ class Agent(ABC):
         tactile_out_dir, tactile_model_type,
         view_num, 
         device,
-        lr, update_every_steps, stddev_schedule, stddev_clip, features_repeat, # Learning based parts
+        lr, update_every_steps, stddev_schedule, stddev_clip, features_repeat, 
+        experiment_name, # Learning based parts
         **kwargs
     ):
         # Demo based parameters
@@ -28,6 +29,7 @@ class Agent(ABC):
         self.expert_demo_nums = expert_demo_nums 
         self.device = device
         self.view_num = view_num
+        self.experiment_name = experiment_name
 
         # Learning based parameters
         self.lr = lr
@@ -154,3 +156,23 @@ class Agent(ABC):
     @abstractmethod
     def act(self, **kwargs): 
         pass
+
+    def save_snapshot(self, keys_to_save=['actor']):
+        payload = {k: self.__dict__[k] for k in keys_to_save}
+        return payload
+    
+    def repr_dim(self, type='policy'):
+        representations = self.policy_representations if type=='policy' else self.goal_representations
+        repr_dim = 0
+        if 'tactile' in representations:
+            repr_dim += self.tactile_repr.size
+        if 'image' in representations:
+            repr_dim += 512
+        if 'features' in representations:
+            repr_dim += 23 * self.features_repeat
+
+        return repr_dim
+
+    def load_snapshot(self, payload):
+        for k, v in payload.items():
+            self.__dict__[k] = v

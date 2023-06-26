@@ -43,7 +43,6 @@ class VINN(BasePolicy):
         self.max_steps = max_steps
 
         # Test turn id method because it's very dependant
-        # print('### TESTING TURN ID METHOD ON ALL REPRESENTATIONS ###')
         for i in range(len(self.all_representations)):
             exp_id, frame_id = self._turn_id(
                 frame_id=i, frame2expert=True)
@@ -51,12 +50,9 @@ class VINN(BasePolicy):
                 frame_id = frame_id,
                 expert_id = exp_id,
                 expert2frame=True)
-            # print('ground truth frame id: {}, exp_id: {}, frame_id: {}, turned_overall_frame_id: {}'.format(
-            #     i, exp_id, frame_id, tested_overall_id
-            # ))
-
             assert i == tested_overall_id, f'Ground truth frame id: {i} doesnt match test frame id: {tested_overall_id}'
 
+        
         self.nn_k = 15 # We set these to what works for now - it never becomes more than 10 in our tasks
         self.buffer = NearestNeighborBuffer(15)
         self.knn = ScaledKNearestNeighbors(
@@ -80,7 +76,6 @@ class VINN(BasePolicy):
                 batch_image_repr = self.image_encoder(self.expert_demos[expert_id]['image_obs'][batch_id:min(batch_id+10, demo_len)].to(self.device))
                 image_reprs.append(batch_image_repr)
             image_reprs = torch.concat(image_reprs, dim=0)
-            # print('image_reprs.shape: {} in expert_id: {}'.format(image_reprs.shape, expert_id))
             tactile_reprs = self.expert_demos[expert_id]['tactile_repr'].to(self.device)
             expert_reprs = torch.concat([image_reprs, tactile_reprs], dim=-1).detach().cpu()
             
@@ -141,5 +136,9 @@ class VINN(BasePolicy):
 
         print('EPISODE STEP: {} self.max_vinn_steps: {} ID OF NN: {} NEAREST NEIGHBOR DEMO ID: {}, IS DONE IN VINN: {}'.format(
             episode_step, self.max_steps, id_of_nn, next_demo_id, is_done))
+
+        if 'get_id' in kwargs:
+            if kwargs['get_id']:
+                return action, is_done, next_demo_id
 
         return action, is_done

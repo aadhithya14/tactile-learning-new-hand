@@ -247,11 +247,10 @@ class Workspace:
             payload = torch.load(f)
         agent_payload = {}
         for k, v in payload.items():
-            # print('k: {}, v: {}'.format(k, v))
             if k not in self.__dict__:
                 agent_payload[k] = v
         # self.agent.load_snapshot(agent_payload)
-        self.agent.load_snapshot_eval(agent_payload) # NOTE: Not sure why they stopped running this
+        self.agent.load_snapshot_eval(agent_payload)
 
     def _add_time_step(self, time_step, time_steps, observations):
         pil_image_obs = Image.fromarray(np.transpose(time_step.observation['pixels'], (1,2,0)), 'RGB')
@@ -332,8 +331,8 @@ class Workspace:
         self.episode_id = 0
         time_steps, observations = self._add_time_step(time_step, time_steps, observations)
 
-        if self.agent.auto_rew_scale:
-            self.agent.sinkhorn_rew_scale = 1. # This will be set after the first episode
+        # if self.agent.auto_rew_scale:
+        #     self.agent.sinkhorn_rew_scale = 1. # This will be set after the first episode
 
         self.train_video_recorder.init(time_step.observation['pixels'])
         metrics = dict() 
@@ -350,11 +349,10 @@ class Workspace:
                     observations[obs_type] = torch.stack(observations[obs_type], 0)
 
                 # Get the rewards
-                new_rewards = self.agent.ot_rewarder(
+                new_rewards = self.agent.get_reward(
                     episode_obs = observations,
                     episode_id = self.global_episode,
-                    visualize = self.cfg.save_train_cost_matrices,
-                    exponential_weight_init = self.cfg.exponential_weight_init
+                    visualize = self.cfg.save_train_cost_matrices
                 )
                 new_rewards_sum = np.sum(new_rewards)
 
