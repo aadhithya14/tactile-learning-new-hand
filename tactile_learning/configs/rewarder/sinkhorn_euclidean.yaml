@@ -3,7 +3,7 @@ expert_demos: ???
 image_encoder: ??? 
 tactile_encoder: ???
 exponential_weight_init: False
-device: 2
+device: ${device}
 sinkhorn_rew_scale: 1. # This gets updated anyways
 representation_types: ${reward_representations}
 expert_frame_matches: ${expert_frame_matches}

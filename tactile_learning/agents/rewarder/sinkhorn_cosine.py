@@ -25,6 +25,7 @@ class SinkhornCosine(Rewarder):
         cost_matrices = []
         best_reward_sum = - sys.maxsize
         for expert_id, expert_repr in enumerate(expert_reprs):
+            expert_repr = expert_repr.unsqueeze(0) # It should have dimension 1 for the 1st dimension
             cost_matrix = cosine_distance(
                     episode_repr, expert_repr)  # Get cost matrix for samples using critic network.
             transport_plan = optimal_transport_plan(

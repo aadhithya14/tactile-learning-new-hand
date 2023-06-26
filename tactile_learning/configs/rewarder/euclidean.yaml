@@ -2,7 +2,7 @@ _target_: tactile_learning.agents.rewarder.euclidean.Euclidean
 expert_demos: ???
 image_encoder: null 
 tactile_encoder: null
-device: 2
+device: ${device}
 representation_types: ${reward_representations}
 expert_frame_matches: ${expert_frame_matches}
 episode_frame_matches: ${episode_frame_matches}

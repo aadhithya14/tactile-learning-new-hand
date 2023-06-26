@@ -74,6 +74,10 @@ class Agent(ABC):
         for param in self.tactile_encoder.parameters():
             param.requires_grad = False
 
+    def train(self, training=True):
+        self.training = training
+        self.actor.train(training) # If these don't exist this should return false
+        self.critic.train(training)
 
     def _set_image_transform(self):
         self.image_act_transform = T.Compose([
@@ -86,11 +90,13 @@ class Agent(ABC):
 
     def _set_expert_demos(self): # Will stack the end frames back to back
         # We'll stack the tactile repr and the image observations
+        # print('IN _SET_EXPERT_DEMOS')
         self.expert_demos = []
         image_obs = [] 
         tactile_reprs = []
         actions = []
         old_demo_id = -1
+        pbar = tqdm(total=len(self.data['image']['indices']))
         for step_id in range(len(self.data['image']['indices'])): 
             # Set observations
             demo_id, tactile_id = self.data['tactile']['indices'][step_id]
@@ -129,6 +135,11 @@ class Agent(ABC):
             actions.append(demo_action)
 
             old_demo_id = demo_id
+
+            pbar.update(1)
+            pbar.set_description('Setting the expert demos ')
+
+        pbar.close()
 
     def _get_policy_reprs_from_obs(self, image_obs, tactile_repr, features, representation_types):
          # Get the representations

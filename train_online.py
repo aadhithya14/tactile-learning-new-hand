@@ -39,7 +39,7 @@ class Workspace:
         # Run the setup - this should start the replay buffer and the environment
         tactile_repr_dim = self._encoder_setup(cfg) # Get the image and tactile encoder/representation module
         self.data_path = cfg.data_path
-        self.mock_env = cfg.mock_env
+        self.mock_env = False
         self._env_setup(tactile_repr_dim) # Should be set here
 
         # If load the snapshot rather than agent
@@ -57,8 +57,9 @@ class Workspace:
 
     def _initialize_agent(self):
         action_spec = self.train_env.action_spec()
-        self.cfg.agent.action_shape = action_spec.shape
+        # self.cfg.agent.action_shape = 23
 
+        print('self.cfg.agent: {}'.format(self.cfg.agent))
         self.agent = hydra.utils.instantiate(self.cfg.agent)
         self.agent.initialize_modules(
             base_policy_cfg = self.cfg.base_policy,

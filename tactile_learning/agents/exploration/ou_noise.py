@@ -16,7 +16,7 @@ class OUNoise(Explorer):
             sigma = sigma # It will give bw -1 and 1 - then this gets multiplied by the scale factors ...
         )
 
-    def explore(self, offset_action, global_step, device):
+    def explore(self, offset_action, global_step, device, **kwargs):
         if global_step < self.num_expl_steps:
             offset_action = torch.FloatTensor(self.ou_noise()).to(device).unsqueeze(0)
 

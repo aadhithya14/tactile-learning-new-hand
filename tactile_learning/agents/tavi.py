@@ -24,24 +24,24 @@ from .agent import Agent
 class TAVI(Agent):
     def __init__(self,
         data_path, expert_demo_nums, expert_id, # Agent parameters
-        features_repeat, experiment_name, 
-        image_out_dir, tactile_out_dir, image_model_type, tactile_model_type, # This is used to get the tactile representation size
-        policy_representations, view_num,
-        action_shape, device, lr, 
-        feature_dim, hidden_dim, # TAVI parameters
-        critic_target_tau, num_expl_steps,
-        update_every_steps, stddev_schedule, stddev_clip, 
-        arm_offset_scale_factor, hand_offset_scale_factor, offset_mask
+        image_out_dir, image_model_type, # Encoders
+        tactile_out_dir, tactile_model_type, # Training parameters
+        policy_representations, features_repeat,
+        experiment_name, view_num, device, lr,
+        feature_dim, hidden_dim, critic_target_tau, num_expl_steps,
+        update_every_steps, stddev_schedule, stddev_clip,
+        arm_offset_scale_factor, hand_offset_scale_factor, offset_mask, # Task based offset parameters
+        **kwargs
     ):
         
         # Super Agent sets the encoders, transforms and expert demonstrations
         super().__init__(
-            data_path = data_path,
+            data_path=data_path,
             expert_demo_nums=expert_demo_nums,
             image_out_dir=image_out_dir, image_model_type=image_model_type,
             tactile_out_dir=tactile_out_dir, tactile_model_type=tactile_model_type,
             view_num=view_num, device=device, lr=lr, update_every_steps=update_every_steps,
-            stddev_schedule=stddev_schedule, stddev_slip=stddev_clip, features_repeat=features_repeat,
+            stddev_schedule=stddev_schedule, stddev_clip=stddev_clip, features_repeat=features_repeat,
             experiment_name=experiment_name
         )
 
@@ -55,6 +55,7 @@ class TAVI(Agent):
         # Set the models
         self.policy_representations = policy_representations
         repr_dim = self.repr_dim(type='policy')
+        action_shape = [23]
         self.offset_mask = torch.IntTensor(offset_mask).to(self.device)
         self.actor = Actor(repr_dim, action_shape, feature_dim,
                             hidden_dim, offset_mask).to(device)
@@ -80,8 +81,8 @@ class TAVI(Agent):
         self.rewarder = hydra.utils.instantiate(
             rewarder_cfg,
             expert_demos = self.expert_demos, 
-            image_encoder = self.image_encoder if 'image' in self.reward_representations else None,
-            tactile_encoder = self.tactile_encoder if 'tactile' in self.reward_representations else None
+            image_encoder = self.image_encoder,
+            tactile_encoder = self.tactile_encoder
         )
         self.explorer = hydra.utils.instantiate(
             explorer_cfg
@@ -266,8 +267,7 @@ class TAVI(Agent):
         metrics.update(self.update_actor(obs.detach(), base_action, step))
 
         # update critic target
-        soft_update_params(self.critic, self.critic_target,
-                                    self.critic_target_tau)
+        soft_update_params(self.critic, self.critic_target, self.critic_target_tau)
 
         return metrics
 
@@ -285,7 +285,7 @@ class TAVI(Agent):
                 obs = episode_obs
             )
 
-        print('final_reward: {}'.format(final_reward))
+        print('final_reward: {}, best_expert_id: {}'.format(final_reward, best_expert_id))
 
         if visualize:
             self.plot_cost_matrix(final_cost_matrix, expert_id=best_expert_id, episode_id=episode_id)
@@ -295,7 +295,7 @@ class TAVI(Agent):
     def plot_cost_matrix(self, cost_matrix, expert_id, episode_id, file_name=None):
         if file_name is None:
             ts = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
-            file_name = f'{ts}_reward_{self.reward_representations}_expert_{expert_id}_ep_{episode_id}_cost_matrix.png'
+            file_name = f'{ts}_expert_{expert_id}_ep_{episode_id}_cost_matrix.png'
 
         # Plot MxN matrix if file_name is given -> it will save the plot there if so
         cost_matrix = cost_matrix.detach().cpu().numpy()

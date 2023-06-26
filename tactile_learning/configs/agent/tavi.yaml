@@ -17,11 +17,11 @@ features_repeat: ${features_repeat}
 experiment_name: ${experiment}
 view_num: ${camera_num}
 device: ${device}
+num_expl_steps: ${num_seed_frames}
 lr: 1e-4 # It was 1e-4 before 
 feature_dim: 512
 hidden_dim: 64
 critic_target_tau: 0.01
-num_expl_steps: ${num_seed_frames}
 update_every_steps: 2
 stddev_schedule: 0.1
 stddev_clip: 0.3

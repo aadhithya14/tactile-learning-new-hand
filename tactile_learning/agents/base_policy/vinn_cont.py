@@ -62,7 +62,7 @@ class VINNContinuous(VINN):
             next_demo_id, next_frame_id = self._turn_id(frame_id=nn_id+1, frame2expert=True)
             if next_demo_id != curr_demo_id: # If the predicted state is the last state of the demo
                 is_done = True
-                nn_id -= 1 # Just send the last frame action
+                next_frame_id -= 1 # Just send the last frame action
             elif episode_step > self.max_steps: 
                 is_done = True
 
@@ -79,13 +79,13 @@ class VINNContinuous(VINN):
             # Continue from the chosen demo
             self.frame_id += 1
 
-            # Check if current demo is being finished
-            if self.frame_id >= len(self.expert_demos[self.demo_id]['actions']):
-                is_done = True
-                self.frame_id -= 1
-            elif episode_step > self.max_steps: 
+            if episode_step > self.max_steps: 
                 is_done = True
 
+        # Check if current demo is being finished
+        if self.frame_id >= len(self.expert_demos[self.demo_id]['actions']):
+            is_done = True
+            self.frame_id -= 1
         action = self.expert_demos[self.demo_id]['actions'][self.frame_id]
         self.steps_from_last_neighbor += 1
 
