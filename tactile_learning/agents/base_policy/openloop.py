@@ -9,6 +9,8 @@ class Openloop(BasePolicy):
     ):
         self.expert_id = expert_id
         self.set_expert_demos(expert_demos)
+
+        print('len(expert_demos): {}'.format(len(self.expert_demos)))
         
     def act(self, obs, episode_step, **kwargs):
         # Use expert_demos for base action retrieval
@@ -17,6 +19,6 @@ class Openloop(BasePolicy):
             episode_step = len(self.expert_demos[self.expert_id]['actions'])-1
             is_done = True
 
-        action = self.expert_demos[self.expert_id]['actions']
+        action = self.expert_demos[self.expert_id]['actions'][episode_step]
 
         return action, is_done

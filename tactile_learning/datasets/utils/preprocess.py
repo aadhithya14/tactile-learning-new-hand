@@ -130,6 +130,52 @@ def get_shortened_ts_ids(
 
     return latest_ts_ids
 
+def dump_human_data_indices( # This is going to match things time wise only
+        demo_id, 
+        root, 
+        cam_view_num=0,
+        time_difference = 2 # 2 seconds for 2 second differences
+):
+    image_metadata_path = os.path.join(root, f'cam_{cam_view_num}_rgb_video.metadata')
+    keypoints_path = os.path.join(root, 'keypoints.h5')
+
+    with open(image_metadata_path, 'rb') as f:
+        image_metadata = pickle.load(f)
+        image_timestamps = np.asarray(image_metadata['timestamps']) / 1000.
+    with h5py.File(keypoints_path, 'r') as f:
+        keypoint_timestamps = f['timestamps'][()]
+    
+    print('image timestamps: {}, keypoint_timestamps: {}'.format(
+        image_timestamps[:10], keypoint_timestamps[:10]
+    ))
+
+    keypoint_indices, image_indices = [], [] 
+    keypoint_id, image_id = 0, 0
+    reference_timestamp = keypoint_timestamps[keypoint_id]
+    while not (keypoint_id >= len(keypoint_timestamps)-1 or image_id >= len(image_timestamps)-1):
+
+        # Find the closest id to the reference timestamp for both modalities 
+        image_id = get_closest_id(image_id, reference_timestamp, image_timestamps)
+        keypoint_id = get_closest_id(keypoint_id, reference_timestamp, keypoint_timestamps)
+
+        # Append them to the indices 
+        image_indices.append([demo_id, image_id])
+        keypoint_indices.append([demo_id, keypoint_id])
+
+        # Increase the reference timestamp with the given time difference 
+        reference_timestamp += time_difference
+
+        print('Reference TS: {}, Keypoint ID: {} Image ID: {}'.format(
+            reference_timestamp, keypoint_id, image_id 
+        ))
+
+    assert len(image_indices) == len(keypoint_indices)
+
+    # Save the indices for that root
+    with open(os.path.join(root, 'image_indices.pkl'), 'wb') as f:
+        pickle.dump(image_indices, f)
+    with open(os.path.join(root, 'keypoint_indices.pkl'), 'wb') as f:
+        pickle.dump(keypoint_indices, f)
 
 def dump_data_indices(
         demo_id,

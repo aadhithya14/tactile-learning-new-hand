@@ -58,11 +58,14 @@ class VINNContinuous(VINN):
             nn_id = nn_idxs[id_of_nn]
 
             # Check if the closest neighbor is the last frame
-            curr_demo_id, _ = self._turn_id(frame_id=nn_id, frame2expert=True)
+            curr_demo_id, curr_frame_id = self._turn_id(frame_id=nn_id, frame2expert=True)
             next_demo_id, next_frame_id = self._turn_id(frame_id=nn_id+1, frame2expert=True)
             if next_demo_id != curr_demo_id: # If the predicted state is the last state of the demo
                 is_done = True
-                next_frame_id -= 1 # Just send the last frame action
+                print('IS_DONE -> TRUE - curr_demo_id/frame_id: {}/{} next_demo_id/frame_id: {}/{},'.format(
+                    curr_demo_id, curr_frame_id, next_demo_id, next_frame_id
+                ))
+                # next_frame_id -= 1 # Just send the last frame action
             elif episode_step > self.max_steps: 
                 is_done = True
 
@@ -89,12 +92,13 @@ class VINNContinuous(VINN):
         action = self.expert_demos[self.demo_id]['actions'][self.frame_id]
         self.steps_from_last_neighbor += 1
 
-        print('EPISODE STEP: {}/{}, DEMO ID: {}, FRAME ID: {}, CONT STEPS: {}'.format(
-            episode_step, self.max_steps, self.demo_id, self.frame_id, self.cont_steps
+        print('EPISODE STEP: {}/{}, DEMO ID: {}, FRAME ID: {}, CONT STEPS: {} IS_DONE: {}'.format(
+            episode_step, self.max_steps, self.demo_id, self.frame_id, self.cont_steps, is_done
         ))
 
         if is_done: 
             self.steps_from_last_neighbor = 0
+            self.frame_id = 0 # Set the frame_id to 0 automatically
 
         return action, is_done
         

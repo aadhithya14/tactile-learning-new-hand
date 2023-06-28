@@ -8,26 +8,30 @@ import os
 import hydra
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import sys
 
 from pathlib import Path
+from PIL import Image
 
+from torchvision.utils import save_image
 from torchvision import transforms as T
+# from agent.encoder import Encoder
 
 from tactile_learning.models import *
 from tactile_learning.utils import *
 from tactile_learning.tactile_data import *
+
 from holobot.robot.allegro.allegro_kdl import AllegroKDL
 
 class FISHAgent:
     def __init__(self,
         data_path, expert_demo_nums, expert_id, reward_matching_steps, mock_demo_nums,
         features_repeat, sum_experts, experiment_name, end_frames_repeat,
-        scale_representations, exponential_exploration,
+        scale_representations, exponential_exploration, base_policy,
         exponential_offset_exploration, match_from_both, expert_frame_matches,
         episode_frame_matches, ssim_base_factor, exploration,
-        vinn_image_out_dir, vinn_image_model_type, max_vinn_steps,
         image_out_dir, tactile_out_dir, image_model_type, tactile_model_type, # This is used to get the tactile representation size
         reward_representations, policy_representations, view_num,
         action_shape, device, lr, feature_dim,
@@ -58,8 +62,13 @@ class FISHAgent:
         self.arm_offset_scale_factor = arm_offset_scale_factor
         self.hand_offset_scale_factor= hand_offset_scale_factor
 
+        # NOTE: What is the q-filter mentioned?
+        # NOTE: We might need to lower the representation dimenstion at some point
+
+        # TODO: Load the data for that one demonstration
         self.data_path = data_path
         self.roots = sorted(glob.glob(f'{data_path}/demonstration_*'))
+        print('self.ro')
         self.data = load_data(self.roots, demos_to_use=expert_demo_nums)
         self.expert_id = expert_id
         self.reward_matching_steps = reward_matching_steps
@@ -78,7 +87,11 @@ class FISHAgent:
         self.expert_frame_matches = expert_frame_matches
         self.episode_frame_matches = episode_frame_matches
         self.ssim_base_factor = ssim_base_factor
+        self.base_policy = base_policy
         self.exploration = exploration
+        
+        if base_policy:
+            self.first_frame_encoder = resnet18(pretrained=True, out_dim=512) # NOTE: Set this differently
 
         # Set the mock data
         self.mock_data = load_data(self.roots, demos_to_use=mock_demo_nums) # TODO: Delete this
@@ -87,6 +100,9 @@ class FISHAgent:
         # TODO: Load the encoders - both the normal ones and the target ones
         image_cfg, self.image_encoder, self.image_transform  = init_encoder_info(self.device, image_out_dir, 'image', view_num=view_num, model_type=image_model_type)
         self._set_image_transform()
+
+        print('image_cfg.encoder: {}'.format(image_cfg.encoder))
+        # image_repr_dim = image_cfg.encoder.image_encoder.out_dim if image_model_type == 'bc' else image_cfg.encoder.out_dim # TODO: Merge these in a better hydra config
         image_repr_dim = 512
 
         tactile_cfg, self.tactile_encoder, _ = init_encoder_info(self.device, tactile_out_dir, 'tactile', view_num=view_num, model_type=tactile_model_type)
@@ -153,21 +169,6 @@ class FISHAgent:
         # Openloop tracker
         self.curr_step = 0
 
-    def initialize_modules(self, base_policy_cfg, rewarder_cfg, explorer_cfg): 
-        self.base_policy = hydra.utils.instantiate(
-            base_policy_cfg,
-            expert_demos = self.expert_demos,
-            tactile_repr_size = self.tactile_repr.size,
-        )
-        self.rewarder = hydra.utils.instantiate(
-            rewarder_cfg,
-            expert_demos = self.expert_demos, 
-            image_encoder = self.image_encoder if 'image' in self.reward_representations else None,
-            tactile_encoder = self.tactile_encoder if 'tactile' in self.reward_representations else None
-        )
-        self.explorer = hydra.utils.instantiate(
-            explorer_cfg
-        )
 
     def __repr__(self):
         return "fish_agent"
@@ -188,6 +189,7 @@ class FISHAgent:
         )
 
         self.image_act_transform = T.Compose(image_act_transform_arr)
+        # print('image transform: {}'.format(self.image_act_transform))
 
         self.image_normalize = T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
 
@@ -210,7 +212,7 @@ class FISHAgent:
                     image_obs = image_obs[:frame_id_to_stack]
                     tactile_reprs = tactile_reprs[:frame_id_to_stack]
                     actions = actions[:frame_id_to_stack]
-                    for _ in range(self.end_frames_repeat):
+                    for i in range(self.end_frames_repeat):
                         image_obs.append(image_to_append)
                         tactile_reprs.append(tactile_to_append)
                         actions.append(action_to_append)
@@ -239,7 +241,10 @@ class FISHAgent:
             # Set actions
             _, allegro_action_id = self.data['allegro_actions']['indices'][step_id]
             allegro_joint_action = self.data['allegro_actions']['values'][demo_id][allegro_action_id]
-            allegro_action = allegro_joint_action 
+            if self.action_shape == 19:
+                allegro_action = self.kdl_solver.get_fingertip_coords(allegro_joint_action)
+            else:
+                allegro_action = allegro_joint_action 
 
             # Set kinova action 
             _, kinova_id = self.data['kinova']['indices'][step_id]
@@ -251,7 +256,30 @@ class FISHAgent:
             tactile_reprs.append(tactile_repr)
             actions.append(demo_action)
 
+            
+
             old_demo_id = demo_id
+
+        if 'vinn' in self.base_policy:
+            self.first_frame_img_encoder = resnet18(pretrained=True, out_dim=512).to(self.device).eval()
+            self._get_first_frame_exp_representations()
+
+    
+    def _get_first_frame_exp_representations(self): # This will be used for VINN
+        
+        exp_representations = [] 
+        for expert_id in range(len(self.expert_demos)):
+            first_frame_exp_obs = self.expert_demos[expert_id]['image_obs'][0:1,:].to(self.device)
+            plt.imshow(np.transpose(first_frame_exp_obs[0].detach().cpu().numpy(), (1,2,0)))
+            plt.savefig(f'expert_id_{expert_id}.png')
+            print(f'expert_{expert_id} mean: {first_frame_exp_obs[0].mean()}')
+
+            # NOTE: Expert demos should already be normalized
+            first_frame_exp_representation = self.first_frame_img_encoder(first_frame_exp_obs)
+            exp_representations.append(first_frame_exp_representation.detach().cpu().numpy().squeeze())
+
+        self.exp_first_frame_reprs = np.stack(exp_representations, axis=0)
+        print('self.exp_reprs.shape: {}'.format(self.exp_first_frame_reprs.shape))
 
     def _check_limits(self, offset_action):
         # limits = [-0.1, 0.1]
@@ -261,12 +289,57 @@ class FISHAgent:
         offset_action[:,-7:] = torch.clamp(offset_action[:,-7:], min=arm_limits[0], max=arm_limits[1])
         return offset_action
 
+    def _get_closest_expert_id(self, obs):
+        # Get the representation of the current observation
+        image_transform = T.Compose([
+            # T.ToTensor(),
+            T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
+        ])
+        # pil_image_obs = Image.fromarray(np.transpose(obs['image_obs'], (1,2,0)), 'RGB')
+        
+        image_obs = image_transform(obs['image_obs'] / 255.).unsqueeze(0).to(self.device)
+        plt.imshow(np.transpose(image_obs[0].detach().cpu().numpy(), (1,2,0)))
+        plt.savefig(f'first_obs.png')
+        curr_repr = self.first_frame_img_encoder(image_obs).detach().cpu().numpy().squeeze()
+
+        # Get the distance of the curr_repr to the expert representaitons of the first frame
+        l1_distances = self.exp_first_frame_reprs - curr_repr
+        l2_distances = np.linalg.norm(l1_distances, axis=1)
+        print('l2_distances.shape: {} - should be NUM_EXPERTS'.format(l2_distances.shape))
+        sorted_idxs = np.argsort(l2_distances)
+
+        print('SORTED EXPERTS: {}'.format(sorted_idxs))
+        return sorted_idxs[0], l2_distances
+
     # Will give the next action in the step
     def base_act(self, obs, episode_step): # Returns the action for the base policy - openloop
+        # TODO: You should get the nearest neighbor at the beginning and maybe at each step as well?
 
-        action, is_done = self.base_policy.act( # TODO: Make sure these are good
-            obs, episode_step
-        )
+        if episode_step == 0:
+            # Set the exploration
+            if self.exploration == 'ou_noise':
+                self.ou_noise = OrnsteinUhlenbeckActionNoise(
+                    mu = np.zeros(len(self.offset_mask)), # The mean of the offsets should be 0
+                    sigma = 0.8 # It will give bw -1 and 1 - then this gets multiplied by the scale factors ...
+                )
+
+            if self.base_policy == 'vinn_openloop': # Get the expert id that has the closest representaiton in the beginning
+                self.expert_id, self.l2_distances = self._get_closest_expert_id(obs)
+        
+        print('EXPERT ID: {}, L2 DIST: {}'.format(
+            self.expert_id, self.l2_distances
+        ))
+
+        # Use expert_demos for base action retrieval
+        is_done = False
+        if episode_step >= len(self.expert_demos[self.expert_id]['actions']):
+            episode_step = len(self.expert_demos[self.expert_id]['actions'])-1
+            is_done = True
+
+        print('episode step: {}, len(self.expert_demos[self.expert_id][actions]: {}'.format(
+            episode_step, len(self.expert_demos[self.expert_id]['actions'])
+        ))
+        action = self.expert_demos[self.expert_id]['actions'][episode_step]
 
         return torch.FloatTensor(action).to(self.device).unsqueeze(0), is_done
 
@@ -279,11 +352,12 @@ class FISHAgent:
 
         with torch.no_grad():
             # Get the action image_obs
+            # image_obs = Image.fromarray(np.transpose(obs['image_obs'], (1,2,0)), 'RGB')
+            # image_obs = T.ToTensor()(image_obs).float().unsqueeze(0)
             obs = self._get_policy_reprs_from_obs( # This method is called with torch.no_grad() in training anyways
                 image_obs = obs['image_obs'].unsqueeze(0) / 255.,
                 tactile_repr = obs['tactile_repr'].unsqueeze(0),
-                features = obs['features'].unsqueeze(0),
-                representation_types=self.policy_representations
+                features = obs['features'].unsqueeze(0)
             )
 
         print('obs.shape: {} in act'.format(obs.shape))
@@ -295,45 +369,39 @@ class FISHAgent:
         else:
             offset_action = dist.sample(clip=None)
 
-            offset_action = self.explorer.explore(
-                offset_action = offset_action,
-                global_step = global_step, 
-                episode_step = episode_step,
-                device = self.device
-            )
             # Exploration
-            # if self.exponential_exploration:
-            #     epsilon = exponential_epsilon_decay(
-            #         step_idx=global_step,
-            #         epsilon_decay=self.num_expl_steps
-            #     )
-            #     rand_num = random.random()
-            #     if rand_num < epsilon:
-            #         print('EXPLORING!!!')
-            #         offset_action.uniform_(-1.0, 1.0)
-            # elif self.exploration == 'ou_noise':
-            #     if global_step < self.num_expl_steps:
-            #         offset_action = torch.FloatTensor(self.ou_noise()).to(self.device).unsqueeze(0)
-            #         print('ou_noise offset: {}'.format(offset_action.shape))
-            # else:
-            #     if global_step < self.num_expl_steps:
-            #         offset_action.uniform_(-1.0, 1.0)
+            if self.exponential_exploration:
+                epsilon = exponential_epsilon_decay(
+                    step_idx=global_step,
+                    epsilon_decay=self.num_expl_steps
+                )
+                rand_num = random.random()
+                if rand_num < epsilon:
+                    print('EXPLORING!!!')
+                    offset_action.uniform_(-1.0, 1.0)
+                    # offset_action *= self.offset_mask
+            elif self.exploration == 'ou_noise':
+                if global_step < self.num_expl_steps:
+                    offset_action = torch.FloatTensor(self.ou_noise()).to(self.device).unsqueeze(0)
+                    print('ou_noise offset: {}'.format(offset_action.shape))
+                    # offset_action *= self.offset_mask 
+            else:
+                if global_step < self.num_expl_steps:
+                    offset_action.uniform_(-1.0, 1.0)
+                    # offset_action *= self.offset_mask
 
         offset_action *= self.offset_mask 
-        # is_explore = global_step < self.num_expl_steps or (self.exponential_exploration and rand_num < epsilon)
+        is_explore = global_step < self.num_expl_steps or (self.exponential_exploration and rand_num < epsilon)
 
-        # if is_explore and self.exponential_offset_exploration: 
-        #     offset_action[:,:-7] *= self.hand_offset_scale_factor / ((episode_step+1)/2) 
-        #     offset_action[:,-7:] *= self.arm_offset_scale_factor / ((episode_step+1)/2)
-        #     if episode_step > 0:
-        #         offset_action += self.last_offset
-        #     self.last_offset = offset_action
-        # else:
-            # offset_action[:,:-7] *= self.hand_offset_scale_factor
-            # offset_action[:,-7:] *= self.arm_offset_scale_factor
-
-        offset_action[:,:-7] *= self.hand_offset_scale_factor
-        offset_action[:,-7:] *= self.arm_offset_scale_factor
+        if is_explore and self.exponential_offset_exploration:  # TODO: Do the OU Noise
+            offset_action[:,:-7] *= self.hand_offset_scale_factor / ((episode_step+1)/2) 
+            offset_action[:,-7:] *= self.arm_offset_scale_factor / ((episode_step+1)/2)
+            if episode_step > 0:
+                offset_action += self.last_offset
+            self.last_offset = offset_action
+        else:
+            offset_action[:,:-7] *= self.hand_offset_scale_factor
+            offset_action[:,-7:] *= self.arm_offset_scale_factor
 
         # Check if the offset action is higher than the limits
         offset_action = self._check_limits(offset_action)
@@ -359,44 +427,46 @@ class FISHAgent:
 
         return action.cpu().numpy()[0], base_action.cpu().numpy()[0], is_done, metrics
 
-    # def _find_closest_mock_step(self, curr_step):
-    #     offset_step = 0
-    #     if curr_step == 0:
-    #         return curr_step
+    def _find_closest_mock_step(self, curr_step):
+        offset_step = 0
+        if curr_step == 0:
+            return curr_step
 
-    #     curr_demo_id, _ = self.mock_data['allegro_actions']['indices'][curr_step]
-    #     next_demo_id, _ = self.mock_data['allegro_actions']['indices'][curr_step+offset_step]
-    #     while curr_demo_id == next_demo_id:
-    #         offset_step += 1
-    #         next_demo_id, _ = self.mock_data['allegro_actions']['indices'][(curr_step+offset_step) % len(self.mock_data['allegro_actions']['indices'])]
+        curr_demo_id, _ = self.mock_data['allegro_actions']['indices'][curr_step]
+        next_demo_id, _ = self.mock_data['allegro_actions']['indices'][curr_step+offset_step]
+        while curr_demo_id == next_demo_id:
+            offset_step += 1
+            next_demo_id, _ = self.mock_data['allegro_actions']['indices'][(curr_step+offset_step) % len(self.mock_data['allegro_actions']['indices'])]
             
 
-    #     next_demo_step = (curr_step+offset_step) % len(self.mock_data['allegro_actions']['indices'])
-    #     return next_demo_step
+        next_demo_step = (curr_step+offset_step) % len(self.mock_data['allegro_actions']['indices'])
+        return next_demo_step
 
-    # # Method that returns the next action in the mock data
-    # def mock_act(self, obs, step, max_step): # Returns the action for the base policy - TODO: This will be used after we have the environment
-    #     if step > 0 and step % max_step == 0:
-    #         self.curr_step = self._find_closest_mock_step(self.curr_step)
+    # Method that returns the next action in the mock data
+    def mock_act(self, obs, step, max_step): # Returns the action for the base policy - TODO: This will be used after we have the environment
+        # if self.count == 0:
+        # 	self.curr_step = 0
+        if step > 0 and step % max_step == 0:
+            self.curr_step = self._find_closest_mock_step(self.curr_step)
         
-    #     # Get the action in the current step
-    #     demo_id, action_id = self.mock_data['allegro_actions']['indices'][self.curr_step]
-    #     allegro_joint_action = self.mock_data['allegro_actions']['values'][demo_id][action_id]
-    #     if self.action_shape == 19:
-    #         allegro_action = self.kdl_solver.get_fingertip_coords(allegro_joint_action)
-    #     else:
-    #         allegro_action = allegro_joint_action
+        # Get the action in the current step
+        demo_id, action_id = self.mock_data['allegro_actions']['indices'][self.curr_step]
+        allegro_joint_action = self.mock_data['allegro_actions']['values'][demo_id][action_id]
+        if self.action_shape == 19:
+            allegro_action = self.kdl_solver.get_fingertip_coords(allegro_joint_action)
+        else:
+            allegro_action = allegro_joint_action
         
-    #     # Get the kinova action 
-    #     _, kinova_id = self.mock_data['kinova']['indices'][self.curr_step]
-    #     kinova_action = self.mock_data['kinova']['values'][demo_id][kinova_id]
+        # Get the kinova action 
+        _, kinova_id = self.mock_data['kinova']['indices'][self.curr_step]
+        kinova_action = self.mock_data['kinova']['values'][demo_id][kinova_id]
 
-    #     # Concatenate the actions 
-    #     demo_action = np.concatenate([allegro_action, kinova_action], axis=-1)
+        # Concatenate the actions 
+        demo_action = np.concatenate([allegro_action, kinova_action], axis=-1)
 
-    #     self.curr_step = (self.curr_step+1) % (len(self.mock_data['allegro_actions']['indices']))
+        self.curr_step = (self.curr_step+1) % (len(self.mock_data['allegro_actions']['indices']))
 
-    #     return demo_action, np.zeros(self.action_shape) # Base action will be 0s only for now
+        return demo_action, np.zeros(self.action_shape) # Base action will be 0s only for now
 
     def update_critic(self, obs, action, base_next_action, reward, discount, next_obs, step):
         metrics = dict()
@@ -437,49 +507,48 @@ class FISHAgent:
 
         # compute action offset
         dist = self.actor(obs, base_action, stddev)
-        offset_action = dist.sample(clip=self.stddev_clip)
-        log_prob = dist.log_prob(offset_action).sum(-1, keepdim=True)
+        action_offset = dist.sample(clip=self.stddev_clip)
+        log_prob = dist.log_prob(action_offset).sum(-1, keepdim=True)
 
         # compute action
-        offset_action[:,:-7] *= self.hand_offset_scale_factor
-        offset_action[:,-7:] *= self.arm_offset_scale_factor 
-        action = base_action + offset_action 
+        action_offset[:-7] *= self.hand_offset_scale_factor
+        action_offset[-7:] *= self.arm_offset_scale_factor 
+        action = base_action + action_offset 
         Q1, Q2 = self.critic(obs, action)
         Q = torch.min(Q1, Q2)
 
         # Compute bc weight
-        # if not bc_regularize: # This will be false
-        #     bc_weight = 0.0
-        # elif self.bc_weight_type == "linear":
-        #     bc_weight = schedule(self.bc_weight_schedule, step)
-        # elif self.bc_weight_type == "qfilter": # NOTE: This is for ROT but in FISH they had it set to false
-        #     """
-        #     Soft Q-filtering inspired from 			
-        #     Nair, Ashvin, et al. "Overcoming exploration in reinforcement 
-        #     learning with demonstrations." 2018 IEEE international 
-        #     conference on robotics and automation (ICRA). IEEE, 2018.
-        #     """
-        #     with torch.no_grad():
-        #         stddev = 0.1
-        #         action_qf = base_action.clone()
-        #         Q1_qf, Q2_qf = self.critic(obs_qfilter.clone(), action_qf)
-        #         Q_qf = torch.min(Q1_qf, Q2_qf)
-        #         bc_weight = (Q_qf>Q).float().mean().detach()
+        if not bc_regularize: # This will be false
+            bc_weight = 0.0
+        elif self.bc_weight_type == "linear":
+            bc_weight = schedule(self.bc_weight_schedule, step)
+        elif self.bc_weight_type == "qfilter": # NOTE: This is for ROT but in FISH they had it set to false
+            """
+            Soft Q-filtering inspired from 			
+            Nair, Ashvin, et al. "Overcoming exploration in reinforcement 
+            learning with demonstrations." 2018 IEEE international 
+            conference on robotics and automation (ICRA). IEEE, 2018.
+            """
+            with torch.no_grad():
+                stddev = 0.1
+                action_qf = base_action.clone()
+                Q1_qf, Q2_qf = self.critic(obs_qfilter.clone(), action_qf)
+                Q_qf = torch.min(Q1_qf, Q2_qf)
+                bc_weight = (Q_qf>Q).float().mean().detach()
 
-        # actor_loss = - Q.mean() * (1-bc_weight)
-        actor_loss = - Q.mean()
+        actor_loss = - Q.mean() * (1-bc_weight)
 
-        # if bc_regularize:
-        #     stddev = 0.1
-        #     dist_expert = self.actor(obs_expert, base_action_expert, stddev)
-        #     action_expert_offset = dist_expert.sample(clip=self.stddev_clip)
-        #     action_expert_offset[:-7] *= self.hand_offset_scale_factor
-        #     action_expert_offset[-7:] *= self.arm_offset_scale_factor 
-        #     # action_expert_offset = dist_expert.sample(clip=self.stddev_clip) * self.offset_scale_factor
+        if bc_regularize:
+            stddev = 0.1
+            dist_expert = self.actor(obs_expert, base_action_expert, stddev)
+            action_expert_offset = dist_expert.sample(clip=self.stddev_clip)
+            action_expert_offset[:-7] *= self.hand_offset_scale_factor
+            action_expert_offset[-7:] *= self.arm_offset_scale_factor 
+            # action_expert_offset = dist_expert.sample(clip=self.stddev_clip) * self.offset_scale_factor
 
-        #     true_offset = torch.zeros(action_expert_offset.shape).to(self.device)
-        #     log_prob_expert = dist_expert.log_prob(true_offset).sum(-1, keepdim=True)
-        #     actor_loss += - log_prob_expert.mean()*bc_weight*0.03
+            true_offset = torch.zeros(action_expert_offset.shape).to(self.device)
+            log_prob_expert = dist_expert.log_prob(true_offset).sum(-1, keepdim=True)
+            actor_loss += - log_prob_expert.mean()*bc_weight*0.03
 
         # optimize actor
         self.actor_opt.zero_grad(set_to_none=True)
@@ -490,32 +559,42 @@ class FISHAgent:
         metrics['actor_logprob'] = log_prob.mean().item()
         metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
         metrics['actor_q'] = Q.mean().item()
-        # if bc_regularize and self.bc_weight_type == "qfilter":
-        #     metrics['actor_qf'] = Q_qf.mean().item()
-        # metrics['bc_weight'] = bc_weight
-        # metrics['regularized_rl_loss'] = -Q.mean().item()* (1-bc_weight)
-        # metrics['rl_loss'] = -Q.mean().item()
-        # if bc_regularize:
-        #     metrics['regularized_bc_loss'] = - log_prob_expert.mean().item()*bc_weight*0.03
-        #     metrics['bc_loss'] = - log_prob_expert.mean().item()*0.03
+        if bc_regularize and self.bc_weight_type == "qfilter":
+            metrics['actor_qf'] = Q_qf.mean().item()
+        metrics['bc_weight'] = bc_weight
+        metrics['regularized_rl_loss'] = -Q.mean().item()* (1-bc_weight)
+        metrics['rl_loss'] = -Q.mean().item()
+        if bc_regularize:
+            metrics['regularized_bc_loss'] = - log_prob_expert.mean().item()*bc_weight*0.03
+            metrics['bc_loss'] = - log_prob_expert.mean().item()*0.03
             
         return metrics
 
-    def _get_policy_reprs_from_obs(self, image_obs, tactile_repr, features, representation_types):
+    def _get_policy_reprs_from_obs(self, image_obs, tactile_repr, features):
          # Get the representations
         reprs = []
-        if 'image' in representation_types:
+        if 'image' in self.policy_representations:
             # Current representations
+            # if self.augment: # Augment image if wanted
+            #     image_obs = self.image_aug(image_obs.float())
+            # image_obs = self.image_normalize(image_obs).to(self.device) # This will give all the image observations of one batch
             image_obs = self.image_act_transform(image_obs.float()).to(self.device)
+            print('image_obs.mean() after transform in _get_policy_reprs_from_obs: {}'.format(
+                image_obs.mean()
+            ))
             image_reprs = self.image_encoder(image_obs)
+            print('image_reprs.mean(): {}'.format(image_reprs.mean()))
             reprs.append(image_reprs)
 
-        if 'tactile' in representation_types:
+        if 'tactile' in self.policy_representations:
+            # tactile_repr *= 50 # In order to scale the image and the tactile representations
+            print('tactile_repr.mean(): {}'.format(tactile_repr.mean()))
             tactile_reprs = tactile_repr.to(self.device) # This will give all the representations of one batch
             reprs.append(tactile_reprs)
 
-        if 'features' in representation_types:
+        if 'features' in self.policy_representations:
             repeated_features = features.repeat(1, self.features_repeat)
+            print('features.shape: {}. repeated_features.shape: {}'.format(features.shape, repeated_features.shape))
             reprs.append(repeated_features.to(self.device))
 
         return torch.concat(reprs, axis=-1) # Concatenate the representations to get the final representations
@@ -542,13 +621,11 @@ class FISHAgent:
             image_obs = image_obs, # These are stacked PIL images?
             tactile_repr = tactile_repr,
             features = features,
-            representation_types=self.policy_representations
         )
         next_obs = self._get_policy_reprs_from_obs(
             image_obs = next_image_obs, 
             tactile_repr = next_tactile_repr,
-            features = next_features,
-            representation_types=self.policy_representations
+            features = next_features
         )
 
         print('obs.shape: {}, next_obs.shape: {}'.format(
@@ -579,145 +656,135 @@ class FISHAgent:
         
         # NOTE: In this code we're not using target encoder since the encoders are already frozen
 
-        # all_ot_rewards = []
-        # cost_matrices = []
-        # best_reward_sum = - sys.maxsize
-        # best_ot_reward_id = -1
+        all_ot_rewards = []
+        cost_matrices = []
+        best_reward_sum = - sys.maxsize
+        best_ot_reward_id = -1
 
-        # # Get the episode representations
-        # curr_reprs = []
-        # if 'image' in self.reward_representations: # We will not be using features for reward for sure
-        #     if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
-        #         image_reprs = self.image_encoder(episode_obs['image_obs'][-self.episode_frame_matches:,:].to(self.device))
-        #     else:
-        #         if self.match_from_both:
-        #             image_reprs = self.image_encoder(episode_obs['image_obs'][-self.reward_matching_steps:,:].to(self.device))
-        #         else:
-        #             image_reprs = self.image_encoder(episode_obs['image_obs'].to(self.device))
-        #     curr_reprs.append(image_reprs) # NOTE: We should alwasys get all of the observation
+        # Get the episode representations
+        curr_reprs = []
+        if 'image' in self.reward_representations: # We will not be using features for reward for sure
+            if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+                image_reprs = self.image_encoder(episode_obs['image_obs'][-self.episode_frame_matches:,:].to(self.device))
+            else:
+                if self.match_from_both:
+                    image_reprs = self.image_encoder(episode_obs['image_obs'][-self.reward_matching_steps:,:].to(self.device))
+                else:
+                    image_reprs = self.image_encoder(episode_obs['image_obs'].to(self.device))
+            curr_reprs.append(image_reprs) # NOTE: We should alwasys get all of the observation
 
-        # if 'tactile' in self.reward_representations:
-        #     if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
-        #         tactile_reprs = episode_obs['tactile_repr'][-self.episode_frame_matches:,:].to(self.device)
-        #     else:
-        #         if self.match_from_both:
-        #             tactile_reprs = episode_obs['tactile_repr'][-self.reward_matching_steps:,:].to(self.device) # This will give all the representations of one episode
-        #         else:
-        #             tactile_reprs = episode_obs['tactile_repr'].to(self.device)
-        #     curr_reprs.append(tactile_reprs)
+        if 'tactile' in self.reward_representations:
+            if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+                tactile_reprs = episode_obs['tactile_repr'][-self.episode_frame_matches:,:].to(self.device)
+            else:
+                if self.match_from_both:
+                    tactile_reprs = episode_obs['tactile_repr'][-self.reward_matching_steps:,:].to(self.device) # This will give all the representations of one episode
+                else:
+                    tactile_reprs = episode_obs['tactile_repr'].to(self.device)
+            curr_reprs.append(tactile_reprs)
 
-        # # Concatenate everything now
-        # obs = torch.concat(curr_reprs, dim=-1).detach()
-        # print('obs.shape in ot_rewarder: {}'.format(obs.shape))
+        # Concatenate everything now
+        obs = torch.concat(curr_reprs, dim=-1).detach()
+        print('obs.shape in ot_rewarder: {}'.format(obs.shape))
 
-        # for expert_id in range(len(self.expert_demos)):
-        #     # Get the expert representations
-        #     exp_reprs = []
-        #     if 'image' in self.reward_representations: # We will not be using features for reward for sure
-        #         if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
-        #             expert_image_reprs = self.image_encoder(self.expert_demos[expert_id]['image_obs'][-self.expert_frame_matches:,:].to(self.device))
-        #         else:
-        #             expert_image_reprs = self.image_encoder(self.expert_demos[expert_id]['image_obs'][-self.reward_matching_steps:,:].to(self.device))
-        #         exp_reprs.append(expert_image_reprs)
+        for expert_id in range(len(self.expert_demos)):
+            # Get the expert representations
+            exp_reprs = []
+            if 'image' in self.reward_representations: # We will not be using features for reward for sure
+                if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+                    expert_image_reprs = self.image_encoder(self.expert_demos[expert_id]['image_obs'][-self.expert_frame_matches:,:].to(self.device))
+                else:
+                    expert_image_reprs = self.image_encoder(self.expert_demos[expert_id]['image_obs'][-self.reward_matching_steps:,:].to(self.device))
+                exp_reprs.append(expert_image_reprs)
 
-        #     if 'tactile' in self.reward_representations:
-        #         if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
-        #             expert_tactile_reprs = self.expert_demos[expert_id]['tactile_repr'][-self.expert_frame_matches:,:].to(self.device)
-        #         else:
-        #             expert_tactile_reprs = self.expert_demos[expert_id]['tactile_repr'][-self.reward_matching_steps:,:].to(self.device)
-        #         exp_reprs.append(expert_tactile_reprs)
+            if 'tactile' in self.reward_representations:
+                if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+                    expert_tactile_reprs = self.expert_demos[expert_id]['tactile_repr'][-self.expert_frame_matches:,:].to(self.device)
+                else:
+                    expert_tactile_reprs = self.expert_demos[expert_id]['tactile_repr'][-self.reward_matching_steps:,:].to(self.device)
+                exp_reprs.append(expert_tactile_reprs)
 
-        #     # Concatenate everything now
-        #     exp = torch.concat(exp_reprs, dim=-1).detach()
-        #     print('exp[{}].shape in ot_rewarder : {}'.format(expert_id, exp.shape))
+            # Concatenate everything now
+            exp = torch.concat(exp_reprs, dim=-1).detach()
+            print('exp[{}].shape in ot_rewarder : {}'.format(expert_id, exp.shape))
 
-        #     if self.rewards == 'sinkhorn_cosine':
-        #         cost_matrix = cosine_distance(
-        #                 obs, exp)  # Get cost matrix for samples using critic network.
-        #         transport_plan = optimal_transport_plan(
-        #             obs, exp, cost_matrix, method='sinkhorn',
-        #             niter=100, exponential_weight_init=exponential_weight_init).float()  # Getting optimal coupling
-        #         ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
-        #             torch.mm(transport_plan,
-        #                         cost_matrix.T)).detach().cpu().numpy()
+            if self.rewards == 'sinkhorn_cosine':
+                cost_matrix = cosine_distance(
+                        obs, exp)  # Get cost matrix for samples using critic network.
+                transport_plan = optimal_transport_plan(
+                    obs, exp, cost_matrix, method='sinkhorn',
+                    niter=100, exponential_weight_init=exponential_weight_init).float()  # Getting optimal coupling
+                ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
+                    torch.mm(transport_plan,
+                                cost_matrix.T)).detach().cpu().numpy()
                 
-        #     elif self.rewards == 'sinkhorn_euclidean':
-        #         cost_matrix = euclidean_distance(
-        #             obs, exp)  # Get cost matrix for samples using critic network.
-        #         transport_plan = optimal_transport_plan(
-        #             obs, exp, cost_matrix, method='sinkhorn',
-        #             niter=100, exponential_weight_init=exponential_weight_init).float()  # Getting optimal coupling
-        #         ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
-        #             torch.mm(transport_plan,
-        #                         cost_matrix.T)).detach().cpu().numpy()
+            elif self.rewards == 'sinkhorn_euclidean':
+                cost_matrix = euclidean_distance(
+                    obs, exp)  # Get cost matrix for samples using critic network.
+                transport_plan = optimal_transport_plan(
+                    obs, exp, cost_matrix, method='sinkhorn',
+                    niter=100, exponential_weight_init=exponential_weight_init).float()  # Getting optimal coupling
+                ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
+                    torch.mm(transport_plan,
+                                cost_matrix.T)).detach().cpu().numpy()
                 
-        #     elif self.rewards == 'cosine':
-        #         exp = torch.cat((exp, exp[-1].unsqueeze(0)))
-        #         ot_rewards = -(1. - F.cosine_similarity(obs, exp))
-        #         ot_rewards *= self.sinkhorn_rew_scale
-        #         ot_rewards = ot_rewards.detach().cpu().numpy()
+            elif self.rewards == 'cosine':
+                exp = torch.cat((exp, exp[-1].unsqueeze(0)))
+                ot_rewards = -(1. - F.cosine_similarity(obs, exp))
+                ot_rewards *= self.sinkhorn_rew_scale
+                ot_rewards = ot_rewards.detach().cpu().numpy()
                 
-        #     elif self.rewards == 'euclidean':
-        #         exp = torch.cat((exp, exp[-1].unsqueeze(0)))
-        #         ot_rewards = -(obs - exp).norm(dim=1)
-        #         ot_rewards *= self.sinkhorn_rew_scale
-        #         ot_rewards = ot_rewards.detach().cpu().numpy()
+            elif self.rewards == 'euclidean':
+                exp = torch.cat((exp, exp[-1].unsqueeze(0)))
+                ot_rewards = -(obs - exp).norm(dim=1)
+                ot_rewards *= self.sinkhorn_rew_scale
+                ot_rewards = ot_rewards.detach().cpu().numpy()
 
-        #     elif self.rewards == 'ssim': # Use structural similarity index match
-        #         if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
-        #             episode_img = self.inv_image_transform(episode_obs['image_obs'][-self.episode_frame_matches:,:]) 
-        #             expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'][-self.expert_frame_matches:,:])
-        #         else:
-        #             if self.match_from_both:
-        #                 episode_img = self.inv_image_transform(episode_obs['image_obs'][-self.reward_matching_steps:,:]) 
-        #             else:
-        #                 episode_img = self.inv_image_transform(episode_obs['image_obs'])
-        #             expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'][-self.reward_matching_steps:,:])
+            elif self.rewards == 'ssim': # Use structural similarity index match
+                if (not self.expert_frame_matches is None) and (not self.episode_frame_matches is None):
+                    episode_img = self.inv_image_transform(episode_obs['image_obs'][-self.episode_frame_matches:,:]) 
+                    expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'][-self.expert_frame_matches:,:])
+                else:
+                    if self.match_from_both:
+                        episode_img = self.inv_image_transform(episode_obs['image_obs'][-self.reward_matching_steps:,:]) 
+                    else:
+                        episode_img = self.inv_image_transform(episode_obs['image_obs'])
+                    expert_img = self.inv_image_transform(self.expert_demos[expert_id]['image_obs'][-self.reward_matching_steps:,:])
 
-        #         ot_rewards = structural_similarity_index(
-        #             x = expert_img,
-        #             y = episode_img,
-        #             base_factor = self.ssim_base_factor
-        #         )
-        #         ot_rewards *= self.sinkhorn_rew_scale
-        #         cost_matrix = torch.FloatTensor(ot_rewards)
+                ot_rewards = structural_similarity_index(
+                    x = expert_img,
+                    y = episode_img,
+                    base_factor = self.ssim_base_factor
+                )
+                # ot_rewards -= self.ssim_base_factor 
+                # ot_rewards *= self.sinkhorn_rew_scale / (1 - self.ssim_base_factor) # We again scale it to 10 in the beginning
+                ot_rewards *= self.sinkhorn_rew_scale
+                cost_matrix = torch.FloatTensor(ot_rewards)
                 
-        #     else:
-        #         raise NotImplementedError()
+            else:
+                raise NotImplementedError()
             
-        #     all_ot_rewards.append(ot_rewards)
-        #     sum_ot_rewards = np.sum(ot_rewards) 
-        #     cost_matrices.append(cost_matrix)
-        #     if sum_ot_rewards > best_reward_sum:
-        #         best_reward_sum = sum_ot_rewards
-        #         best_ot_reward_id = expert_id
+            all_ot_rewards.append(ot_rewards)
+            sum_ot_rewards = np.sum(ot_rewards) 
+            cost_matrices.append(cost_matrix)
+            if sum_ot_rewards > best_reward_sum:
+                best_reward_sum = sum_ot_rewards
+                best_ot_reward_id = expert_id
         
-        # if self.sum_experts:
-        #     final_cost_matrix = sum(cost_matrices) # Sum it through all of the cost matrices
-        #     final_ot_reward = sum(all_ot_rewards)
-        # else:
-        #     final_cost_matrix = cost_matrices[best_ot_reward_id]
-        #     final_ot_reward = all_ot_rewards[best_ot_reward_id]
+        if self.sum_experts:
+            final_cost_matrix = sum(cost_matrices) # Sum it through all of the cost matrices
+            final_ot_reward = sum(all_ot_rewards)
+        else:
+            final_cost_matrix = cost_matrices[best_ot_reward_id]
+            final_ot_reward = all_ot_rewards[best_ot_reward_id]
 
-        final_reward, final_cost_matrix, best_expert_id = self.rewarder.get(
-            obs = episode_obs
-        )
-
-        # Update the reward scale if it's the first episode
-        if episode_id == 1:
-            # Auto update the reward scale and get the rewards again
-            self.rewarder.update_scale(current_rewards = final_reward)
-            final_reward, final_cost_matrix, best_expert_id = self.rewarder.get(
-                obs = episode_obs
-            )
-
-        # print('all_ot_rewards: {}'.format(all_ot_rewards)) 
-        print('final_reward: {}'.format(final_reward))
+        print('all_ot_rewards: {}'.format(all_ot_rewards))
+        print('final_ot_reward: {}'.format(final_ot_reward))
 
         if visualize:
-            self.plot_cost_matrix(final_cost_matrix, expert_id=best_expert_id, episode_id=episode_id)
+            self.plot_cost_matrix(final_cost_matrix, expert_id=best_ot_reward_id, episode_id=episode_id)
 
-        return final_reward
+        return final_ot_reward
     
     def plot_cost_matrix(self, cost_matrix, expert_id, episode_id, file_name=None):
         if file_name is None:

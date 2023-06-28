@@ -58,9 +58,13 @@ class Workspace:
     def _initialize_agent(self):
         action_spec = self.train_env.action_spec()
         # self.cfg.agent.action_shape = 23
+        action_shape = action_spec.shape
+        print('action_shape: {}'.format(action_shape))
 
         print('self.cfg.agent: {}'.format(self.cfg.agent))
-        self.agent = hydra.utils.instantiate(self.cfg.agent)
+        self.agent = hydra.utils.instantiate(
+            self.cfg.agent,
+            action_shape = action_shape)
         self.agent.initialize_modules(
             base_policy_cfg = self.cfg.base_policy,
             rewarder_cfg = self.cfg.rewarder,
@@ -250,7 +254,7 @@ class Workspace:
         for k, v in payload.items():
             if k not in self.__dict__:
                 agent_payload[k] = v
-        # self.agent.load_snapshot(agent_payload)
+        # self.agent.load_snapshot(agent_payload) # NOTE: Make sure that this is okay
         self.agent.load_snapshot_eval(agent_payload)
 
     def _add_time_step(self, time_step, time_steps, observations):
@@ -306,7 +310,7 @@ class Workspace:
             episode += 1
             x = input("Press Enter to continue... after reseting env")
 
-            self.eval_video_recorder.save(f'{self.cfg.object}_eval_{evaluation_step}_{episode}.mp4')
+            self.eval_video_recorder.save(f'{self.cfg.task.name}_eval_{evaluation_step}_{episode}.mp4')
         
         # Reset env
         self.train_env.reset()
@@ -357,20 +361,6 @@ class Workspace:
                 )
                 new_rewards_sum = np.sum(new_rewards)
 
-                 # NOTE: This is done inside the agent
-                # Scale the rewards to -10 for the first demo
-                # if self.agent.auto_rew_scale:
-                #     if self._global_episode == 1:
-                #         self.agent.sinkhorn_rew_scale = self.agent.sinkhorn_rew_scale * self.agent.auto_rew_scale_factor / float(
-                #             np.abs(new_rewards_sum))
-                #         new_rewards = self.agent.ot_rewarder(
-                #             episode_obs = observations,
-                #             episode_id = self.global_episode,
-                #             visualize = False,
-                #             exponential_weight_init = self.cfg.exponential_weight_init
-                #         )
-                #         new_rewards_sum = np.sum(new_rewards)
-   
                 print(f'REWARD = {new_rewards_sum}')
                 ts = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
                 self.train_video_recorder.save(f'{ts}_e{self.global_episode}_f{self.global_frame}_r{round(new_rewards_sum,2)}.mp4')
@@ -380,11 +370,14 @@ class Workspace:
 
                 # Update the reward in the timesteps accordingly
                 obs_length = len(time_steps)
-                avg_reward = new_rewards_sum / obs_length
+                # avg_reward = new_rewards_sum / obs_length
                 for i, elt in enumerate(time_steps):
-                    if i > (obs_length - self.cfg.episode_frame_matches):
-                        new_reward = new_rewards[self.cfg.episode_frame_matches - (obs_length - i)]
+                    min_len = min(obs_length, self.cfg.episode_frame_matches) # Episode can be shorter than episode_frame_matches - NOTE: This looks liek a bug
+                    if i > (obs_length - min_len):
+                        new_reward = new_rewards[min_len - (obs_length - i)]
                         elt = elt._replace(reward=new_reward) # Update the reward of the object accordingly
+                    # new_reward = new_rewards[i]
+                    # elt = elt._replace(reward=new_reward)
                     self.replay_storage.add(elt, last = (i == len(time_steps) - 1))
 
                 # Log

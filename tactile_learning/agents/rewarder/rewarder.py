@@ -33,9 +33,6 @@ class Rewarder(ABC):
         sum_rewards = np.sum(current_rewards)
         self.sinkhorn_rew_scale = self.sinkhorn_rew_scale * self.auto_rew_scale_factor / float(np.abs(sum_rewards))
 
-    def set_rew_scale(self, new_rew_scale): # This will be used after the first episode
-        self.sinkhorn_rew_scale = new_rew_scale
-
     def get_representations(self, obs): 
         # Get the episode representations
         episode_reprs = []

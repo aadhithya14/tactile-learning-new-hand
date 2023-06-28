@@ -27,7 +27,7 @@ class TAVI(Agent):
         image_out_dir, image_model_type, # Encoders
         tactile_out_dir, tactile_model_type, # Training parameters
         policy_representations, features_repeat,
-        experiment_name, view_num, device, lr,
+        experiment_name, view_num, device, lr, action_shape,
         feature_dim, hidden_dim, critic_target_tau, num_expl_steps,
         update_every_steps, stddev_schedule, stddev_clip,
         arm_offset_scale_factor, hand_offset_scale_factor, offset_mask, # Task based offset parameters
@@ -55,7 +55,8 @@ class TAVI(Agent):
         # Set the models
         self.policy_representations = policy_representations
         repr_dim = self.repr_dim(type='policy')
-        action_shape = [23]
+        # action_shape = [23]
+        print('ACTION SHAPE IN TAVI: {}'.format(action_shape))
         self.offset_mask = torch.IntTensor(offset_mask).to(self.device)
         self.actor = Actor(repr_dim, action_shape, feature_dim,
                             hidden_dim, offset_mask).to(device)
@@ -174,7 +175,8 @@ class TAVI(Agent):
             dist = self.actor(next_obs, base_next_action, stddev)
 
             offset_action = dist.sample(clip=self.stddev_clip)
-            offset_action[:,:-7] *= self.hand_offset_scale_factor
+            print('offset_action.shape in update_critic: {}'.format(offset_action.shape))
+            offset_action[:,:-7] *= self.hand_offset_scale_factor # NOTE: There is something wrong here?
             offset_action[:,-7:] *= self.arm_offset_scale_factor 
             next_action = base_next_action + offset_action
 
@@ -184,6 +186,7 @@ class TAVI(Agent):
 
         Q1, Q2 = self.critic(obs, action)
 
+        print('target_Q.shape: {}, Q.shape: {}-{}'.format(target_Q.shape, Q1.shape, Q2.shape))
         critic_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
 
         # optimize encoder and critic
@@ -205,13 +208,17 @@ class TAVI(Agent):
 
         # compute action offset
         dist = self.actor(obs, base_action, stddev)
-        offset_action = dist.sample(clip=self.stddev_clip)
-        log_prob = dist.log_prob(offset_action).sum(-1, keepdim=True)
+        action_offset = dist.sample(clip=self.stddev_clip)
+        log_prob = dist.log_prob(action_offset).sum(-1, keepdim=True)
 
         # compute action
-        offset_action[:,:-7] *= self.hand_offset_scale_factor
-        offset_action[:,-7:] *= self.arm_offset_scale_factor 
-        action = base_action + offset_action 
+        print('action_offset.shape in update_actor: {}'.format(action_offset.shape))
+        action_offset[:,:-7] *= self.hand_offset_scale_factor
+        action_offset[:,-7:] *= self.arm_offset_scale_factor 
+        # print('means: action_offset[:-7].mean(): {}, action_offset[-7:].mean(): {}'.format(
+        #     np.mean(action_offset[:-7]), np.mean(action_offset[-7:]))
+        # )
+        action = base_action + action_offset 
         Q1, Q2 = self.critic(obs, action)
         Q = torch.min(Q1, Q2)
         actor_loss = - Q.mean()
@@ -225,6 +232,7 @@ class TAVI(Agent):
         metrics['actor_logprob'] = log_prob.mean().item()
         metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
         metrics['actor_q'] = Q.mean().item()
+        metrics['rl_loss'] = -Q.mean().item()
 
         return metrics
     
@@ -264,7 +272,8 @@ class TAVI(Agent):
             self.update_critic(obs, action, base_next_action, reward, discount, next_obs, step))
 
         # update actor
-        metrics.update(self.update_actor(obs.detach(), base_action, step))
+        metrics.update(
+            self.update_actor(obs.detach(), base_action, step))
 
         # update critic target
         soft_update_params(self.critic, self.critic_target, self.critic_target_tau)
@@ -323,19 +332,18 @@ class TAVI(Agent):
     def load_snapshot(self, payload):
         loaded_encoder = None
         for k, v in payload.items():
-            print('k: {}'.format(k))
+            self.__dict__[k] = v
             if k == 'image_encoder':
                 loaded_encoder = v
 
         self.critic_target.load_state_dict(self.critic.state_dict())
-        
         self.image_encoder.load_state_dict(loaded_encoder.state_dict()) # NOTE: In the actual repo they use self.vinn_encoder rather than loaded_encoder 
 
         self.image_encoder.eval()
         for param in self.image_encoder.parameters():
             param.requires_grad = False
 
-        self.actor_opt = torch.optim.Adam(self.actor.policy.parameters(), lr=self.lr)
+        self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=self.lr)
 
     def load_snapshot_eval(self, payload, bc=False):

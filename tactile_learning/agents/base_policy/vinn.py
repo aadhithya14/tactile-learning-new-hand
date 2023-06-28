@@ -101,7 +101,7 @@ class VINN(BasePolicy):
             # Assumed that all of the demos are inputted
             overall_frame_id = frame_id
             for curr_exp_id in range(len(self.expert_demos)):
-                if overall_frame_id < len(self.expert_demos[curr_exp_id]['image_obs']):
+                if overall_frame_id <= len(self.expert_demos[curr_exp_id]['image_obs']):
                     return curr_exp_id, overall_frame_id
                 
                 overall_frame_id -= len(self.expert_demos[curr_exp_id]['image_obs'])
