@@ -34,9 +34,6 @@ def calc_traj_score(traj1, traj2):
         niter=100, exponential_weight_init=False).float().detach().cpu().numpy()
 
     max_transport_plan = np.max(transport_plan, axis=1) # We are going to find the maximums for traj1
-    # print('max_transport_plan.shape: {}, traj1.shape: {}, traj2.shape: {}'.format(
-    #     max_transport_plan.shape, traj1.shape, traj2.shape
-    # ))
     return np.sum(max_transport_plan)
 
 def get_expert_representations_per_encoder(encoder, task_expert_demos, representation_type='image', device=1):
@@ -81,7 +78,6 @@ def calc_representation_score(encoder, all_expert_demos, representation_type='im
 
     scores_dict = dict()
     traj_idx = range(len(all_expert_representations))
-    # traj_idx_comb = combinations(traj_idx, 2)
     traj_idx_comb = permutations(traj_idx, 2)
 
     num_scores = 0

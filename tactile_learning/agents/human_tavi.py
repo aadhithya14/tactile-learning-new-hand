@@ -19,9 +19,9 @@ from tactile_learning.models import *
 from tactile_learning.utils import *
 from tactile_learning.tactile_data import *
 from holobot.robot.allegro.allegro_kdl import AllegroKDL
-from .agent import Agent
+from .human_agent import HumanAgent 
 
-class TAVI(Agent):
+class HumanTAVI(HumanAgent):
     def __init__(self,
         data_path, expert_demo_nums, expert_id, # Agent parameters
         image_out_dir, image_model_type, # Encoders
@@ -49,7 +49,6 @@ class TAVI(Agent):
         self.num_expl_steps = num_expl_steps
         self.arm_offset_scale_factor = arm_offset_scale_factor
         self.hand_offset_scale_factor= hand_offset_scale_factor
-
         self.expert_id = expert_id
 
         # Set the models
@@ -90,7 +89,7 @@ class TAVI(Agent):
         )
 
     def __repr__(self):
-        return "fish_agent"
+        return "human_tavi"
 
     def _check_limits(self, offset_action):
         # limits = [-0.1, 0.1]

@@ -23,10 +23,13 @@ class Agent(ABC):
         **kwargs
     ):
         # Demo based parameters
-        self.data_path = data_path
-        self.roots = sorted(glob.glob(f'{data_path}/demonstration_*'))
-        self.data = load_data(self.roots, demos_to_use=expert_demo_nums)
-        self.expert_demo_nums = expert_demo_nums 
+        # self.data_path = data_path
+        # self.roots = sorted(glob.glob(f'{data_path}/demonstration_*'))
+        # self.data = load_data(self.roots, demos_to_use=expert_demo_nums)
+        
+        # self.expert_demo_nums = expert_demo_nums 
+        self._set_data(data_path, expert_demo_nums)
+
         self.device = device
         self.view_num = view_num
         self.experiment_name = experiment_name
@@ -47,6 +50,12 @@ class Agent(ABC):
             tactile_model_type = tactile_model_type
         )
         self._set_expert_demos()
+
+    def _set_data(self, data_path, expert_demo_nums):
+        self.data_path = data_path 
+        self.expert_demo_nums = expert_demo_nums
+        self.roots = sorted(glob.glob(f'{data_path}/demonstration_*'))
+        self.data = load_data(self.roots, demos_to_use=expert_demo_nums)
 
     def _set_encoders(self, image_out_dir, image_model_type, tactile_out_dir, tactile_model_type): 
         _, self.image_encoder, self.image_transform  = init_encoder_info(self.device, image_out_dir, 'image', view_num=self.view_num, model_type=image_model_type)

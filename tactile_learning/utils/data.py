@@ -8,6 +8,41 @@ import torch
 from torchvision.datasets.folder import default_loader as loader
 from tqdm import tqdm
 
+# Load human data 
+def load_human_data(roots, demos_to_use=[], duration=120):
+    roots = sorted(roots)
+
+    keypoint_indices = []
+    image_indices = []
+
+    for demo_id,root in enumerate(roots): 
+        demo_num = int(root.split('/')[-1].split('_')[-1])
+        if (len(demos_to_use) > 0 and demo_num in demos_to_use) or (len(demos_to_use) == 0): # If it's empty then it will be ignored
+            with open(os.path.join(root, 'keypoint_indices.pkl'), 'rb') as f:
+                keypoint_indices += pickle.load(f)
+            with open(os.path.join(root, 'image_indices.pkl'), 'rb') as f:
+                image_indices += pickle.load(f)
+
+            # Load the data
+            with h5py.File(os.path.join(root, 'keypoints.h5'), 'r') as f:
+                hand_keypoints = f['transformed_hand_coords'][()] 
+
+    # Find the total lengths now
+    whole_length = len(keypoint_indices)
+    desired_len = int((duration / 120) * whole_length)
+
+    data = dict(
+        keypoint = dict(
+            indices = keypoint_indices[:desired_len],
+            values = hand_keypoints
+        ),
+        image = dict( 
+            indices = image_indices[:desired_len]
+        )
+    )
+
+    return data
+
 # Method to load all the data from given roots and return arrays for it
 def load_data(roots, demos_to_use=[], duration=120): # If the total length is equal to 2 hrs - it means we want the whole data
     roots = sorted(roots)
