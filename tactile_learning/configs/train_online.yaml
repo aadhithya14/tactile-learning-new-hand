@@ -1,9 +1,9 @@
 defaults:
-  - agent: tavi # Optimizer will be initialized inside the agent
-  - base_policy: openloop
+  - agent: human_tavi #tavi # Optimizer will be initialized inside the agent
+  - base_policy: human_retargeter
   - explorer: ou_noise
   - rewarder: sinkhorn_cosine # Type of the reward 
-  - task: plier_picking
+  - task: human_sponge_flipping
   - suite: gym
 
 data_path: ${task.data_path}
@@ -25,7 +25,7 @@ seed: 42
 device: cuda
 
 num_train_frames: 10000 # Total training numbers
-num_seed_frames: 500 # Have the first episode random
+num_seed_frames: 600 # Have the first episode random
 eval_every_frames: 600  # Evaluate in each every 600 frames
 num_eval_episodes: 20
 evaluate: False
@@ -43,7 +43,9 @@ max_steps: 100
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.28T12-14_sponge_flipping_openloop
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.28T15-12_sponge_flipping_openloop
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.28T17-31_sponge_flipping_openloop
-buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.29T13-24_plier_picking_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.29T13-24_plier_picking_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.29T16-00_plier_picking_openloop
+buffer_path: null
 
 # FISH and environment params
 expert_id: 0 # 24
@@ -90,10 +92,10 @@ save_train_video: True
 save_train_cost_matrices: False
 
 # Snapshot loading
-load_snapshot: True
-snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot_plier_picking_tavi_1.pt
+load_snapshot: False
+snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot_plier_picking_joint_temporal_2.pt
 
-log: True
+log: False
 experiment: ${now:%Y.%m.%d}T${now:%H-%M}_${task.name}_${base_policy.name}
 
 # hydra configuration - should be received separately

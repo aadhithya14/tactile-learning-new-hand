@@ -1,0 +1,4 @@
+_target_: tactile_learning.agents.base_policy.human_retargeter.HumanRetargeter
+expert_demos: ???
+expert_id: ${expert_id}
+name: human_retargeter

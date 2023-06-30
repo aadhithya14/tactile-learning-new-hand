@@ -1,7 +1,7 @@
 # @package suite
 defaults:
   - _self_
-  - task: plier_picking # plier_picking #bowl_unstacking
+  - task: sponge_flipping # plier_picking #bowl_unstacking
 
 suite: dexterousgym
 name: 'dexterous_gym'
@@ -35,6 +35,6 @@ task_make_fn:
   tactile_dim: ??? # This will be set by the train_online.make_agent code
   frame_stack: ${suite.frame_stack}
   action_repeat: ${suite.action_repeat}
-  action_type: joint # fingertip/joint
+  action_type: ${task.action_type} # fingertip/joint
   # seed: ${seed}
   

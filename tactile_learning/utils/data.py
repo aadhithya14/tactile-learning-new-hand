@@ -14,6 +14,7 @@ def load_human_data(roots, demos_to_use=[], duration=120):
 
     keypoint_indices = []
     image_indices = []
+    hand_keypoints = {}
 
     for demo_id,root in enumerate(roots): 
         demo_num = int(root.split('/')[-1].split('_')[-1])
@@ -25,7 +26,7 @@ def load_human_data(roots, demos_to_use=[], duration=120):
 
             # Load the data
             with h5py.File(os.path.join(root, 'keypoints.h5'), 'r') as f:
-                hand_keypoints = f['transformed_hand_coords'][()] 
+                hand_keypoints[demo_id] = f['transformed_hand_coords'][()] 
 
     # Find the total lengths now
     whole_length = len(keypoint_indices)

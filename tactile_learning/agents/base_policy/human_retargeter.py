@@ -18,22 +18,16 @@ from tactile_learning.utils import load_human_data
 
 from .base_policy import BasePolicy
 
-class HumanDemoRetargeter(BasePolicy):
+class HumanRetargeter(BasePolicy):
     def __init__(
         self,
         expert_demos,
         expert_id,
-        # data_path,
-        # expert_demo_nums,
-        # expert_id, # There should be one expert only
         host = '172.24.71.240', # These values are set for this computer so will not be taking them as parameters 
         port = 8089, # This will not be used by the OculusTHumbBoundCalibrator anyways
         **kwargs
     ):
 
-        # self.data_path = data_path
-        # self.expert_id = expert_id
-        # self.expert_demo_nums = expert_demo_nums 
         self.expert_id = expert_id 
         self.set_expert_demos(expert_demos)
 
@@ -68,7 +62,7 @@ class HumanDemoRetargeter(BasePolicy):
         self.thumb_angle_calculator = self._get_thumb_angles
         
     def _calibrate_bounds(self):
-        self.notify_component_start('calibration')
+        # self.notify_component_start('calibration')
         calibrator = OculusThumbBoundCalibrator(self._host, self._port)
         self.hand_thumb_bounds = calibrator.get_bounds() # Provides [thumb-index bounds, index-middle bounds, middle-ring-bounds]
 
@@ -126,11 +120,10 @@ class HumanDemoRetargeter(BasePolicy):
             thumb =  np.vstack([raw_keypoints[0], raw_keypoints[OCULUS_JOINTS['thumb']]])
         )
         allegro_joint_angles = self._get_allegro_joint_angles(hand_keypoints)
-    
+
         # Get kinova joint angles
         kinova_action = obs['features'][-7:]
-
-        action = np.concatenate([allegro_joint_angles, kinova_action], dim=-1)
+        action = np.concatenate([allegro_joint_angles, kinova_action], axis=-1)
 
         print('ACTION IN BASE ACT: {}'.format(action))
 

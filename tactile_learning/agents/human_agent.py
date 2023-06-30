@@ -50,7 +50,7 @@ class HumanAgent(Agent):
                 
                 self.expert_demos.append(dict(
                     image_obs = torch.stack(image_obs, 0),
-                    keypoints = torch.stack(keypoints, 0)
+                    keypoints = np.stack(keypoints, 0)
                     # actions = np.stack(actions, 0)
                 ))
                 image_obs = [] 

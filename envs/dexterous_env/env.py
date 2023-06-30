@@ -25,7 +25,7 @@ class DexterityEnv(gym.Env):
         camera_num = 1,
         height = 480, 
         width = 480, 
-        action_type = 'joint'
+        action_type = 'robot'
     ):
         self.width = width
         self.height = height
@@ -55,7 +55,7 @@ class DexterityEnv(gym.Env):
             representation_type = 'tdex'
         )
 
-        action_dim = 23 if action_type == 'joint' else 19
+        action_dim = 23
         self.action_type = action_type
         self.action_space = spaces.Box(low = np.array([-1]*action_dim,dtype=np.float32), # Actions are 12 + 7
                                         high = np.array([1]*action_dim,dtype=np.float32),
@@ -121,17 +121,16 @@ class DexterityEnv(gym.Env):
     def step(self, action):
         print('action.shape: {}'.format(action.shape))
         try: 
-            if self.action_type == 'fingertip':
-                hand_joint_action = self._robot.get_joint_state_from_coord(
-                    action[0:3], action[3:6], action[6:9], action[9:12],
-                    self.deploy_api.get_robot_state()['allegro']['position'])
-            else:
-                hand_joint_action = action[:16]
-            
-            self.deploy_api.send_robot_action({
-                'allegro': hand_joint_action, 
-                'kinova':  action[-7:]
-            })
+            hand_joint_action = action[:16]
+            if self.action_type == 'human': # Then we will not be sending the kinova action 
+                self.deploy_api.send_robot_action({
+                    'allegro': hand_joint_action
+                })
+            elif self.action_type == 'robot':
+                self.deploy_api.send_robot_action({
+                    'allegro': hand_joint_action, 
+                    'kinova':  action[-7:]
+                })
         except:
             print("IK error")
         
