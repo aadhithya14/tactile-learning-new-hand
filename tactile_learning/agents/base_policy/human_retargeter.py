@@ -90,18 +90,22 @@ class HumanRetargeter(BasePolicy):
         desired_joint_angles = copy(self._robot.get_joint_position())
 
         for finger_type in ['index', 'middle', 'ring', 'thumb']:
-            if finger_type == 'thumb':
-                desired_joint_angles = self.thumb_angle_calculator(
-                    hand_keypoints['thumb'][-1],
-                    desired_joint_angles
-                )
-            else:
-                desired_joint_angles = self.finger_joint_solver.calculate_finger_angles(
-                    finger_type = finger_type,
-                    finger_joint_coords = hand_keypoints[finger_type],
-                    curr_angles = desired_joint_angles,
-                    moving_avg_arr = self.moving_average_queues[finger_type]
-                )
+            try:
+                if finger_type == 'thumb':
+                    desired_joint_angles = self.thumb_angle_calculator(
+                        hand_keypoints['thumb'][-1],
+                        desired_joint_angles
+                    )
+                else:
+                    desired_joint_angles = self.finger_joint_solver.calculate_finger_angles(
+                        finger_type = finger_type,
+                        finger_joint_coords = hand_keypoints[finger_type],
+                        curr_angles = desired_joint_angles,
+                        moving_avg_arr = self.moving_average_queues[finger_type]
+                    )
+            except:
+                print('******************\n***** Finger Type: {} IK transfer has failed ******\n******************'.format(finger_type))
+                desired_joint_angles = desired_joint_angles
 
         return desired_joint_angles
     

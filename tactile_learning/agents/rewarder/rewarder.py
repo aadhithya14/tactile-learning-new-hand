@@ -1,7 +1,12 @@
 # Script for overall rewarder
+import cv2 
 import numpy as np
+import matplotlib.pyplot as plt
 import torch
+
 from abc import ABC, abstractmethod
+
+from tactile_learning.utils import get_inverse_image_norm
 
 class Rewarder(ABC):
     def __init__(
@@ -33,7 +38,7 @@ class Rewarder(ABC):
         sum_rewards = np.sum(current_rewards)
         self.sinkhorn_rew_scale = self.sinkhorn_rew_scale * self.auto_rew_scale_factor / float(np.abs(sum_rewards))
 
-    def get_representations(self, obs): 
+    def get_representations(self, obs, debug=True): 
         # Get the episode representations
         episode_reprs = []
         if 'image' in self.representation_types:
@@ -49,7 +54,6 @@ class Rewarder(ABC):
                 tactile_reprs = obs['tactile_repr'][-self.episode_frame_matches:,:].to(self.device)
             episode_reprs.append(tactile_reprs)
         episode_repr = torch.concat(episode_reprs, dim=-1).detach()   
-        print('episode_repr.shape in get_representations in rewarder: {}'.format(episode_repr.shape))
 
         # Get the expert representations
         expert_reprs = []
@@ -70,7 +74,23 @@ class Rewarder(ABC):
             curr_expert_repr = torch.concat(curr_expert_reprs, dim=-1).detach()
             expert_reprs.append(curr_expert_repr)
         expert_reprs = torch.concat(expert_reprs, dim=0)
-        print('expert_repr.shape in get_representations in rewarder: {}'.format(expert_reprs.shape))
+
+        # NOTE: Debugging purposes to see the images
+        if debug:
+            inv_image_transform = get_inverse_image_norm()
+            episode_img = inv_image_transform(obs['image_obs'][-1,:]) 
+            expert_img = inv_image_transform(self.expert_demos[0]['image_obs'][-1,:]) 
+
+            # print('episode_img.shape: {}, expert_img.shape: {}'.format(
+            #     episode_img.shape, expert_img.shape
+            # ))
+
+            # Dump the images
+            plt.imshow(np.transpose(episode_img.detach().cpu().numpy(), (1,2,0)))
+            plt.savefig('episode_img.png')
+
+            plt.imshow(np.transpose(expert_img.detach().cpu().numpy(), (1,2,0)))
+            plt.savefig('expert_img.png')
 
         return episode_repr, expert_reprs # This will be returned in get method
 

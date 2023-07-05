@@ -1,6 +1,6 @@
 defaults:
   - agent: human_tavi #tavi # Optimizer will be initialized inside the agent
-  - base_policy: human_retargeter
+  - base_policy: human_retargeter # human_retargeter
   - explorer: ou_noise
   - rewarder: sinkhorn_cosine # Type of the reward 
   - task: human_sponge_flipping
@@ -10,8 +10,6 @@ data_path: ${task.data_path}
 image_out_dir: ${task.image_out_dir} # resnet - plier picking 
 image_model_type: ${task.image_model_type} # TODO: Add this information to the config - or get it from the learner type and etc
 
-# vinn_image_out_dir: ${task.vinn_image_out_dir}
-# vinn_image_model_type: ${task.vinn_image_model_type}
 vinn_cont_steps: 10
 vinn_no_change_in_demo: False # If set to true demo will not change at each time step - it will only change in the beginning
 
@@ -25,55 +23,19 @@ seed: 42
 device: cuda
 
 num_train_frames: 10000 # Total training numbers
-num_seed_frames: 600 # Have the first episode random
+num_seed_frames: 2000 # Have the first episode random
 eval_every_frames: 600  # Evaluate in each every 600 frames
 num_eval_episodes: 20
 evaluate: False
 max_steps: 100
 
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.20T17-14_bowl_unstacking_vinn_cont
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.21T12-24_bowl_unstacking_vinn_cont
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.27T12-22_plier_picking_vinn_cont
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.27T15-58_sponge_flipping_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.27T17-11_sponge_flipping_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.27T18-31_sponge_flipping_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.27T19-57_sponge_flipping_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.27T20-46_sponge_flipping_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.28T10-27_sponge_flipping_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.28T12-14_sponge_flipping_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.28T15-12_sponge_flipping_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.28T17-31_sponge_flipping_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.29T13-24_plier_picking_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.06.29T16-00_plier_picking_openloop
-buffer_path: null
+buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.03T18-29_human_sponge_flipping_human_retargeter
 
 # FISH and environment params
-expert_id: 0 # 24
-# expert_demo_nums: [22,26] # Bowl Unstacking
-# expert_demo_nums: [5] # Pre-Sponge Flipping
-
-# expert_demo_nums: [15] # Plier Picking
-# expert_demo_nums: [24] # Sponge Flipping
-# expert_demo_nums: [16] # Eraser Turning
-# expert_demo_nums: [24] # Bowl Unstacking
-# expert_demo_nums: [4] # Peg Insertion
+expert_id: 0
 expert_demo_nums: ${task.expert_demo_nums}
-
-# reward_matching_steps: 1 # We will only match the last 20 steps through the demonstration
-# match_from_both: True # If true we'll match the rewards from both of the 
 episode_frame_matches: 10 
 expert_frame_matches: 1
-# exponential_weight_init: False # If true the initial weight in the ot reward will be exponential - currently it's equal importance to all timeframes
-# end_frames_repeat: 1 # Stack the last frames for 20 times
-# sum_experts: False
-# scale_representations: False
-# exponential_exploration: False # This is to explore sometimes when it's stuck
-# exponential_offset_exploration: False # TODO: Test this - offset added is lowered exponentially
-# exploration: ou_noise
-# rewards: sinkhorn_cosine # it was sinkhorn cosine
-# ssim_base_factor: 0.7 # It's assumed to give higher rewards
-# mock_env: False # If set to true we will be using mock demos as the environment interaction
-# mock_demo_nums: [10, 12, 13, 15, 2, 7] # Use all of them # [13,15,2,7] # 15 is the expert demo in the agent
 camera_num: 0
 
 # Agent params 
@@ -93,9 +55,9 @@ save_train_cost_matrices: False
 
 # Snapshot loading
 load_snapshot: False
-snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot_plier_picking_joint_temporal_2.pt
+snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot_plier_picking_pretrained_2.pt
 
-log: False
+log: True
 experiment: ${now:%Y.%m.%d}T${now:%H-%M}_${task.name}_${base_policy.name}
 
 # hydra configuration - should be received separately
