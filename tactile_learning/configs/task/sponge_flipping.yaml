@@ -32,3 +32,5 @@ expert_demo_nums: [24]
 arm_offset_scale_factor: 0.05
 hand_offset_scale_factor: 0.32 #sponge flipping
 offset_mask: [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] # sponge flipping
+
+action_type: human

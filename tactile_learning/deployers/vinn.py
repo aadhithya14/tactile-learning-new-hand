@@ -174,16 +174,8 @@ class VINN(Deployer):
     
     def _get_all_representations(self):
         print('Getting all representations')
-        repr_dim = 0
-        if 'tactile' in self.representation_types: repr_dim += self.tactile_repr.size
-        if 'allegro' in self.representation_types:  repr_dim += ALLEGRO_EE_REPR_SIZE
-        if 'kinova' in self.representation_types: repr_dim += KINOVA_CARTESIAN_POS_SIZE
-        if 'torque' in self.representation_types: repr_dim += ALLEGRO_JOINT_NUM # There are 16 joint values
-        if 'image' in self.representation_types: repr_dim += 512 # self.image_cfg.encoder.out_dim
 
-        self.all_representations = np.zeros((
-            len(self.data['tactile']['indices']), repr_dim
-        ))
+        self.all_representations = []
 
         pbar = tqdm(total=len(self.data['tactile']['indices']))
         for index in range(len(self.data['tactile']['indices'])):
@@ -195,10 +187,12 @@ class VINN(Deployer):
                 repr_data['tactile_value'], 
                 repr_data['robot_states'] 
             )
-            self.all_representations[index, :] = representation[:]
+            self.all_representations.append(representation)
             pbar.update(1)
 
         pbar.close()
+
+        self.all_representations = np.stack(self.all_representations, axis=0)
 
     def save_deployment(self):
         if self.dump_deployment_info:

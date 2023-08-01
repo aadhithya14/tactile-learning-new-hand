@@ -25,11 +25,16 @@ vinn_image_out_dir: 2023.06.07-17-45_image_byol_card_flipping_view_0_resnet
 vinn_image_model_type: byol
 
 data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/human_sponge_flipping
+robot_data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/card_flipping
 
 name: human_sponge_flipping
 action_type: human
 
 expert_demo_nums: [7]
+robot_demo_nums: [24]
+
 arm_offset_scale_factor: 0.05
-hand_offset_scale_factor: 0.32 #sponge flipping
-offset_mask: [0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0] # sponge flipping
+hand_offset_scale_factor: 0.25 #sponge flipping
+# offset_mask: [0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0] # sponge flipping
+# offset_mask: [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] # sponge flipping
+offset_mask: [0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]

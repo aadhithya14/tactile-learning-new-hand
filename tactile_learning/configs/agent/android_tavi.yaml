@@ -1,0 +1,35 @@
+# @package agent
+_target_: tactile_learning.agents.AndroidTAVI
+# Base policy parameters
+data_path: ${data_path} # Path to hold all the preprocessed demos
+expert_demo_nums: ${expert_demo_nums} # Demo to get the base action from
+expert_id: ${expert_id}
+
+robot_data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/card_flipping
+robot_demo_nums: [24]
+
+# Encoders
+image_out_dir: ${image_out_dir}
+image_model_type: ${image_model_type}
+tactile_out_dir: ${tactile_out_dir}
+tactile_model_type: ${tactile_model_type}
+
+# Training parameters
+policy_representations: ${policy_representations}
+features_repeat: ${features_repeat}
+experiment_name: ${experiment}
+view_num: ${camera_num}
+device: ${device}
+num_expl_steps: ${num_seed_frames}
+lr: 1e-4 # It was 1e-4 before 
+feature_dim: 512
+hidden_dim: 64
+critic_target_tau: 0.01
+update_every_steps: 2
+stddev_schedule: 0.1
+stddev_clip: 0.3
+
+# Task based - offset parameters
+arm_offset_scale_factor: ${task.arm_offset_scale_factor}
+hand_offset_scale_factor: ${task.hand_offset_scale_factor}
+offset_mask: ${task.offset_mask}

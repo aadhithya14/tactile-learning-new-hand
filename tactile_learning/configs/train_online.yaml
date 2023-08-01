@@ -1,6 +1,8 @@
 defaults:
-  - agent: human_tavi #tavi # Optimizer will be initialized inside the agent
+  - agent: android_tavi #tavi # Optimizer will be initialized inside the agent
   - base_policy: human_retargeter # human_retargeter
+  # - agent: tavi
+  # - base_policy: openloop
   - explorer: ou_noise
   - rewarder: sinkhorn_cosine # Type of the reward 
   - task: human_sponge_flipping
@@ -23,13 +25,28 @@ seed: 42
 device: cuda
 
 num_train_frames: 10000 # Total training numbers
-num_seed_frames: 2000 # Have the first episode random
+num_seed_frames: 0 # Have the first episode random
 eval_every_frames: 600  # Evaluate in each every 600 frames
 num_eval_episodes: 20
 evaluate: False
 max_steps: 100
 
-buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.03T18-29_human_sponge_flipping_human_retargeter
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.03T18-29_human_sponge_flipping_human_retargeter
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.06T17-10_bowl_unstacking_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.07T14-15_bowl_unstacking_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.07T15-19_bowl_unstacking_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.07T16-48_bowl_unstacking_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.10T11-49_bowl_unstacking_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.10T12-44_bowl_unstacking_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.12T13-11_peg_insertion_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.12T14-21_peg_insertion_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.12T15-33_peg_insertion_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.12T18-54_peg_insertion_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.12T20-06_peg_insertion_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.13T10-20_peg_insertion_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.13T11-23_eraser_turning_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.13T13-21_eraser_turning_openloop
+buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.13T15-36_human_sponge_flipping_human_retargeter
 
 # FISH and environment params
 expert_id: 0
@@ -55,7 +72,7 @@ save_train_cost_matrices: False
 
 # Snapshot loading
 load_snapshot: False
-snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot_plier_picking_pretrained_2.pt
+snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot_android_1.pt
 
 log: True
 experiment: ${now:%Y.%m.%d}T${now:%H-%M}_${task.name}_${base_policy.name}

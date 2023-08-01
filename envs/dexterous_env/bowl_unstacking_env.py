@@ -64,8 +64,10 @@ class BowlUnstackingEnv(gym.Env):
                 tactile_image = tactile_img,
                 representation_type = 'tdex'
             )
-
-            action_dim = 23 if action_type == 'joint' else 19
+            
+            ## WARNING: Yinlong changed
+            action_dim = 23 if action_type == 'joint' or action_type == 'robot' else 19
+            ## WARNING: Yinlong changed
             self.action_type = action_type
             self.action_space = spaces.Box(low = np.array([-1]*action_dim,dtype=np.float32), # Actions are 12 + 7
                                            high = np.array([1]*action_dim,dtype=np.float32),
