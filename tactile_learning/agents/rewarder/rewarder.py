@@ -73,7 +73,7 @@ class Rewarder(ABC):
                 curr_expert_reprs.append(tactile_reprs)
             curr_expert_repr = torch.concat(curr_expert_reprs, dim=-1).detach()
             expert_reprs.append(curr_expert_repr)
-        expert_reprs = torch.concat(expert_reprs, dim=0)
+        # expert_reprs = torch.stack(expert_reprs, dim=0)
 
         # NOTE: Debugging purposes to see the images
         if debug:

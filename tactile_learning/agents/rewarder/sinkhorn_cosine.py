@@ -21,11 +21,16 @@ class SinkhornCosine(Rewarder):
         # Get representations 
         episode_repr, expert_reprs = self.get_representations(obs)
 
+        # print('episode_repr.shape: {}, expert_reprs.shape: {}'.format(episode_repr.shape, expert_reprs.shape))
+
         all_rewards = []
         cost_matrices = []
         best_reward_sum = - sys.maxsize
         for expert_id, expert_repr in enumerate(expert_reprs):
-            expert_repr = expert_repr.unsqueeze(0) # It should have dimension 1 for the 1st dimension
+            # expert_repr = expert_repr.unsqueeze(0) # It should have dimension 1 for the 1st dimension
+            print('expert_repr.shape: {}, episode_Repr.shape: {}'.format(
+                expert_repr.shape, episode_repr.shape
+            ))
             cost_matrix = cosine_distance(
                     episode_repr, expert_repr)  # Get cost matrix for samples using critic network.
             transport_plan = optimal_transport_plan(
