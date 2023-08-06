@@ -67,9 +67,9 @@ class Rewarder(ABC):
                 curr_expert_reprs.append(image_reprs)
             if 'tactile' in self.representation_types:
                 if self.expert_frame_matches == -1:
-                    tactile_reprs = obs['tactile_repr'].to(self.device)
+                    tactile_reprs = self.expert_demos[expert_id]['tactile_repr'].to(self.device)
                 else:
-                    tactile_reprs = obs['tactile_repr'][-self.expert_frame_matches:,:].to(self.device)
+                    tactile_reprs = self.expert_demos[expert_id]['tactile_repr'][-self.expert_frame_matches:,:].to(self.device)
                 curr_expert_reprs.append(tactile_reprs)
             curr_expert_repr = torch.concat(curr_expert_reprs, dim=-1).detach()
             expert_reprs.append(curr_expert_repr)
