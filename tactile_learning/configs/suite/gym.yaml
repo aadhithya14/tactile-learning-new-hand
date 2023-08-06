@@ -1,11 +1,11 @@
 # @package suite
 defaults:
   - _self_
-  - task: sponge_flipping # plier_picking #bowl_unstacking
+  # - task: bowl_unstacking # plier_picking #bowl_unstacking
 
 suite: dexterousgym
 name: 'dexterous_gym'
-task_name: ${suite.task.task_name} # Is received from the Cup Unstacking 
+task_name: ${task.task_name} # Is received from the Cup Unstacking 
 
 # task settings
 frame_stack: 1

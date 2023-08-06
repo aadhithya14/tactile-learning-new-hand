@@ -27,6 +27,7 @@ vinn_image_model_type: byol
 data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/plier_picking
 
 name: plier_picking
+task_name: PlierPicking-v1
 
 expert_demo_nums: [15] # 25? 
 arm_offset_scale_factor: 0.05

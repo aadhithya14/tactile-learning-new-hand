@@ -1,5 +1,5 @@
-# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.06/18-27_temporal_ssl_bs_32_epochs_1000_view_1_bowl_picking_frame_diff_5_resnet
-# image_model_type: temporal 
+image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.06/18-27_temporal_ssl_bs_32_epochs_1000_view_1_bowl_picking_frame_diff_5_resnet
+image_model_type: temporal 
 
 # Joint temporal
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.07/21-02_temporal_ssl_bowl_picking_view_1_resnet
@@ -18,8 +18,8 @@
 # image_model_type: bc
 
 #pretrained
-image_out_dir: null 
-image_model_type: pretrained
+# image_out_dir: null 
+# image_model_type: pretrained
 
 vinn_image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.05.06/10-50_image_byol_bs_32_epochs_500_lr_1e-05_bowl_picking_after_rss
 vinn_image_model_type: byol
@@ -27,8 +27,9 @@ vinn_image_model_type: byol
 data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/bowl_picking
 
 name: bowl_unstacking
+task_name: BowlUnstacking-v1
 
-expert_demo_nums: [24,26] # [24]
+expert_demo_nums: [24] # [24]
 arm_offset_scale_factor: 0.05 
 hand_offset_scale_factor: 0.25 
 offset_mask: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]
