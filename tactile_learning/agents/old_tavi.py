@@ -1,8 +1,7 @@
-# Cleaner and FISH with manually scheduled offsets
-# It should explore for a bit every once a while and then train with the 
-# newly explored rollouts - not sure if the model would output 
-# anything... 
-
+# Agent implementation in fish
+"""
+This takes potil_vinn_offset and compute q-filter on encoder_vinn and vinn_action_qfilter
+"""
 import datetime
 import glob
 import os
@@ -20,87 +19,47 @@ from tactile_learning.models import *
 from tactile_learning.utils import *
 from tactile_learning.tactile_data import *
 from holobot.robot.allegro.allegro_kdl import AllegroKDL
+from .agent import Agent
 
-class ScheduledOffsetFISH: 
+class TAVI(Agent):
     def __init__(self,
-        data_path, expert_demo_nums, expert_id, exploration,
-        expert_frame_matches, episode_frame_matches,
-        image_out_dir, tactile_out_dir, image_model_type, tactile_model_type,  
-        reward_representations, policy_representations, features_repeat, view_num,   
-        device, lr, feature_dim, hidden_dim, cricit_target_tau, 
-        num_expl_steps, update_every_steps, stddev_schedule, stddev_clip,
-        update_target_every, arm_offset_scale_factor, hand_offset_scale_factor, 
-        offset_mask # Should be added to offset scheduler
+        data_path, expert_demo_nums, expert_id, # Agent parameters
+        image_out_dir, image_model_type, # Encoders
+        tactile_out_dir, tactile_model_type, # Training parameters
+        policy_representations, features_repeat,
+        experiment_name, view_num, device, lr, action_shape,
+        feature_dim, hidden_dim, critic_target_tau, num_expl_steps,
+        update_every_steps, update_critic_every_steps, update_actor_every_steps,
+        stddev_schedule, stddev_clip, gradient_clip,
+        arm_offset_scale_factor, hand_offset_scale_factor, offset_mask, # Task based offset parameters
+        **kwargs
     ):
         
-        # rewards, ssim_base_factor, sinkhorn_rew_scale, auto_rew_scale, auto_rew_scale_factor
-        # these parts should go to the rewarder module
-        # bc weight_type / bc_weight_schedule is removed
+        # Super Agent sets the encoders, transforms and expert demonstrations
+        super().__init__(
+            data_path=data_path,
+            expert_demo_nums=expert_demo_nums,
+            image_out_dir=image_out_dir, image_model_type=image_model_type,
+            tactile_out_dir=tactile_out_dir, tactile_model_type=tactile_model_type,
+            view_num=view_num, device=device, lr=lr, update_every_steps=update_every_steps,
+            stddev_schedule=stddev_schedule, stddev_clip=stddev_clip, features_repeat=features_repeat,
+            experiment_name=experiment_name, update_critic_every_steps=update_critic_every_steps,
+            update_actor_every_steps=update_actor_every_steps
+        )
 
-        self.device = device 
-        self.lr = lr 
-        self.critic_target_tau = cricit_target_tau
-        self.update_every_steps = update_every_steps
+        self.critic_target_tau = critic_target_tau
         self.num_expl_steps = num_expl_steps
-        self.stddev_schedule = stddev_schedule
-        self.stddev_clip = stddev_clip
-        self.update_target_every = update_target_every
         self.arm_offset_scale_factor = arm_offset_scale_factor
         self.hand_offset_scale_factor= hand_offset_scale_factor
-        self.features_repeat = features_repeat
+        self.gradient_clip = gradient_clip
 
-        self.data_path = data_path
         self.expert_id = expert_id
-        self.expert_frame_matches = expert_frame_matches
-        self.episode_frame_matches = episode_frame_matches
-        self.exploration = exploration
 
-        self.roots = sorted(glob.glob(f'{data_path}/demonstration_*'))
-        self.data = load_data(self.roots, demos_to_use=expert_demo_nums)
-        
-        _, self.image_encoder, self.image_transform  = init_encoder_info(self.device, image_out_dir, 'image', view_num=view_num, model_type=image_model_type)
-        self._set_image_transform()
-        image_repr_dim = 512
-
-        tactile_cfg, self.tactile_encoder, _ = init_encoder_info(self.device, tactile_out_dir, 'tactile', view_num=view_num, model_type=tactile_model_type)
-        tactile_img = TactileImage(
-            tactile_image_size = tactile_cfg.tactile_image_size, 
-            shuffle_type = None
-        )
-        tactile_repr_dim = tactile_cfg.encoder.tactile_encoder.out_dim if tactile_model_type == 'bc' else tactile_cfg.encoder.out_dim
-        
-        self.tactile_repr = TactileRepresentation( # This will be used when calculating the reward - not getting the observations
-            encoder_out_dim = tactile_repr_dim,
-            tactile_encoder = self.tactile_encoder,
-            tactile_image = tactile_img,
-            representation_type = 'tdex'
-        )
-
-        self.reward_representations = reward_representations
+        # Set the models
         self.policy_representations = policy_representations
-        self.view_num = view_num
-        self.inv_image_transform = get_inverse_image_norm() # This is only to be able to 
-
-        # Freeze the encoders
-        self.image_encoder.eval()
-        self.tactile_encoder.eval()
-        for param in self.image_encoder.parameters():
-            param.requires_grad = False 
-        for param in self.tactile_encoder.parameters():
-            param.requires_grad = False
-
-        # Set the expert_demo - it will set the tactile representations and image observations and save them in a dictionary
-        self._set_expert_demos()
-
-        repr_dim = 0
-        if 'tactile' in policy_representations:
-            repr_dim += tactile_repr_dim
-        if 'image' in policy_representations:
-            repr_dim += image_repr_dim
-        if 'features' in policy_representations:
-            repr_dim += 23 * features_repeat
-
-        action_shape = 23
+        repr_dim = self.repr_dim(type='policy')
+        # action_shape = [23]
+        print('ACTION SHAPE IN TAVI: {}'.format(action_shape))
         self.offset_mask = torch.IntTensor(offset_mask).to(self.device)
         self.actor = Actor(repr_dim, action_shape, feature_dim,
                             hidden_dim, offset_mask).to(device)
@@ -114,15 +73,8 @@ class ScheduledOffsetFISH:
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
 
-        # Data augmentation
-        self.image_aug = RandomShiftsAug(pad=4) # This is augmentation for the image
-        self.image_normalize = T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
-
         self.train()
         self.critic_target.train()
-
-    def __repr__(self):
-        return 'offset_scheduled_fish_agent'
 
     def initialize_modules(self, base_policy_cfg, rewarder_cfg, explorer_cfg): 
         self.base_policy = hydra.utils.instantiate(
@@ -133,73 +85,15 @@ class ScheduledOffsetFISH:
         self.rewarder = hydra.utils.instantiate(
             rewarder_cfg,
             expert_demos = self.expert_demos, 
-            image_encoder = self.image_encoder if 'image' in self.reward_representations else None,
-            tactile_encoder = self.tactile_encoder if 'tactile' in self.reward_representations else None
+            image_encoder = self.image_encoder,
+            tactile_encoder = self.tactile_encoder
         )
         self.explorer = hydra.utils.instantiate(
             explorer_cfg
         )
 
-    def train(self, training=True):
-        self.training = training
-        self.actor.train(training)
-        self.critic.train(training)
-
-    def _set_image_transform(self):
-        self.image_act_transform = T.Compose([
-            RandomShiftsAug(pad=4),
-            T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
-        ])
-        self.image_normalize = T.Normalize(VISION_IMAGE_MEANS, VISION_IMAGE_STDS)
-
-    def _set_expert_demos(self): # Will stack the end frames back to back
-        # We'll stack the tactile repr and the image observations
-        self.expert_demos = []
-        image_obs = [] 
-        tactile_reprs = []
-        actions = []
-        old_demo_id = -1
-        for step_id in range(len(self.data['image']['indices'])): 
-            # Set observations
-            demo_id, tactile_id = self.data['tactile']['indices'][step_id]
-            if (demo_id != old_demo_id and step_id > 0) or (step_id == len(self.data['image']['indices'])-1):
-                
-                self.expert_demos.append(dict(
-                    image_obs = torch.stack(image_obs, 0), # NOTE: I don't think there is a problem here 
-                    tactile_repr = torch.stack(tactile_reprs, 0),
-                    actions = np.stack(actions, 0)
-                ))
-                image_obs = [] 
-                tactile_reprs = []
-                actions = []
-
-            tactile_value = self.data['tactile']['values'][demo_id][tactile_id]
-            tactile_repr = self.tactile_repr.get(tactile_value, detach=False)
-
-            _, image_id = self.data['image']['indices'][step_id]
-            image = load_dataset_image(
-                data_path = self.data_path, 
-                demo_id = demo_id, 
-                image_id = image_id,
-                view_num = self.view_num,
-                transform = self.image_transform
-            )
-
-            # Set actions
-            _, allegro_action_id = self.data['allegro_actions']['indices'][step_id]
-            allegro_joint_action = self.data['allegro_actions']['values'][demo_id][allegro_action_id]
-            allegro_action = allegro_joint_action 
-
-            # Set kinova action 
-            _, kinova_id = self.data['kinova']['indices'][step_id]
-            kinova_action = self.data['kinova']['values'][demo_id][kinova_id]
-            demo_action = np.concatenate([allegro_action, kinova_action], axis=-1)
-
-            image_obs.append(image)
-            tactile_reprs.append(tactile_repr)
-            actions.append(demo_action)
-
-            old_demo_id = demo_id
+    def __repr__(self):
+        return "fish_agent"
 
     def _check_limits(self, offset_action):
         # limits = [-0.1, 0.1]
@@ -211,15 +105,19 @@ class ScheduledOffsetFISH:
 
     # Will give the next action in the step
     def base_act(self, obs, episode_step): # Returns the action for the base policy - openloop
+
         action, is_done = self.base_policy.act( # TODO: Make sure these are good
             obs, episode_step
         )
 
         return torch.FloatTensor(action).to(self.device).unsqueeze(0), is_done
 
+
     def act(self, obs, global_step, episode_step, eval_mode, metrics=None):
         with torch.no_grad():
             base_action, is_done = self.base_act(obs, episode_step)
+
+        print('base_action.shape: {}'.format(base_action.shape))
 
         with torch.no_grad():
             # Get the action image_obs
@@ -229,8 +127,6 @@ class ScheduledOffsetFISH:
                 features = obs['features'].unsqueeze(0),
                 representation_types=self.policy_representations
             )
-
-        print('obs.shape: {} in act'.format(obs.shape))
 
         stddev = schedule(self.stddev_schedule, global_step)
         dist = self.actor(obs, base_action, stddev)
@@ -245,7 +141,6 @@ class ScheduledOffsetFISH:
                 episode_step = episode_step,
                 device = self.device
             )
-
         offset_action *= self.offset_mask 
 
         offset_action[:,:-7] *= self.hand_offset_scale_factor
@@ -275,35 +170,21 @@ class ScheduledOffsetFISH:
 
         return action.cpu().numpy()[0], base_action.cpu().numpy()[0], is_done, metrics
 
-    def _get_policy_reprs_from_obs(self, image_obs, tactile_repr, features, representation_types):
-         # Get the representations
-        reprs = []
-        if 'image' in representation_types:
-            # Current representations
-            image_obs = self.image_act_transform(image_obs.float()).to(self.device)
-            image_reprs = self.image_encoder(image_obs)
-            reprs.append(image_reprs)
-
-        if 'tactile' in representation_types:
-            tactile_reprs = tactile_repr.to(self.device) # This will give all the representations of one batch
-            reprs.append(tactile_reprs)
-
-        if 'features' in representation_types:
-            repeated_features = features.repeat(1, self.features_repeat)
-            reprs.append(repeated_features.to(self.device))
-
-        return torch.concat(reprs, axis=-1) # Concatenate the representations to get the final representations
-
-
     def update_critic(self, obs, action, base_next_action, reward, discount, next_obs, step):
         metrics = dict()
+
+        if step % self.update_critic_every_steps != 0:
+            return metrics
 
         with torch.no_grad():
             stddev = schedule(self.stddev_schedule, step)
             dist = self.actor(next_obs, base_next_action, stddev)
 
             offset_action = dist.sample(clip=self.stddev_clip)
-            offset_action[:,:-7] *= self.hand_offset_scale_factor
+            # NOTE: This is added for the offset mode debug
+            # offset_action *= self.offset_mask
+            # NOTE: This is added for the offset mode debug
+            offset_action[:,:-7] *= self.hand_offset_scale_factor # NOTE: There is something wrong here?
             offset_action[:,-7:] *= self.arm_offset_scale_factor 
             next_action = base_next_action + offset_action
 
@@ -318,6 +199,27 @@ class ScheduledOffsetFISH:
         # optimize encoder and critic
         self.critic_opt.zero_grad(set_to_none=True)
         critic_loss.backward()
+
+        # NOTE: FOR OFFSET MODE DEBUG
+        # print('------')
+        # total_norm = 0
+        # for p in self.critic.parameters():
+        #     param_norm = p.grad.data.norm(2)
+        #     total_norm += param_norm.item() ** 2
+        # total_norm = total_norm ** (1. / 2)
+        # print('BEFORE CLIPPING TOTAL CRITIC GRADIENT NORM: {}'.format(total_norm))
+
+        # torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.gradient_clip)
+
+        # total_norm = 0
+        # for p in self.critic.parameters():
+        #     param_norm = p.grad.data.norm(2)
+        #     total_norm += param_norm.item() ** 2
+        # total_norm = total_norm ** (1. / 2)
+        # print('AFTER CLIPPING CRITIC NORM: {}\n------'.format(total_norm))
+
+        # NOTE: For OFFSET MODE DEBUG
+
         self.critic_opt.step()
 
         metrics['critic_target_q'] = target_Q.mean().item()
@@ -330,25 +232,51 @@ class ScheduledOffsetFISH:
     def update_actor(self, obs, base_action, step):
         metrics = dict()
 
+        if step % self.update_actor_every_steps != 0:
+            return metrics
+
         stddev = schedule(self.stddev_schedule, step)
 
         # compute action offset
         dist = self.actor(obs, base_action, stddev)
-        offset_action = dist.sample(clip=self.stddev_clip)
-        log_prob = dist.log_prob(offset_action).sum(-1, keepdim=True)
+        action_offset = dist.sample(clip=self.stddev_clip)
+        log_prob = dist.log_prob(action_offset).sum(-1, keepdim=True)
 
         # compute action
-        offset_action[:,:-7] *= self.hand_offset_scale_factor
-        offset_action[:,-7:] *= self.arm_offset_scale_factor 
-        action = base_action + offset_action 
+        # NOTE: Added for offset debug change
+        # action_offset *= self.offset_mask
+        # NOTE: Added for offset debug change
+        action_offset[:,:-7] *= self.hand_offset_scale_factor
+        action_offset[:,-7:] *= self.arm_offset_scale_factor 
+
+        action = base_action + action_offset 
         Q1, Q2 = self.critic(obs, action)
         Q = torch.min(Q1, Q2)
-
-        actor_loss = - Q.mean()  # BC weight is not added to this
+        actor_loss = - Q.mean()
 
         # optimize actor
         self.actor_opt.zero_grad(set_to_none=True)
         actor_loss.backward()
+
+        # NOTE: OFFSET MODE DEBUG
+        # print('------')
+        # total_norm = 0
+        # for p in self.actor.parameters():
+        #     param_norm = p.grad.data.norm(2)
+        #     total_norm += param_norm.item() ** 2
+        # total_norm = total_norm ** (1. / 2)
+        # print('BEFORE CLIPPING TOTAL ACTOR GRADIENT NORM: {}'.format(total_norm))
+
+        # torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.gradient_clip)
+
+        # total_norm = 0
+        # for p in self.actor.parameters():
+        #     param_norm = p.grad.data.norm(2)
+        #     total_norm += param_norm.item() ** 2
+        # total_norm = total_norm ** (1. / 2)
+        # print('AFTER CLIPPING ACTOR NORM: {}\n------'.format(total_norm))
+        # NOTE: OFFSET MODE DEBUG 
+
         self.actor_opt.step()
         
         metrics['actor_loss'] = actor_loss.item()
@@ -356,9 +284,8 @@ class ScheduledOffsetFISH:
         metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
         metrics['actor_q'] = Q.mean().item()
         metrics['rl_loss'] = -Q.mean().item()
-            
-        return metrics
 
+        return metrics
     
     def update(self, replay_iter, step):
         metrics = dict()
@@ -371,15 +298,13 @@ class ScheduledOffsetFISH:
             batch, self.device)
         
         # Multiply action with the offset mask just incase if the buffer was not saved that way
-        # action *= self.offset_mask
         offset_action = action - base_action
         offset_action *= self.offset_mask 
         action = base_action + offset_action
-        print('UPDATE - image_obs.shape: {}'.format(image_obs.shape))
 
         # Get the representations
         obs = self._get_policy_reprs_from_obs(
-            image_obs = image_obs, # These are stacked PIL images?
+            image_obs = image_obs,
             tactile_repr = tactile_repr,
             features = features,
             representation_types=self.policy_representations
@@ -398,20 +323,29 @@ class ScheduledOffsetFISH:
             self.update_critic(obs, action, base_next_action, reward, discount, next_obs, step))
 
         # update actor
-        metrics.update(self.update_actor(obs.detach(), base_action, step))
+        metrics.update(
+            self.update_actor(obs.detach(), base_action, step))
 
         # update critic target
-        soft_update_params(self.critic, self.critic_target,
-                                    self.critic_target_tau)
+        soft_update_params(self.critic, self.critic_target, self.critic_target_tau)
+
         return metrics
 
-    def ot_rewarder(self, episode_obs, episode_id, visualize=False, exponential_weight_init=False): # TODO: Delete the mock option
-
+    def get_reward(self, episode_obs, episode_id, visualize=False): # TODO: Delete the mock option
+        
         final_reward, final_cost_matrix, best_expert_id = self.rewarder.get(
             obs = episode_obs
         )
 
-        print('final_reward: {}'.format(final_reward))
+        # Update the reward scale if it's the first episode
+        if episode_id == 1:
+            # Auto update the reward scale and get the rewards again
+            self.rewarder.update_scale(current_rewards = final_reward)
+            final_reward, final_cost_matrix, best_expert_id = self.rewarder.get(
+                obs = episode_obs
+            )
+
+        print('final_reward: {}, best_expert_id: {}'.format(final_reward, best_expert_id))
 
         if visualize:
             self.plot_cost_matrix(final_cost_matrix, expert_id=best_expert_id, episode_id=episode_id)
@@ -421,7 +355,7 @@ class ScheduledOffsetFISH:
     def plot_cost_matrix(self, cost_matrix, expert_id, episode_id, file_name=None):
         if file_name is None:
             ts = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
-            file_name = f'{ts}_reward_{self.reward_representations}_expert_{expert_id}_ep_{episode_id}_cost_matrix.png'
+            file_name = f'{ts}_expert_{expert_id}_ep_{episode_id}_cost_matrix.png'
 
         # Plot MxN matrix if file_name is given -> it will save the plot there if so
         cost_matrix = cost_matrix.detach().cpu().numpy()
@@ -438,7 +372,7 @@ class ScheduledOffsetFISH:
         os.makedirs(dump_dir, exist_ok=True)
         dump_file = os.path.join(dump_dir, file_name)
         plt.savefig(dump_file, bbox_inches='tight')
-        plt.close() 
+        plt.close()   
 
     def save_snapshot(self):
         keys_to_save = ['actor', 'critic', 'image_encoder']
@@ -448,7 +382,7 @@ class ScheduledOffsetFISH:
     def load_snapshot(self, payload):
         loaded_encoder = None
         for k, v in payload.items():
-            print('k: {}'.format(k))
+            self.__dict__[k] = v
             if k == 'image_encoder':
                 loaded_encoder = v
 
@@ -459,10 +393,13 @@ class ScheduledOffsetFISH:
         for param in self.image_encoder.parameters():
             param.requires_grad = False
 
-        self.actor_opt = torch.optim.Adam(self.actor.policy.parameters(), lr=self.lr)
+        self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=self.lr)
 
     def load_snapshot_eval(self, payload, bc=False):
         for k, v in payload.items():
             self.__dict__[k] = v
         self.critic_target.load_state_dict(self.critic.state_dict()) 
+
+        self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
+        self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=self.lr)

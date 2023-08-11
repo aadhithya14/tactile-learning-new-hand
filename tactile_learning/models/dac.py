@@ -32,6 +32,12 @@ class Actor(nn.Module):
 
 		self.apply(weight_init)
 
+		# Orthogonal initialization
+		# for m in self.policy.modules():
+		# 	if isinstance(m, (nn.Conv2d, nn.Linear)):
+		# 		print('initing ortho - m: {}'.format(m))
+		# 		nn.init.orthogonal_(m.weight)
+
 	def forward(self, obs, action, std):
 
 		action = action.repeat(1, 100) # Action shape (1, A) -> (1, 100*A)
@@ -50,20 +56,34 @@ class Critic(nn.Module):
 	def __init__(self, repr_dim, action_shape, feature_dim, hidden_dim):
 		super().__init__()
 
+		# NOTE: This was not in the original fish paper!!!
+		self.trunk = nn.Sequential(nn.Linear(repr_dim, feature_dim),
+                                   nn.LayerNorm(feature_dim), nn.Tanh())
+
 		self.Q1 = nn.Sequential(
-			nn.Linear(repr_dim + action_shape[0], hidden_dim),
+			nn.Linear(feature_dim + action_shape[0], hidden_dim),
 			nn.ReLU(inplace=True), nn.Linear(hidden_dim, hidden_dim),
 			nn.ReLU(inplace=True), nn.Linear(hidden_dim, 1))
 
 		self.Q2 = nn.Sequential(
-			nn.Linear(repr_dim + action_shape[0], hidden_dim),
+			nn.Linear(feature_dim + action_shape[0], hidden_dim),
 			nn.ReLU(inplace=True), nn.Linear(hidden_dim, hidden_dim),
 			nn.ReLU(inplace=True), nn.Linear(hidden_dim, 1))
 
-		self.apply(weight_init)
+		self.apply(weight_init) # This function already includes orthogonal weight initialization
+
+		# Orthogonal initialization 
+		# for m in self.Q1.modules():
+		# 	if isinstance(m, (nn.Conv2d, nn.Linear)):
+		# 		nn.init.orthogonal_(m.weight)
+
+		# for m in self.Q2.modules():
+		# 	if isinstance(m, (nn.Conv2d, nn.Linear)):
+		# 		nn.init.orthogonal_(m.weight)
 
 	def forward(self, obs, action):
-		h_action = torch.cat([obs, action], dim=-1)
+		h = self.trunk(obs)
+		h_action = torch.cat([h, action], dim=-1)
 		q1 = self.Q1(h_action)
 		q2 = self.Q2(h_action)
 		return q1, q2

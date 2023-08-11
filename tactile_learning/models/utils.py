@@ -132,6 +132,7 @@ def modify_byol_state_dict(state_dict):
     # ))
     return new_state_dict
 
+# Taken from Dennis Yarats' code: https://github.com/denisyarats/drq/blob/master/utils.py 
 def weight_init(m):
     if isinstance(m, nn.Linear):
         nn.init.orthogonal_(m.weight.data)
@@ -142,3 +143,16 @@ def weight_init(m):
         nn.init.orthogonal_(m.weight.data, gain)
         if hasattr(m.bias, 'data'):
             m.bias.data.fill_(0.0)
+
+def mlp(input_dim, hidden_dim, output_dim, hidden_depth, output_mod=None):
+    if hidden_depth == 0:
+        mods = [nn.Linear(input_dim, output_dim)]
+    else:
+        mods = [nn.Linear(input_dim, hidden_dim), nn.ReLU(inplace=True)]
+        for i in range(hidden_depth - 1):
+            mods += [nn.Linear(hidden_dim, hidden_dim), nn.ReLU(inplace=True)]
+        mods.append(nn.Linear(hidden_dim, output_dim))
+    if output_mod is not None:
+        mods.append(output_mod)
+    trunk = nn.Sequential(*mods)
+    return trunk

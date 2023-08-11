@@ -17,7 +17,10 @@ class OUNoise(Explorer):
             sigma = sigma # It will give bw -1 and 1 - then this gets multiplied by the scale factors ...
         )
 
-    def explore(self, offset_action, global_step, episode_step, device, **kwargs):
+    def explore(self, offset_action, global_step, episode_step, device, eval_mode, **kwargs):
+        if eval_mode: # If we are evaluating no exploration
+            return offset_action
+        
         if episode_step == 0:
             self.ou_noise = OrnsteinUhlenbeckActionNoise(
                 mu = np.zeros(23),

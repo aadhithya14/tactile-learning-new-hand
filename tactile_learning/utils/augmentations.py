@@ -104,10 +104,13 @@ def get_moco_augmentations(mean_tensor, std_tensor):
 # Vision transforms used
 def crop_transform(image, camera_view=0, image_size=480): # This is significant to the setup
     if camera_view == 0:
-        return crop(image, 0,0,image_size,image_size)
+        return crop(image, 0,0, image_size,image_size)
         # return crop(image, 20,20,300,300)
     elif camera_view == 1:
-        return crop(image, 0,90,image_size,image_size)
+        return crop(image, 0,90, image_size,image_size)
+    
+    elif camera_view == 2:
+        return crop(image, 0, 90, image_size, image_size)
     
 def get_inverse_image_norm():
     np_means = np.asarray(VISION_IMAGE_MEANS)

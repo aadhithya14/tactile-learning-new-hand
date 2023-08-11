@@ -81,10 +81,6 @@ class Rewarder(ABC):
             episode_img = inv_image_transform(obs['image_obs'][-1,:]) 
             expert_img = inv_image_transform(self.expert_demos[0]['image_obs'][-1,:]) 
 
-            # print('episode_img.shape: {}, expert_img.shape: {}'.format(
-            #     episode_img.shape, expert_img.shape
-            # ))
-
             # Dump the images
             plt.imshow(np.transpose(episode_img.detach().cpu().numpy(), (1,2,0)))
             plt.savefig('episode_img.png')

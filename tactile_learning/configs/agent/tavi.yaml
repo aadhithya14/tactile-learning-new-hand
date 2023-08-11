@@ -18,13 +18,22 @@ experiment_name: ${experiment}
 view_num: ${camera_num}
 device: ${device}
 num_expl_steps: ${num_seed_frames}
-lr: 1e-4 # It was 1e-4 before 
-feature_dim: 512
-hidden_dim: 64
+
+# RL Learner parameters - will be moved to the rl learners
+# lr: 1e-4 # It was 1e-4 before 
+# feature_dim: 512
+# hidden_dim: 64
+
+# 
 critic_target_tau: 0.01
-update_every_steps: 2
+update_critic_frequency: 2
+update_critic_target_frequency: 4
+update_actor_frequency: 4
+
+# DDPG parameters
 stddev_schedule: 0.1
 stddev_clip: 0.3
+gradient_clip: 1.
 
 # Task based - offset parameters
 arm_offset_scale_factor: ${task.arm_offset_scale_factor}

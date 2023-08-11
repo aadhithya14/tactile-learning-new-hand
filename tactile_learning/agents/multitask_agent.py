@@ -9,13 +9,17 @@ from tactile_learning.models import *
 from tactile_learning.utils import * 
 from tactile_learning.tactile_data import *
 
-class Agent(ABC):
+class MultitaskAgent(ABC):
     def __init__(
         self,
         data_path,
         expert_demo_nums,
         image_out_dir, image_model_type,
         tactile_out_dir, tactile_model_type,
+        view_num, device,
+        update_every_steps, update_critic_target_every_steps, update_actor_every_steps, 
+        features_repeat, 
+        experiment_name, # Learning based parts
         **kwargs
     ):
         
@@ -24,6 +28,16 @@ class Agent(ABC):
 
         # Demo based parameters
         self._set_data(data_path, expert_demo_nums)
+
+        self.device = device
+        self.view_num = view_num
+        self.experiment_name = experiment_name
+
+        # Learning based parameters
+        if not update_critic_target_every_steps is None and not update_actor_every_steps is None:
+            self.update_every_steps = min(update_actor_every_steps, update_critic_target_every_steps)
+            
+        self.features_repeat = features_repeat
 
         # Get the expert demos and set the encoders
         self._set_image_transform()
@@ -36,6 +50,10 @@ class Agent(ABC):
         self._set_expert_demos()
 
     def _set_data(self, data_path, expert_demo_nums):
+        #NOTE: This is different from agent because data_path, expert_demo_nums, roots, data are all lists
+
+
+
         self.data_path = data_path 
         self.expert_demo_nums = expert_demo_nums
         self.roots = sorted(glob.glob(f'{data_path}/demonstration_*'))

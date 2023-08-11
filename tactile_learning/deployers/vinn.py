@@ -301,10 +301,6 @@ class VINN(Deployer):
 
         demo_id, action_id = self.data['allegro_actions']['indices'][nn_id+1]  # Get the next commanded action (commanded actions are saved in that timestamp)
         nn_allegro_action = self.data['allegro_actions']['values'][demo_id][action_id]
-
-        demo_id, allegro_state_id = self.data['allegro_joint_states']['indices'][nn_id+1] 
-        nn_allegro_state = self.data['allegro_joint_states']['values'][demo_id][allegro_state_id]
-        nn_allegro_action[-4:] = nn_allegro_state[-4:] # Set the thumb to the state rather than the action since we fix the thumb in the demonstrations
         nn_action = dict(
             allegro = nn_allegro_action
         )

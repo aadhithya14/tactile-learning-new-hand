@@ -42,8 +42,6 @@ class Workspace:
         self.mock_env = False
         self._env_setup(tactile_repr_dim) # Should be set here
 
-        # If load the snapshot rather than agent
-        # self.load_snapshot = cfg.load_snapshot 
 
         # self.agent = hydra.utils.instantiate(cfg.agent)
         self._initialize_agent()
@@ -57,7 +55,6 @@ class Workspace:
 
     def _initialize_agent(self):
         action_spec = self.train_env.action_spec()
-        # self.cfg.agent.action_shape = 23
         action_shape = action_spec.shape
         print('action_shape: {}'.format(action_shape))
 
@@ -258,10 +255,11 @@ class Workspace:
         self.agent.load_snapshot_eval(agent_payload)
 
     def _add_time_step(self, time_step, time_steps, observations):
+        time_steps.append(time_step) # time_step is added directly
+
         pil_image_obs = Image.fromarray(np.transpose(time_step.observation['pixels'], (1,2,0)), 'RGB')
         transformed_image_obs = self.image_episode_transform(pil_image_obs)
 
-        time_steps.append(time_step)
         observations['image_obs'].append(transformed_image_obs)
         observations['tactile_repr'].append(torch.FloatTensor(time_step.observation['tactile']))
         observations['features'].append(torch.FloatTensor(time_step.observation['features']))
@@ -354,7 +352,7 @@ class Workspace:
                     observations[obs_type] = torch.stack(observations[obs_type], 0)
 
                 # Get the rewards
-                new_rewards = self.agent.get_reward(
+                new_rewards = self.agent.get_reward( # NOTE: Observations is only used in the rewarder!
                     episode_obs = observations,
                     episode_id = self.global_episode,
                     visualize = self.cfg.save_train_cost_matrices
@@ -370,14 +368,11 @@ class Workspace:
 
                 # Update the reward in the timesteps accordingly
                 obs_length = len(time_steps)
-                # avg_reward = new_rewards_sum / obs_length
                 for i, elt in enumerate(time_steps):
                     min_len = min(obs_length, self.cfg.episode_frame_matches) # Episode can be shorter than episode_frame_matches - NOTE: This looks liek a bug
                     if i > (obs_length - min_len):
                         new_reward = new_rewards[min_len - (obs_length - i)]
                         elt = elt._replace(reward=new_reward) # Update the reward of the object accordingly
-                    # new_reward = new_rewards[i]
-                    # elt = elt._replace(reward=new_reward)
                     self.replay_storage.add(elt, last = (i == len(time_steps) - 1))
 
                 # Log
@@ -415,8 +410,6 @@ class Workspace:
                         time_step.observation,
                         step = self.global_step,
                         max_step = self.train_env.spec.max_episode_steps
-                        # self.global_step,
-                        # eval_mode=False 
                     )
                 else:
                     action, base_action, is_episode_done, metrics = self.agent.act(

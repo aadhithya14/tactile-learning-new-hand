@@ -37,3 +37,15 @@ register(
     entry_point='dexterous_env.peg_insertion_env:PegInsertion',
 	max_episode_steps=80,
 )
+
+register(
+    id = 'MintOpening-v1',
+    entry_point='dexterous_env.mint_opening_env:MintOpening',
+    max_episode_steps=80
+)
+
+register(
+    id = 'MultiTask-v1',
+    entry_point='dexterous_env.multi_task_env:MultiTask',
+    max_episode_steps=240
+)

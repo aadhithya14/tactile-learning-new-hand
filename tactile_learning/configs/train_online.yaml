@@ -1,11 +1,12 @@
 defaults:
-  - agent: android_tavi #tavi # Optimizer will be initialized inside the agent
-  - base_policy: human_retargeter # human_retargeter
-  # - agent: tavi
-  # - base_policy: openloop
+  # - agent: android_tavi #tavi # Optimizer will be initialized inside the agent
+  # - base_policy: human_retargeter # human_retargeter
+  - agent: tavi
+  - rl_learner: drq
+  - base_policy: openloop
   - explorer: ou_noise
   - rewarder: sinkhorn_cosine # Type of the reward 
-  - task: human_sponge_flipping
+  - task: bowl_unstacking
   - suite: gym
 
 data_path: ${task.data_path}
@@ -19,41 +20,31 @@ tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/202
 tactile_model_type: byol # It could be ssl/byol as well
 
 reward_representations: ['image']
-policy_representations: ['image', 'tactile','features']
+policy_representations: ['image', 'tactile', 'features']
 
 seed: 42 
 device: cuda
 
 num_train_frames: 10000 # Total training numbers
-num_seed_frames: 0 # Have the first episode random
+num_seed_frames: 0 # Frames until training starts 
+num_expl_steps: ${num_seed_frames} # Frames of full exploration
 eval_every_frames: 600  # Evaluate in each every 600 frames
 num_eval_episodes: 20
 evaluate: False
 max_steps: 100
 
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.03T18-29_human_sponge_flipping_human_retargeter
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.06T17-10_bowl_unstacking_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.07T14-15_bowl_unstacking_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.07T15-19_bowl_unstacking_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.07T16-48_bowl_unstacking_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.10T11-49_bowl_unstacking_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.10T12-44_bowl_unstacking_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.12T13-11_peg_insertion_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.12T14-21_peg_insertion_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.12T15-33_peg_insertion_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.12T18-54_peg_insertion_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.12T20-06_peg_insertion_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.13T10-20_peg_insertion_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.13T11-23_eraser_turning_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.13T13-21_eraser_turning_openloop
-buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.07.13T15-36_human_sponge_flipping_human_retargeter
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.02T13-04_mint_opening_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.06T19-58_bowl_unstacking_openloop_cam_pos_3
+buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.07T10-42_bowl_unstacking_openloop_cam_pos_4
 
 # FISH and environment params
 expert_id: 0
 expert_demo_nums: ${task.expert_demo_nums}
-episode_frame_matches: 10 
+# episode_frame_matches: 10 
+# expert_frame_matches: 1
+episode_frame_matches: 10
 expert_frame_matches: 1
-camera_num: 0
+camera_num: 1
 
 # Agent params 
 bc_regularize: False
@@ -68,14 +59,14 @@ batch_size: 256
 # Recorder
 save_eval_video: True 
 save_train_video: True 
-save_train_cost_matrices: False
+save_train_cost_matrices: True
 
 # Snapshot loading
-load_snapshot: False
-snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot_android_1.pt
+load_snapshot: True 
+snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/corl_rebuttals/snapshot_bowl_unstacking_cam_pos_4.pt
 
 log: True
-experiment: ${now:%Y.%m.%d}T${now:%H-%M}_${task.name}_${base_policy.name}
+experiment: ${now:%Y.%m.%d}T${now:%H-%M}_${task.name}_${base_policy.name}_cam_pos_4
 
 # hydra configuration - should be received separately
 hydra:

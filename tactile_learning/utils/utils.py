@@ -2,8 +2,17 @@ import numpy as np
 import random
 import torch 
 
+# Taken from https://github.com/denisyarats/drq 
 def to_torch(xs, device):
     return tuple(torch.as_tensor(x, device=device) for x in xs)
+
+def to_np(t):
+    if t is None:
+        return None
+    elif t.nelement() == 0:
+        return np.array([])
+    else:
+        return t.cpu().detach().numpy()
 
 def soft_update_params(net, target_net, tau):
     for param, target_param in zip(net.parameters(), target_net.parameters()):

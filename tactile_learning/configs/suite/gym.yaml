@@ -29,7 +29,7 @@ task_make_fn:
   tactile_out_dir: ${tactile_out_dir}
   tactile_model_type: ${tactile_model_type}
   host_address: '172.24.71.240'
-  camera_num: ${camera_num}
+  camera_num: 2 # ${camera_num} # TODO!: Change this
   height: 480
   width: 480
   tactile_dim: ??? # This will be set by the train_online.make_agent code

@@ -21,14 +21,14 @@ from tactile_learning.tactile_data import *
 from holobot.robot.allegro.allegro_kdl import AllegroKDL
 from .agent import Agent
 
-class TAVI(Agent):
+class MultitaskTAVI(Agent):
     def __init__(self,
         data_path, expert_demo_nums, expert_id, # Agent parameters
         image_out_dir, image_model_type, # Encoders
         tactile_out_dir, tactile_model_type, 
         policy_representations, features_repeat, # Training parameters
         experiment_name, view_num, device, action_shape, critic_target_tau, num_expl_steps,
-        update_critic_frequency, update_critic_target_frequency, update_actor_frequency,
+        update_every_steps, update_critic_every_steps, update_actor_every_steps,
         arm_offset_scale_factor, hand_offset_scale_factor, offset_mask, # Task based offset parameters
         **kwargs
     ):
@@ -39,10 +39,10 @@ class TAVI(Agent):
             expert_demo_nums=expert_demo_nums,
             image_out_dir=image_out_dir, image_model_type=image_model_type,
             tactile_out_dir=tactile_out_dir, tactile_model_type=tactile_model_type,
-            view_num=view_num, device=device, update_critic_frequency=update_critic_frequency,
-            features_repeat=features_repeat, experiment_name=experiment_name,
-            update_critic_target_frequency=update_critic_target_frequency,
-            update_actor_frequency=update_actor_frequency
+            view_num=view_num, device=device, update_every_steps=update_every_steps,
+            features_repeat=features_repeat,
+            experiment_name=experiment_name, update_critic_every_steps=update_critic_every_steps,
+            update_actor_every_steps=update_actor_every_steps
         )
 
         self.critic_target_tau = critic_target_tau
@@ -76,11 +76,11 @@ class TAVI(Agent):
         self.rl_learner = hydra.utils.instantiate(
             rl_learner_cfg,
             repr_dim = self.repr_dim(type='policy'),
-            action_shape = self.action_shape,
-            actions_offset = True,
-            hand_offset_scale_factor = self.hand_offset_scale_factor,
-            arm_offset_scale_factor = self.arm_offset_scale_factor
+            action_shape = self.action_shape
         )
+
+        # base_policy and rewarder should be different in a sequence of tasks because of different expert_demos
+        # explorer keeps the same?
         self.base_policy = hydra.utils.instantiate(
             base_policy_cfg,
             expert_demos = self.expert_demos,
@@ -123,6 +123,9 @@ class TAVI(Agent):
 
         print('base_action.shape: {}'.format(base_action.shape))
 
+        # if global_step > self.expert_demos[current_policy]['demo_length']:
+        #     load_snapshot('next_policy')
+
         with torch.no_grad():
             # Get the action image_obs
             obs = self._get_policy_reprs_from_obs( # This method is called with torch.no_grad() in training anyways
@@ -132,15 +135,23 @@ class TAVI(Agent):
                 representation_types=self.policy_representations
             )
 
+        # stddev = schedule(self.stddev_schedule, global_step) - NOTE: stddev_scheduling should be done inside the rl learner
+        # dist = self.actor(obs, base_action, stddev)
+        # if eval_mode:
+        #     offset_action = dist.mean
+        # else:
+        #     offset_action = dist.sample(clip=None)
+
+        #     offset_action = self.explorer.explore(
+        #         offset_action = offset_action,
+        #         global_step = global_step, 
+        #         episode_step = episode_step,
+        #         device = self.device
+        #     )
+
+
         offset_action = self.rl_learner.act(
             obs=obs, eval_mode=eval_mode, base_action=base_action)
-        
-        offset_action = self.explorer.explore(
-            offset_action = offset_action,
-            global_step = global_step, 
-            episode_step = episode_step,
-            device = self.device
-        )
 
         offset_action *= self.offset_mask 
         offset_action[:,:-7] *= self.hand_offset_scale_factor
@@ -169,13 +180,105 @@ class TAVI(Agent):
                 metrics[offset_key] = offset_action[:,i]
 
         return action.cpu().numpy()[0], base_action.cpu().numpy()[0], is_done, metrics
+
+    def update_critic(self, obs, action, base_next_action, reward, discount, next_obs, step):
+        metrics = dict()
+
+        if step % self.update_critic_every_steps != 0:
+            return metrics
+
+        with torch.no_grad():
+            stddev = schedule(self.stddev_schedule, step)
+            dist = self.actor(next_obs, base_next_action, stddev)
+
+            offset_action = dist.sample(clip=self.stddev_clip)
+            offset_action[:,:-7] *= self.hand_offset_scale_factor # NOTE: There is something wrong here?
+            offset_action[:,-7:] *= self.arm_offset_scale_factor 
+            next_action = base_next_action + offset_action
+
+            target_Q1, target_Q2 = self.critic_target(next_obs, next_action)
+            target_V = torch.min(target_Q1, target_Q2)
+            target_Q = reward + (discount * target_V)
+
+        Q1, Q2 = self.critic(obs, action)
+
+        critic_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
+
+        # optimize encoder and critic
+        self.critic_opt.zero_grad(set_to_none=True)
+        critic_loss.backward()
+
+        self.critic_opt.step()
+
+        metrics['critic_target_q'] = target_Q.mean().item()
+        metrics['critic_q1'] = Q1.mean().item()
+        metrics['critic_q2'] = Q2.mean().item()
+        metrics['critic_loss'] = critic_loss.item()
+            
+        return metrics
+
+    def update_actor(self, obs, base_action, step):
+        metrics = dict()
+
+        if step % self.update_actor_every_steps != 0:
+            return metrics
+
+        stddev = schedule(self.stddev_schedule, step)
+
+        # compute action offset
+        dist = self.actor(obs, base_action, stddev)
+        action_offset = dist.sample(clip=self.stddev_clip)
+        log_prob = dist.log_prob(action_offset).sum(-1, keepdim=True)
+
+        # compute action
+        # NOTE: Added for offset debug change
+        # action_offset *= self.offset_mask
+        # NOTE: Added for offset debug change
+        action_offset[:,:-7] *= self.hand_offset_scale_factor
+        action_offset[:,-7:] *= self.arm_offset_scale_factor 
+
+        action = base_action + action_offset 
+        Q1, Q2 = self.critic(obs, action)
+        Q = torch.min(Q1, Q2)
+        actor_loss = - Q.mean()
+
+        # optimize actor
+        self.actor_opt.zero_grad(set_to_none=True)
+        actor_loss.backward()
+
+        # NOTE: OFFSET MODE DEBUG
+        # print('------')
+        # total_norm = 0
+        # for p in self.actor.parameters():
+        #     param_norm = p.grad.data.norm(2)
+        #     total_norm += param_norm.item() ** 2
+        # total_norm = total_norm ** (1. / 2)
+        # print('BEFORE CLIPPING TOTAL ACTOR GRADIENT NORM: {}'.format(total_norm))
+
+        # torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.gradient_clip)
+
+        # total_norm = 0
+        # for p in self.actor.parameters():
+        #     param_norm = p.grad.data.norm(2)
+        #     total_norm += param_norm.item() ** 2
+        # total_norm = total_norm ** (1. / 2)
+        # print('AFTER CLIPPING ACTOR NORM: {}\n------'.format(total_norm))
+        # NOTE: OFFSET MODE DEBUG 
+
+        self.actor_opt.step()
+        
+        metrics['actor_loss'] = actor_loss.item()
+        metrics['actor_logprob'] = log_prob.mean().item()
+        metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
+        metrics['actor_q'] = Q.mean().item()
+        metrics['rl_loss'] = -Q.mean().item()
+
+        return metrics
     
     def update(self, replay_iter, step):
         metrics = dict()
 
-        if step % min(self.update_critic_frequency, 
-                      self.update_actor_frequency,
-                      self.update_critic_target_frequency) != 0:
+        if step % self.update_every_steps != 0:
             return metrics
 
         batch = next(replay_iter)
@@ -194,22 +297,7 @@ class TAVI(Agent):
             features = features,
             representation_types=self.policy_representations
         )
-
-        obs_aug = self._get_policy_reprs_from_obs(
-            image_obs = image_obs,
-            tactile_repr = tactile_repr,
-            features = features,
-            representation_types=self.policy_representations
-        )
-
         next_obs = self._get_policy_reprs_from_obs(
-            image_obs = next_image_obs, 
-            tactile_repr = next_tactile_repr,
-            features = next_features,
-            representation_types=self.policy_representations
-        )
-
-        next_obs_aug = self._get_policy_reprs_from_obs(
             image_obs = next_image_obs, 
             tactile_repr = next_tactile_repr,
             features = next_features,
@@ -218,31 +306,16 @@ class TAVI(Agent):
 
         metrics['batch_reward'] = reward.mean().item()
 
-        if step % self.update_critic_frequency == 0:
-            metrics.update(
-                self.rl_learner.update_critic(
-                    obs=obs,
-                    obs_aug=obs_aug,
-                    action=action,
-                    base_next_action=base_next_action,
-                    reward=reward,
-                    next_obs=next_obs,
-                    next_obs_aug=next_obs_aug,
-                    step=step
-                )
-            )
+        # update critic
+        metrics.update(
+            self.update_critic(obs, action, base_next_action, reward, discount, next_obs, step))
 
-        if step % self.update_actor_frequency == 0:
-            metrics.update(
-                self.rl_learner.update_actor(
-                    obs=obs,
-                    base_action=base_action,
-                    step=step
-                )
-            )
+        # update actor
+        metrics.update(
+            self.update_actor(obs.detach(), base_action, step))
 
-        if step % self.update_critic_target_frequency == 0:
-            soft_update_params(self.critic, self.critic_target, self.critic_target_tau)
+        # update critic target
+        soft_update_params(self.critic, self.critic_target, self.critic_target_tau)
 
         return metrics
 

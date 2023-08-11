@@ -61,11 +61,10 @@ class BETLearner(Learner):
         # Training loop 
         with torch.no_grad():
             for batch in test_loader: 
-                obs, act = batch.to(self.device)
+                obs, act = (x.to(self.device) for x in batch)
 
                 # Get the loss
                 _, loss, loss_dict = self.bet_model(obs, None, act) # It's unconditional
                 test_loss += loss.item()
-                # print(f'loss_dict: {loss_dict}')
 
         return test_loss / len(test_loader), loss_dict

@@ -1,0 +1,24 @@
+_target_: tactile_learning.agents.rl_learners.drq.DRQAgent
+repr_dim: ???
+action_shape: ??? # To be determined in the training code
+device: ${device}
+actor_cfg: ${actor}
+critic_cfg: ${critic}
+
+discount: 0.99
+init_temperature: 0.1
+lr: 1e-4 # NOTE: Should look into this
+
+actor:
+  _target_: tactile_learning.agents.rl_learners.drq.Actor
+  action_shape: ${drq.action_shape}
+  hiddent_depth: 2
+  hidden_dim: 1024
+  log_std_bounds: [-10, 2]
+
+critic:
+  _target_: tactile_learning.agents.rl_learners.drq.Critic
+  action_shape: ${drq.action_shape}
+  hidden_dim: 1024
+  hidden_depth: 2
+
