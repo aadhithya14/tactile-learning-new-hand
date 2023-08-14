@@ -6,7 +6,7 @@ defaults:
   - base_policy: openloop
   - explorer: ou_noise
   - rewarder: sinkhorn_cosine # Type of the reward 
-  - task: bowl_unstacking
+  - task: mint_opening
   - suite: gym
 
 data_path: ${task.data_path}
@@ -33,18 +33,14 @@ num_eval_episodes: 20
 evaluate: False
 max_steps: 100
 
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.02T13-04_mint_opening_openloop
-# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.06T19-58_bowl_unstacking_openloop_cam_pos_3
 buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.07T10-42_bowl_unstacking_openloop_cam_pos_4
 
 # FISH and environment params
 expert_id: 0
 expert_demo_nums: ${task.expert_demo_nums}
-# episode_frame_matches: 10 
-# expert_frame_matches: 1
 episode_frame_matches: 10
 expert_frame_matches: 1
-camera_num: 1
+camera_num: ${task.camera_num}
 
 # Agent params 
 bc_regularize: False

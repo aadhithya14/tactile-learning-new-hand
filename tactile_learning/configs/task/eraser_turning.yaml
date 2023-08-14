@@ -8,6 +8,7 @@ data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/card_turning
 
 name: eraser_turning
 task_name: CardTurning-v1
+camera_num: 0
 
 expert_demo_nums: [16]
 arm_offset_scale_factor: 0.05

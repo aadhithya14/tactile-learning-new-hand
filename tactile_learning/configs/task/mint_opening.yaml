@@ -8,6 +8,7 @@ data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/mint_opening
 
 name: mint_opening
 task_name: MintOpening-v1
+camera_num: 0
 
 expert_demo_nums: [11]
 arm_offset_scale_factor: 0.005

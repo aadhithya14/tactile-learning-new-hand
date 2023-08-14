@@ -30,6 +30,7 @@ robot_data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/card_flipping
 name: human_sponge_flipping
 task_name: CardFlipping-v1
 action_type: human
+camera_num: 0
 
 expert_demo_nums: [7]
 robot_demo_nums: [24]

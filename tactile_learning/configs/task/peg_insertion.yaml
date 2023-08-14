@@ -28,6 +28,7 @@ data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/peg_insertion
 
 name: peg_insertion
 task_name: PegInsertion-v1
+camera_num: 0
 
 expert_demo_nums: [4]
 arm_offset_scale_factor: 0.05
