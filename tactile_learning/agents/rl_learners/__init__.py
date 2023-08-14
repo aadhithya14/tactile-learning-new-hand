@@ -1,1 +1,2 @@
-from .drq import DRQAgent
+from .drq import DRQ
+from .drqv2 import DRQv2

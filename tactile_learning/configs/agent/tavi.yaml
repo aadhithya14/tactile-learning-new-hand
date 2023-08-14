@@ -25,10 +25,11 @@ num_expl_steps: ${num_seed_frames}
 # hidden_dim: 64
 
 # 
-critic_target_tau: 0.01
+
 update_critic_frequency: 2
 update_critic_target_frequency: 4
 update_actor_frequency: 4
+separate_aug: ${rl_learner.separate_aug}
 
 # DDPG parameters
 stddev_schedule: 0.1

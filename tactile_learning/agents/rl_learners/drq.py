@@ -8,7 +8,9 @@ import torch.nn.functional as F
 import numpy as np
 
 from tactile_learning.models.utils import weight_init, mlp
-from tactile_learning.utils import SquashedNormal, soft_update_params, to_np
+from tactile_learning.utils import SquashedNormal, TruncatedNormal, soft_update_params, to_np
+
+from .rl_learner import RLLearner
 
 class Actor(nn.Module):
     """torch.distributions implementation of an diagonal Gaussian policy."""
@@ -39,14 +41,13 @@ class Actor(nn.Module):
 
         log_std = torch.tanh(log_std)
         log_std_min, log_std_max = self.log_std_bounds
-        log_std = log_std_min + 0.5 * (log_std_max - log_std_min) * (log_std +
-                                                                     1)
+        log_std = log_std_min + 0.5 * (log_std_max - log_std_min) * (log_std + 1)
         std = log_std.exp()
 
         self.outputs['mu'] = mu
         self.outputs['std'] = std
 
-        dist = SquashedNormal(mu, std)
+        dist = TruncatedNormal(mu, std)
         return dist
 
     def log(self, logger, step):
@@ -104,12 +105,14 @@ class Critic(nn.Module):
                 logger.log_param(f'train_critic/q2_fc{i}', m2, step)
 
 
-class DRQAgent(object):
+class DRQ(RLLearner):
     """Data regularized Q: actor-critic method for learning from pixels."""
-    def __init__(self, repr_dim, action_shape, device, 
-                 actor_cfg, critic_cfg, discount, init_temperature, lr,
-                 actions_offset, hand_offset_scale_factor, arm_offset_scale_factor):
-                
+    def __init__(self, action_shape, device, 
+                 actor, critic, critic_target, discount, init_temperature, lr, critic_target_tau,
+                 actions_offset, hand_offset_scale_factor, arm_offset_scale_factor, **kwargs):
+
+        super().__init__()
+
         self.action_shape = action_shape
         self.device = device
         self.discount = discount
@@ -118,10 +121,11 @@ class DRQAgent(object):
         self.hand_offset_scale_factor = hand_offset_scale_factor
         self.arm_offset_scale_factor = arm_offset_scale_factor
 
-        self.actor = hydra.utils.instantiate(actor_cfg, repr_dim=repr_dim).to(self.device)
-        self.critic = hydra.utils.instantiate(critic_cfg, repr_dim=repr_dim).to(self.device)
-        self.critic_target = hydra.utils.instantiate(critic_cfg, repr_dim=repr_dim).to(
-            self.device)
+        self.actor = actor.to(self.device)
+        self.critic = critic.to(self.device)
+        self.critic_target = critic_target.to(self.device)
+        self.critic_target_tau = critic_target_tau
+
         self.critic_target.load_state_dict(self.critic.state_dict())
 
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
@@ -130,7 +134,7 @@ class DRQAgent(object):
          # Maybe this could be good since it would somehow learn how to explore better
         self.target_entropy = -action_shape[0]
 
-        # optimizers
+         # optimizers
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(),
                                                  lr=lr)
@@ -155,7 +159,8 @@ class DRQAgent(object):
         action = dist.mean if eval_mode else dist.sample()
         # action = action.clamp(*self.action_range) # This already gets multiplied with the 
         # assert action.ndim == 2 and action.shape[0] == 1
-        return to_np(action)
+        # return to_np(action)
+        return action
 
     # Higher level agent wrapper will give these values!
     def update_critic(self, obs, obs_aug, action, base_next_action, reward, next_obs,
@@ -170,9 +175,11 @@ class DRQAgent(object):
                 next_offset_action[:,:-7] *= self.hand_offset_scale_factor
                 next_offset_action[:,-7:] *= self.arm_offset_scale_factor
                 next_action = base_next_action + next_offset_action
+                log_prob = dist.log_prob(next_offset_action).sum(-1, keepdim=True)
             else:
                 next_action = dist.rsample()
-            log_prob = dist.log_prob(next_action).sum(-1, keepdim=True)
+                log_prob = dist.log_prob(next_action).sum(-1, keepdim=True)
+
             target_Q1, target_Q2 = self.critic_target(next_obs, next_action)
             target_V = torch.min(target_Q1,
                                  target_Q2) - self.alpha.detach() * log_prob
@@ -184,10 +191,11 @@ class DRQAgent(object):
                 next_offset_action_aug[:,:-7] *= self.hand_offset_scale_factor
                 next_offset_action_aug[:,-7:] *= self.arm_offset_scale_factor
                 next_action_aug = base_next_action + next_offset_action_aug
+                log_prob_aug = dist_aug.log_prob(next_offset_action_aug).sum(-1, keepdim=True)
             else:
                 next_action_aug = dist_aug.rsample()
-            log_prob_aug = dist_aug.log_prob(next_action_aug).sum(-1,
-                                                                  keepdim=True)
+                log_prob_aug = dist_aug.log_prob(next_action_aug).sum(-1, keepdim=True)
+            
             target_Q1, target_Q2 = self.critic_target(next_obs_aug,
                                                       next_action_aug)
             target_V = torch.min(
@@ -254,6 +262,30 @@ class DRQAgent(object):
         metrics['train_alpha/value'] = self.alpha
 
         return metrics
+
+    def update_critic_target(self):
+        soft_update_params(self.critic, self.critic_target, self.critic_target_tau)
+
+    def save_snapshot(self):
+        keys_to_save = ['actor', 'critic', 'log_alpha']
+        payload = {k: self.__dict__[k] for k in keys_to_save}
+        return payload
+
+    def load_snapshot(self, payload):
+        for k, v in payload.items():
+            self.__dict__[k] = v
+
+        self.critic_target.load_state_dict(self.critic.state_dict())
+
+        self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
+        self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=self.lr)
+        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=self.lr)
+
+    def load_snapshot_eval(self, payload):
+        for k, v in payload.items():
+            self.__dict__[k] = v
+
+        self.critic_target.load_state_dict(self.critic.state_dict())
 
     # def update(self, obs, action, base_action, reward, discount, next_obs, base_next_action):
     #     metrics = dict() 

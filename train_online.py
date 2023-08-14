@@ -63,6 +63,7 @@ class Workspace:
             self.cfg.agent,
             action_shape = action_shape)
         self.agent.initialize_modules(
+            rl_learner_cfg = self.cfg.rl_learner,
             base_policy_cfg = self.cfg.base_policy,
             rewarder_cfg = self.cfg.rewarder,
             explorer_cfg = self.cfg.explorer

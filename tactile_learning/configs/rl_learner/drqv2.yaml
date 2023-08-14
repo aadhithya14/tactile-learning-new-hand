@@ -1,5 +1,4 @@
-_target_: tactile_learning.agents.rl_learners.drq.DRQ
-repr_dim: ???
+_target_: tactile_learning.agents.rl_learners.drqv2.DRQv2
 action_shape: ??? # To be determined in the training code
 device: ${device}
 actor: ${rl_learner.actor_cfg}
@@ -7,15 +6,15 @@ critic: ${rl_learner.critic_cfg}
 critic_target: ${rl_learner.critic_cfg}
 critic_target_tau: 0.01
 
-discount: 0.99
-init_temperature: 0.1
-lr: 1e-6 # NOTE: Should look into this
+stddev_schedule: 0.1
+stddev_clip: 0.3
+lr: 1e-4 
 
-separate_aug: True
-name: drq
+separate_aug: False
+name: drqv2
 
 actor_cfg:
-  _target_: tactile_learning.agents.rl_learners.drq.Actor
+  _target_: tactile_learning.agents.rl_learners.drqv2.Actor
   action_shape: ${rl_learner.action_shape}
   repr_dim: ${rl_learner.repr_dim}
   hidden_depth: 2
@@ -23,10 +22,9 @@ actor_cfg:
   log_std_bounds: [-10, 2]
 
 critic_cfg:
-  _target_: tactile_learning.agents.rl_learners.drq.Critic
+  _target_: tactile_learning.agents.rl_learners.drqv2.Critic
   # action_shape: ???
   action_shape: ${rl_learner.action_shape}
   repr_dim: ${rl_learner.repr_dim}
   hidden_dim: 1024
   hidden_depth: 2
-

@@ -6,7 +6,7 @@ defaults:
   - base_policy: openloop
   - explorer: ou_noise
   - rewarder: sinkhorn_cosine # Type of the reward 
-  - task: mint_opening
+  - task: sponge_flipping
   - suite: gym
 
 data_path: ${task.data_path}
@@ -26,14 +26,14 @@ seed: 42
 device: cuda
 
 num_train_frames: 10000 # Total training numbers
-num_seed_frames: 0 # Frames until training starts 
-num_expl_steps: ${num_seed_frames} # Frames of full exploration
+num_seed_frames: 200 # Frames until training starts 
+num_expl_steps: 0 # ${num_seed_frames} # Frames of full exploration
 eval_every_frames: 600  # Evaluate in each every 600 frames
 num_eval_episodes: 20
 evaluate: False
 max_steps: 100
 
-buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.07T10-42_bowl_unstacking_openloop_cam_pos_4
+buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.14T14-37_sponge_flipping_drq_openloop
 
 # FISH and environment params
 expert_id: 0
@@ -58,11 +58,11 @@ save_train_video: True
 save_train_cost_matrices: True
 
 # Snapshot loading
-load_snapshot: True 
+load_snapshot: False 
 snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/corl_rebuttals/snapshot_bowl_unstacking_cam_pos_4.pt
 
 log: True
-experiment: ${now:%Y.%m.%d}T${now:%H-%M}_${task.name}_${base_policy.name}_cam_pos_4
+experiment: ${now:%Y.%m.%d}T${now:%H-%M}_${task.name}_${rl_learner.name}_${base_policy.name}
 
 # hydra configuration - should be received separately
 hydra:
