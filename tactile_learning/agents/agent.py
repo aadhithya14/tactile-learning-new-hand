@@ -69,8 +69,9 @@ class Agent(ABC):
 
     def train(self, training=True):
         self.training = training
-        self.actor.train(training) # If these don't exist this should return false
-        self.critic.train(training)
+        # TODO: Be careful here!
+        # self.actor.train(training) # If these don't exist this should return false
+        # self.critic.train(training)
 
     def _set_image_transform(self):
         self.image_act_transform = T.Compose([

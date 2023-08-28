@@ -17,12 +17,6 @@ class Actor(nn.Module):
     def __init__(self, repr_dim, action_shape, hidden_dim, hidden_depth,
                  log_std_bounds):
         super().__init__()
-
-        # self.encoder = hydra.utils.instantiate(encoder_cfg)
-
-        # self.log_std_bounds = log_std_bounds
-        # self.trunk = mlp(self.encoder.feature_dim, hidden_dim,
-        #                        2 * action_shape[0], hidden_depth)
         
         self.log_std_bounds = log_std_bounds
         self.trunk = mlp(repr_dim, hidden_dim,

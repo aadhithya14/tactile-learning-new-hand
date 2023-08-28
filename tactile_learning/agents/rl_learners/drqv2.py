@@ -22,7 +22,7 @@ class Identity(nn.Module):
 
 
 class Actor(nn.Module):
-    def __init__(self, repr_dim, action_shape, feature_dim, hidden_dim, offset_mask):
+    def __init__(self, repr_dim, action_shape, hidden_dim, offset_mask=None):
         super().__init__()
 
 
@@ -31,7 +31,7 @@ class Actor(nn.Module):
                 nn.Linear(hidden_dim, hidden_dim),
                 nn.ReLU(inplace=True),
                 nn.Linear(hidden_dim, action_shape[0]))
-        self.offset_mask = torch.tensor(offset_mask).float().to(torch.device('cuda')) # NOTE: This is used to set the exploration
+        # self.offset_mask = torch.tensor(offset_mask).float().to(torch.device('cuda')) # NOTE: This is used to set the exploration
 
         self.apply(weight_init)
 
@@ -41,9 +41,11 @@ class Actor(nn.Module):
         print('action.shape in Actor forward: {}'.format(action.shape))
         h = torch.cat((obs, action), dim=1) # h shape: (1, 100*A + Repr_Dim)
         mu = self.policy(h) 
-        mu = torch.tanh(mu) * self.offset_mask
+        # mu = torch.tanh(mu) * self.offset_mask
+        mu = torch.tanh(mu)
 
-        std = torch.ones_like(mu) * std * self.offset_mask
+        # std = torch.ones_like(mu) * std * self.offset_mask
+        std = torch.ones_like(mu) * std
 
         dist = TruncatedNormal(mu, std)
         return dist
@@ -97,8 +99,8 @@ class DRQv2(RLLearner):
 
         self.critic_target.load_state_dict(self.critic.state_dict())
 
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr)
-        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=lr)
+        self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
+        self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
 
         self.stddev_clip = stddev_clip
         self.stddev_schedule = stddev_schedule
@@ -144,7 +146,7 @@ class DRQv2(RLLearner):
         metrics['train_critic/critic_target_q'] = target_Q.mean().item()
         metrics['train_critic/critic_q1'] = Q1.mean().item()
         metrics['train_critic/critic_q2'] = Q2.mean().item()
-        metrics['train_critic/critic_loss'] = critic_loss.item()
+        metrics['train_critic/loss'] = critic_loss.item()
             
         return metrics
     
@@ -171,7 +173,7 @@ class DRQv2(RLLearner):
 
         self.actor_opt.step()
         
-        metrics['train_actor/actor_loss'] = actor_loss.item()
+        metrics['train_actor/loss'] = actor_loss.item()
         metrics['train_actor/actor_logprob'] = log_prob.mean().item()
         metrics['train_actor/actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
         metrics['train_actor/actor_q'] = Q.mean().item()

@@ -1,5 +1,6 @@
 _target_: tactile_learning.agents.rl_learners.drqv2.DRQv2
 action_shape: ??? # To be determined in the training code
+repr_dim: ???
 device: ${device}
 actor: ${rl_learner.actor_cfg}
 critic: ${rl_learner.critic_cfg}
@@ -17,14 +18,11 @@ actor_cfg:
   _target_: tactile_learning.agents.rl_learners.drqv2.Actor
   action_shape: ${rl_learner.action_shape}
   repr_dim: ${rl_learner.repr_dim}
-  hidden_depth: 2
-  hidden_dim: 1024
-  log_std_bounds: [-10, 2]
+  hidden_dim: 64
 
 critic_cfg:
   _target_: tactile_learning.agents.rl_learners.drqv2.Critic
-  # action_shape: ???
   action_shape: ${rl_learner.action_shape}
   repr_dim: ${rl_learner.repr_dim}
-  hidden_dim: 1024
-  hidden_depth: 2
+  hidden_dim: 64
+  feature_dim: 512

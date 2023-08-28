@@ -23,13 +23,13 @@ from .agent import Agent
 
 class TAVI(Agent):
     def __init__(self,
-        data_path, expert_demo_nums, expert_id, # Agent parameters
+        data_path, expert_demo_nums, # Agent parameters
         image_out_dir, image_model_type, # Encoders
         tactile_out_dir, tactile_model_type, 
-        policy_representations, features_repeat, # Training parameters
-        experiment_name, view_num, device, action_shape, critic_target_tau, num_expl_steps,
+        features_repeat, # Training parameters
+        experiment_name, view_num, device,
         update_critic_frequency, update_critic_target_frequency, update_actor_frequency,
-        arm_offset_scale_factor, hand_offset_scale_factor, offset_mask, # Task based offset parameters
+        offset_mask, # Task based offset parameters
         **kwargs
     ):
         
@@ -42,41 +42,20 @@ class TAVI(Agent):
             view_num=view_num, device=device, update_critic_frequency=update_critic_frequency,
             features_repeat=features_repeat, experiment_name=experiment_name,
             update_critic_target_frequency=update_critic_target_frequency,
-            update_actor_frequency=update_actor_frequency
+            update_actor_frequency=update_actor_frequency, **kwargs
         )
 
-        self.critic_target_tau = critic_target_tau
-        self.num_expl_steps = num_expl_steps
-        self.arm_offset_scale_factor = arm_offset_scale_factor
-        self.hand_offset_scale_factor= hand_offset_scale_factor
-
-        self.expert_id = expert_id
-
-        # Set the models
-        self.policy_representations = policy_representations
-        # repr_dim = self.repr_dim(type='policy')
-        self.action_shape = action_shape
+        # NOTE All of the parameters are getting set in the agent
         self.offset_mask = torch.IntTensor(offset_mask).to(self.device)
-        # self.actor = Actor(repr_dim, action_shape, feature_dim,
-        #                     hidden_dim, offset_mask).to(device)
-
-        # self.critic = Critic(repr_dim, action_shape, feature_dim,
-        #                         hidden_dim).to(device)
-        # self.critic_target = Critic(repr_dim, action_shape,
-        #                             feature_dim, hidden_dim).to(device)
-        # self.critic_target.load_state_dict(self.critic.state_dict())
-            
-        # self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
-        # self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
-
-        # self.train()
-        # self.critic_target.train()
+        self.train()
 
     def initialize_modules(self, rl_learner_cfg, base_policy_cfg, rewarder_cfg, explorer_cfg): 
+        rl_learner_cfg.action_shape = self.action_shape
+        rl_learner_cfg.repr_dim = self.repr_dim(type='policy')
         self.rl_learner = hydra.utils.instantiate(
             rl_learner_cfg,
-            repr_dim = self.repr_dim(type='policy'),
-            action_shape = self.action_shape,
+            # repr_dim = self.repr_dim(type='policy'),
+            # action_shape = self.action_shape,
             actions_offset = True,
             hand_offset_scale_factor = self.hand_offset_scale_factor,
             arm_offset_scale_factor = self.arm_offset_scale_factor
@@ -109,6 +88,7 @@ class TAVI(Agent):
 
     # Will give the next action in the step
     def base_act(self, obs, episode_step): # Returns the action for the base policy - openloop
+        
 
         action, is_done = self.base_policy.act( # TODO: Make sure these are good
             obs, episode_step
@@ -133,14 +113,18 @@ class TAVI(Agent):
             )
 
         offset_action = self.rl_learner.act(
-            obs=obs, eval_mode=eval_mode, base_action=base_action)
+            obs=obs, eval_mode=eval_mode, base_action=base_action,
+            global_step=global_step)
         
         offset_action = self.explorer.explore(
             offset_action = offset_action,
             global_step = global_step, 
             episode_step = episode_step,
-            device = self.device
+            device = self.device,
+            eval_mode = eval_mode
         )
+
+        print('offset_action: {}'.format(offset_action))
 
         offset_action *= self.offset_mask 
         offset_action[:,:-7] *= self.hand_offset_scale_factor
@@ -163,9 +147,9 @@ class TAVI(Agent):
         for i in range(len(self.offset_mask)):
             if self.offset_mask[i] == 1: # Only log the times when there is an allowed offset
                 if eval_mode:
-                    offset_key = f'offset_{i}_eval'
+                    offset_key = f'offsets_eval/offset_{i}'
                 else:
-                    offset_key = f'offset_{i}_train'
+                    offset_key = f'offsets_train/offset_{i}'
                 metrics[offset_key] = offset_action[:,i]
 
         return action.cpu().numpy()[0], base_action.cpu().numpy()[0], is_done, metrics
@@ -195,12 +179,14 @@ class TAVI(Agent):
             representation_types=self.policy_representations
         )
 
-        obs_aug = self._get_policy_reprs_from_obs(
-            image_obs = image_obs,
-            tactile_repr = tactile_repr,
-            features = features,
-            representation_types=self.policy_representations
-        )
+        obs_aug = None
+        if self.separate_aug:
+            obs_aug = self._get_policy_reprs_from_obs(
+                image_obs = image_obs,
+                tactile_repr = tactile_repr,
+                features = features,
+                representation_types=self.policy_representations
+            )
 
         next_obs = self._get_policy_reprs_from_obs(
             image_obs = next_image_obs, 
@@ -209,12 +195,14 @@ class TAVI(Agent):
             representation_types=self.policy_representations
         )
 
-        next_obs_aug = self._get_policy_reprs_from_obs(
-            image_obs = next_image_obs, 
-            tactile_repr = next_tactile_repr,
-            features = next_features,
-            representation_types=self.policy_representations
-        )
+        next_obs_aug = None
+        if self.separate_aug:
+            next_obs_aug = self._get_policy_reprs_from_obs(
+                image_obs = next_image_obs, 
+                tactile_repr = next_tactile_repr,
+                features = next_features,
+                representation_types=self.policy_representations
+            )
 
         metrics['batch_reward'] = reward.mean().item()
 
@@ -228,10 +216,12 @@ class TAVI(Agent):
                     reward=reward,
                     next_obs=next_obs,
                     next_obs_aug=next_obs_aug,
+                    discount=discount,
                     step=step
                 )
             )
 
+        # with torch.autograd.set_detect_anomaly(True):
         if step % self.update_actor_frequency == 0:
             metrics.update(
                 self.rl_learner.update_actor(
@@ -242,7 +232,7 @@ class TAVI(Agent):
             )
 
         if step % self.update_critic_target_frequency == 0:
-            soft_update_params(self.critic, self.critic_target, self.critic_target_tau)
+            self.rl_learner.update_critic_target()
 
         return metrics
 
@@ -290,31 +280,40 @@ class TAVI(Agent):
         plt.close()   
 
     def save_snapshot(self):
-        keys_to_save = ['actor', 'critic', 'image_encoder']
-        payload = {k: self.__dict__[k] for k in keys_to_save}
-        return payload
-
+        return self.rl_learner.save_snapshot()
+    
     def load_snapshot(self, payload):
-        loaded_encoder = None
-        for k, v in payload.items():
-            self.__dict__[k] = v
-            if k == 'image_encoder':
-                loaded_encoder = v
+        return self.rl_learner.load_snapshot(payload)
+    
+    def load_snapshot_eval(self, payload):
+        return self.rl_learner.load_snapshot_eval(payload)
 
-        self.critic_target.load_state_dict(self.critic.state_dict())
-        self.image_encoder.load_state_dict(loaded_encoder.state_dict()) # NOTE: In the actual repo they use self.vinn_encoder rather than loaded_encoder 
+    # def save_snapshot(self):
+    #     keys_to_save = ['actor', 'critic', 'image_encoder']
+    #     payload = {k: self.__dict__[k] for k in keys_to_save}
+    #     return payload
 
-        self.image_encoder.eval()
-        for param in self.image_encoder.parameters():
-            param.requires_grad = False
+    # def load_snapshot(self, payload):
+    #     loaded_encoder = None
+    #     for k, v in payload.items():
+    #         self.__dict__[k] = v
+    #         if k == 'image_encoder':
+    #             loaded_encoder = v
 
-        self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
-        self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=self.lr)
+    #     self.critic_target.load_state_dict(self.critic.state_dict())
+    #     self.image_encoder.load_state_dict(loaded_encoder.state_dict()) # NOTE: In the actual repo they use self.vinn_encoder rather than loaded_encoder 
 
-    def load_snapshot_eval(self, payload, bc=False):
-        for k, v in payload.items():
-            self.__dict__[k] = v
-        self.critic_target.load_state_dict(self.critic.state_dict()) 
+    #     self.image_encoder.eval()
+    #     for param in self.image_encoder.parameters():
+    #         param.requires_grad = False
 
-        self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
-        self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=self.lr)
+    #     self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
+    #     self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=self.lr)
+
+    # def load_snapshot_eval(self, payload, bc=False):
+    #     for k, v in payload.items():
+    #         self.__dict__[k] = v
+    #     self.critic_target.load_state_dict(self.critic.state_dict()) 
+
+    #     self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
+    #     self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=self.lr)

@@ -1,5 +1,5 @@
-# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.06/22-59_temporal_ssl_bs_32_epochs_1000_view_0_peg_insertion_frame_diff_5_resnet # peg insertion 
-# image_model_type: temporal # TODO: Add this information to the config - or get it from the learner type and etc
+image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.06/22-59_temporal_ssl_bs_32_epochs_1000_view_0_peg_insertion_frame_diff_5_resnet # peg insertion 
+image_model_type: temporal # TODO: Add this information to the config - or get it from the learner type and etc
 
 # joint
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.07/14-40_temporal_ssl_peg_insertion_view_0_joint_resnet
@@ -18,8 +18,8 @@
 # image_model_type: bc
 
 #pretrained
-image_out_dir: null 
-image_model_type: pretrained
+# image_out_dir: null 
+# image_model_type: pretrained
 
 vinn_image_out_dir: null
 vinn_image_model_type: byol

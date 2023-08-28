@@ -1,5 +1,5 @@
-# image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.02/21-37_temporal_ssl_bs_32_epochs_1000_lr_1e-05_plier_picking_frame_diff_8
-# image_model_type: temporal
+image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.02/21-37_temporal_ssl_bs_32_epochs_1000_lr_1e-05_plier_picking_frame_diff_8
+image_model_type: temporal
 
 # Joint temporal
 # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.07/14-18_temporal_ssl_plier_picking_view_0_joint_resnet
@@ -18,8 +18,8 @@
 # image_model_type: bc
 
 # Pretrained
-image_out_dir: null 
-image_model_type: pretrained
+# image_out_dir: null 
+# image_model_type: pretrained
 
 vinn_image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.06.07/18-14_image_byol_plier_picking_view_0_resnet
 vinn_image_model_type: byol
@@ -31,7 +31,7 @@ task_name: PlierPicking-v1
 camera_num: 0
 
 expert_demo_nums: [15] # 25? 
-arm_offset_scale_factor: 0.05
+arm_offset_scale_factor: 0.03
 hand_offset_scale_factor: 0.25
-offset_mask: [0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]
+offset_mask: [0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 action_type: robot

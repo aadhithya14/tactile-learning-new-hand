@@ -19,9 +19,9 @@ human_data:
   time_difference: 0.3
 
 shorten_demo:
-  apply: false
+  apply: true
   # times: [1.5,1,2,0,3.2] # Times in seconds for each demo - if only one value is given then we'll only use that
-  times: []
+  times: [0.0, 2, 3]
 
 repr_preprocessor: # NOTE: This was for BET  and IBC - we're just getting the representations in bet
   apply: true

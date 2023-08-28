@@ -1,4 +1,4 @@
-from .human_retargeter import HumanRetargeter
+# from .human_retargeter import HumanRetargeter
 from .vinn import VINN
 from .openloop import Openloop
 from .vinn_openloop import VINNOpenloop

@@ -2,11 +2,11 @@ defaults:
   # - agent: android_tavi #tavi # Optimizer will be initialized inside the agent
   # - base_policy: human_retargeter # human_retargeter
   - agent: tavi
-  - rl_learner: drq
+  - rl_learner: drqv2
   - base_policy: openloop
   - explorer: ou_noise
   - rewarder: sinkhorn_cosine # Type of the reward 
-  - task: sponge_flipping
+  - task: peg_insertion
   - suite: gym
 
 data_path: ${task.data_path}
@@ -26,14 +26,34 @@ seed: 42
 device: cuda
 
 num_train_frames: 10000 # Total training numbers
-num_seed_frames: 200 # Frames until training starts 
+num_seed_frames: 1000 # Frames until training starts 
 num_expl_steps: 0 # ${num_seed_frames} # Frames of full exploration
 eval_every_frames: 600  # Evaluate in each every 600 frames
 num_eval_episodes: 20
-evaluate: False
+evaluate: True
 max_steps: 100
 
-buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.14T14-37_sponge_flipping_drq_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.16T12-59_sponge_flipping_drq_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.17T11-32_peg_insertion_drqv2_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.17T12-39_eraser_turning_drqv2_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.17T14-38_plier_picking_drqv2_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.17T15-26_sponge_flipping_drqv2_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.17T16-54_mint_opening_drqv2_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.17T18-05_bowl_unstacking_drqv2_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.18T13-48_plier_picking_drqv2_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.18T14-42_sponge_flipping_drqv2_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.18T16-02_eraser_turning_drqv2_openloop 
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.18T17-11_mint_opening_drqv2_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.20T15-19_peg_insertion_drqv2_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.21T13-54_sponge_flipping_drqv2_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.20T17-19_sponge_flipping_drqv2_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.21T18-13_plier_picking_drqv2_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.16T11-04_plier_picking_drqv2_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.21T13-54_sponge_flipping_drqv2_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.21T13-54_sponge_flipping_drqv2_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.16T11-04_plier_picking_drqv2_openloop
+# buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.22T14-47_mint_opening_drqv2_openloop
+buffer_path: null
 
 # FISH and environment params
 expert_id: 0
@@ -58,10 +78,10 @@ save_train_video: True
 save_train_cost_matrices: True
 
 # Snapshot loading
-load_snapshot: False 
-snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/corl_rebuttals/snapshot_bowl_unstacking_cam_pos_4.pt
+load_snapshot: True
+snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot_peg_insertion_full_rewards.pt
 
-log: True
+log: False
 experiment: ${now:%Y.%m.%d}T${now:%H-%M}_${task.name}_${rl_learner.name}_${base_policy.name}
 
 # hydra configuration - should be received separately

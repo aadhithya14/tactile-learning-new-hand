@@ -11,10 +11,11 @@ task_name: MintOpening-v1
 camera_num: 0
 
 expert_demo_nums: [11]
-arm_offset_scale_factor: 0.005
+arm_offset_scale_factor: 0.09
 hand_offset_scale_factor: 0.1
 
-# offset_mask: [0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]
-offset_mask: [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+# offset_mask: [0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0]
+# offset_mask: [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+offset_mask: [0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]
 
 action_type: robot
