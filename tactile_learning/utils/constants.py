@@ -29,3 +29,25 @@ KINOVA_JOINT_LIMITS = [
     [-0.48, -0.55],[0.15,0.25], [0.3,0.45], # X,Y,Z
     [-0.1,0.1], [-0.7,-0.5],[0.0,0.1],[0.6,0.8] 
 ]
+
+PREPROCESS_MODALITY_LOAD_NAMES = { # TODO Should change these with different modalities
+    'touch': 'touch_sensor_values.h5',
+    'hand': ['joint_states.h5', 'commanded_joint_states.h5'],
+    'arm': 'cartesian_states.h5',
+    'image': 'rgb_video.metadata'
+}
+
+PREPROCESS_MODALITY_DUMP_NAMES = {
+    'touch': 'tactile_indices.pkl',
+    'arm': '_indices.pkl',
+    'hand': ['_indices.pkl', '_action_indices.pkl'],
+    'image': 'image_indices.pkl'
+}
+
+MODALITY_TYPES = {
+    'allegro': 'hand',
+    'kinova': 'arm',
+    'franka': 'arm',
+    'image': 'image',
+    'tactile': 'touch' # TODO: This could be changed to reskin / xela
+}
