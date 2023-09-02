@@ -1,4 +1,4 @@
-data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/mint_opening
+data_path: /home/irmak/Workspace/Holo-Bot/extracted_data/plier_clipping_success
 process_single_demo: false
 
 # Preprocessing for different types - if both false then preprocessing is done for deployment
@@ -10,8 +10,8 @@ kinova_threshold_step_size: 0.012 # If subsample_separately set to true this wil
 allegro_threshold_step_size: 0.008 
 threshold_step_size: 0.012 # Step size to be used in subsampling
 dump_images: true # If vision_byol is used dump_images should be true
-dump_data_indices: false 
-dump_fingertips: false
+dump_data_indices: true 
+dump_fingertips: true
 view_num: 0 # Camera ID to dump the images
 
 human_data:
@@ -19,12 +19,12 @@ human_data:
   time_difference: 0.3
 
 shorten_demo:
-  apply: true
+  apply: false
   # times: [1.5,1,2,0,3.2] # Times in seconds for each demo - if only one value is given then we'll only use that
   times: [0.0, 2, 3]
 
 repr_preprocessor: # NOTE: This was for BET  and IBC - we're just getting the representations in bet
-  apply: true
+  apply: false
   tactile_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.01.28/12-32_tactile_byol_bs_512_tactile_play_data_alexnet_pretrained_duration_120
   # Cup unstacking 
   # image_out_dir: /home/irmak/Workspace/tactile-learning/tactile_learning/out/2023.04.05/00-59_image_byol_bs_32_cup_picking_after_rss

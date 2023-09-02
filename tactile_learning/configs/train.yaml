@@ -25,7 +25,7 @@ world_size: 1
 num_gpus: 4
 
 # Data path to be set
-object: mint_opening
+object: plier_clipping_success #mint_opening
 experiment: ${learner_type}_bs_${batch_size}_epochs_${train_epochs}_view_${vision_view_num}_${object}_frame_diff_${dataset.frame_diff}_resnet # Name of the experiment that the models are saved
 data_dir: /home/irmak/Workspace/Holo-Bot/extracted_data/${object}
 # data_dir: /data/tactile_dexterity/play_data

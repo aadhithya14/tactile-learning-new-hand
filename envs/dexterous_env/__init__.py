@@ -49,3 +49,9 @@ register(
     entry_point='dexterous_env.multi_task_env:MultiTask',
     max_episode_steps=240
 )
+
+register(
+    id = 'PlierClipping-v1',
+    entry_point='dexterous_env.plier_clipping_env:PlierClipping',
+    max_episode_steps=80
+)

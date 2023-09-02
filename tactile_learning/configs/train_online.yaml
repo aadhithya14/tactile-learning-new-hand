@@ -6,7 +6,7 @@ defaults:
   - base_policy: openloop
   - explorer: ou_noise
   - rewarder: sinkhorn_cosine # Type of the reward 
-  - task: peg_insertion
+  - task: plier_clipping
   - suite: gym
 
 data_path: ${task.data_path}
@@ -53,7 +53,7 @@ max_steps: 100
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.21T13-54_sponge_flipping_drqv2_openloop
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.16T11-04_plier_picking_drqv2_openloop
 # buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.08.22T14-47_mint_opening_drqv2_openloop
-buffer_path: null
+buffer_path: /home/irmak/Workspace/tactile-learning/buffer/2023.09.01T13-31_plier_clipping_drqv2_openloop
 
 # FISH and environment params
 expert_id: 0
@@ -79,7 +79,7 @@ save_train_cost_matrices: True
 
 # Snapshot loading
 load_snapshot: True
-snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot_peg_insertion_full_rewards.pt
+snapshot_weight: /home/irmak/Workspace/tactile-learning/weights/snapshot_plier_clipping_drqv2_tavi.pt
 
 log: False
 experiment: ${now:%Y.%m.%d}T${now:%H-%M}_${task.name}_${rl_learner.name}_${base_policy.name}
