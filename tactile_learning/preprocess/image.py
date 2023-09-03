@@ -47,12 +47,21 @@ def dump_video_to_images(root: str, video_type: str ='rgb', view_num: int=0, dum
 
 class ImagePreprocessor(PreprocessorModule):
     def __init__(self, camera_id, is_ssl=False, time_difference=None):
-        super().__init__(camera_id, is_ssl, time_difference)
+        super().__init__(
+            camera_id=camera_id,
+            is_ssl=is_ssl, 
+            time_difference=time_difference)
 
         self.load_file_name = f'cam_{camera_id}_rgb_video.metadata'
         self.dump_file_name = f'image_indices.pkl'
-
+        print('inside image preprocessor - self.load_file_name: {}'.format(
+            self.load_file_name
+        ))
         self.current_id = 0
+        self.indices = []
+
+    def __repr__(self):
+        return 'image_preprocessor'
 
     def load_data(self):
         file_path = os.path.join(self.root, self.load_file_name)
@@ -71,8 +80,6 @@ class ImagePreprocessor(PreprocessorModule):
             view_num = self.camera_id,
             dump_all = self.is_ssl
         )
-
-    
 
     def get_next_timestamp(self):
         curr_ts = self.current_timestamp

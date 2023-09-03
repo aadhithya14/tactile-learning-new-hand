@@ -65,14 +65,18 @@ class RobotPreprocessor(PreprocessorModule):
     def __init__(self,
                  subsample_separately,
                  robot_names, robot_thresholds,
-                 dump_fingertips):
-        super().__init__(subsample_separately, robot_names, dump_fingertips)
+                 dump_fingertips=None):
+        super().__init__(
+            subsample_separately=subsample_separately,
+            robot_names=robot_names,
+            fingertips=dump_fingertips)
 
-        self.robot_thresholds = np.array(robot_thresholds)
+        # self.robot_thresholds = np.array(robot_thresholds)
 
+        self.robot_thresholds = robot_thresholds
         if not subsample_separately:
-            robot_threshold_key = min(self.robot_thresholds)
-            self.robot_threshold = self.robot_thresholds[robot_threshold_key]
+            robot_threshold_key = min(robot_thresholds)
+            self.robot_threshold = robot_thresholds[robot_threshold_key]
 
         self._get_solvers()
 
@@ -98,10 +102,46 @@ class RobotPreprocessor(PreprocessorModule):
         if 'arm' in self.robot_types:
             self.current_arm_id = 0
 
+        self.indices = dict(
+            arm = [],
+            hand = [[], []]
+        )
+
+    def __repr__(self):
+        return f'robot_preprocessor for {self.robot_names}'
+
     def _get_solvers(self):
         if 'allegro' in self.robot_names:
             self.hand_solver = AllegroKDL()
 
+    def update_next_id(self, desired_timestamp):
+        for robot_type in self.robot_types:
+            if robot_type == 'arm':
+                next_arm_id = get_closest_id(
+                    curr_id = self.current_arm_id,
+                    desired_timestamp=desired_timestamp,
+                    all_timestamps=self.data['arm']['timestamps']
+                ) 
+                self.current_arm_id = next_arm_id
+            if robot_type == 'hand':
+                next_hand_id = get_closest_id(
+                    curr_id = self.current_hand_id,
+                    desired_timestamp=desired_timestamp,
+                    all_timestamps = self.data['hand']['timestamps']
+                )
+                self.current_hand_id = next_hand_id 
+                next_hand_action_id = get_closest_id(
+                    curr_id = self.current_hand_action_id,
+                    desired_timestamp=desired_timestamp,
+                    all_timestamps=self.data['hand']['action_timestamps']
+                )
+                self.current_hand_action_id = next_hand_action_id
+
+        # print('current_ids - robot_prep: {}, {}, {}'.format(
+        #     self.current_arm_id, self.current_hand_id, self.current_hand_action_id
+        # ))
+
+    @property
     def current_timestamp(self):
         ts_arr = []
         if 'arm' in self.robot_types:
@@ -121,6 +161,7 @@ class RobotPreprocessor(PreprocessorModule):
     def load_data(self):
         self.data = dict()
         for robot_type in self.robot_types:
+            self.data[robot_type] = dict()
             if robot_type == 'hand':
                 with h5py.File(
                     os.path.join(self.root, self.robot_files['load'][robot_type][0]), 'r'
@@ -157,6 +198,7 @@ class RobotPreprocessor(PreprocessorModule):
         for i in range(self.current_arm_id, len(self.data['arm']['positions'])):
             curr_pos = self.data['arm']['positions'][i]
             step_size = np.linalg.norm(old_pos - curr_pos)
+            # print('step_size in find_next_arm_id: {}'.format(step_size))
             if step_size > threshold_step_size:
                 return i
             
@@ -206,7 +248,7 @@ class RobotPreprocessor(PreprocessorModule):
                 ts_arr.append(self.data['arm']['timestamps'][pos_arm_id])
             if 'hand' in self.robot_types:
                 pos_hand_id = self._find_next_hand_id(
-                    threshold_step_size=self.robot_thresholds['arm']
+                    threshold_step_size=self.robot_thresholds['hand']
                 )
                 if pos_hand_id >= len(self.data['hand']['timestamps']): return -1
                 ts_arr.append(self.data['hand']['timestamps'][pos_hand_id])
@@ -220,7 +262,7 @@ class RobotPreprocessor(PreprocessorModule):
             )
 
     def dump_fingertips(self):
-        if self.dump_fingertips and 'hand' in self.robot_types:
+        if self.fingertips and 'hand' in self.robot_types:
             print(f'Dumping fingertip positions in root {self.root}')
             fingertip_states = dict(
                 positions = [],
@@ -249,3 +291,43 @@ class RobotPreprocessor(PreprocessorModule):
 
             print(f'Saved fingertip positions in {fingertip_state_file}')
 
+    def update_indices(self):
+        self.indices['arm'].append([self.demo_id, self.current_arm_id])
+        self.indices['hand'][0].append([self.demo_id, self.current_hand_id])
+        self.indices['hand'][1].append([self.demo_id, self.current_hand_action_id])
+
+    def dump_data_indices(self):
+        if 'arm' in self.robot_types:
+            file_path = os.path.join(self.root, self.robot_files['dump']['arm'])
+            with open(file_path, 'wb') as f:
+                pickle.dump(self.indices['arm'], f)
+            print('dumped arm indices to: {}'.format(
+                self.robot_files['dump']['arm']
+            ))
+        if 'hand' in self.robot_types:
+            for i, robot_file in enumerate(self.robot_files['dump']['hand']):
+                file_path = os.path.join(self.root, robot_file)
+                with open(file_path, 'wb') as f: 
+                    pickle.dump(self.indices['hand'][i], f) 
+
+                print('dumped hand indices to: {}'.format(
+                    self.robot_files['dump']['hand'][i]
+                ))
+
+    def is_finished(self):
+        for robot_type in self.robot_types:
+            if robot_type == 'arm' and self.current_arm_id >= len(self.data[robot_type]['timestamps']):
+                return True
+            
+            if robot_type == 'hand' and self.current_hand_id >= len(self.data[robot_type]['timestamps']):
+                return True
+            
+            if robot_type == 'hand' and self.current_hand_action_id >= len(self.data[robot_type]['action_timestamps']):
+                return True
+            
+        return False 
+    
+    def reset_current_id(self):
+        self.current_arm_id = 0 
+        self.current_hand_id = 0
+        self.current_hand_action_id = 0

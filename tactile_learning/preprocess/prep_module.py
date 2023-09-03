@@ -15,10 +15,6 @@ class PreprocessorModule(ABC):
         self.__dict__.update(**kwargs)
 
     @property
-    def current_id(self):
-        return self.current_id
-
-    @property
     def current_timestamp(self):
         return self.data['timestamps'][self.current_id]
     
@@ -26,6 +22,10 @@ class PreprocessorModule(ABC):
         self.root = root
         self.demo_id = demo_id
         self.load_data()
+        print('Updated the root of PreprocessorModule ({}) for demo_id: {} - root: {}'.format(
+            self, demo_id, root
+        ))
+        self.reset_current_id()
 
     def reset_current_id(self):
         self.current_id = 0
@@ -39,6 +39,7 @@ class PreprocessorModule(ABC):
     
         return False
 
+    # @abstractmethod
     def update_next_id(self, desired_timestamp):
         self.current_id = self._get_closest_id(desired_timestamp)
 

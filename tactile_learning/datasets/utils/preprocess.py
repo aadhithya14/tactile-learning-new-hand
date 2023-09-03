@@ -9,6 +9,171 @@ from tqdm import tqdm
 
 from holobot.robot.allegro.allegro_kdl import AllegroKDL
 
+from tactile_learning.utils import PREPROCESS_MODALITY_LOAD_NAMES, MODALITY_TYPES
+
+
+
+
+# class Modality: 
+#     def __init__(self, name, root, camera_id=None): # It could be an array as well if we want arm and hand to be processed together
+#         self.root = root
+#         self.name = name
+#         self.camera_id = camera_id
+#         self.type = MODALITY_TYPES[name]
+
+#         # Set the current id to 0 -> for the id calculation
+#         self.current_id = 0
+
+#         # If both kinova and allegro is given we should be able to find the next state together
+#         if name == 'allegro' or 'allegro' in name:
+#             self.kdl_solver = AllegroKDL()
+#             # self.get_pos = self._get_allegro_pos # We are doing preprocessing according to the Allegro hand
+
+#     def __repr__(self):
+#         return f'{self.name}_{self.type}'
+
+#     def load_data(self):
+#         # Will load the necessary data for the modality using PREPROCESS MODALITY FILE NAMES
+#         # Get the names of the files for each modality and load them accordingly
+
+#         if self.type == 'image':
+#             return self._load_image_data()
+#         if self.type == 'hand':
+#             return self._load_hand_data()
+        
+#         if self.type == 'arm':
+#             file_name = PREPROCESS_MODALITY_LOAD_NAMES[self.type]
+#             file_name = f'{self.name}_{file_name}'
+#         elif self.type == 'touch':
+#             file_name = PREPROCESS_MODALITY_LOAD_NAMES[self.type]
+        
+#         file_path = os.path.join(self.root, file_name)
+
+#         with open(file_path, 'rb') as f:
+#             state_timestamps = f['timestamps'][()]
+#             state_positions = f['positions'][()] 
+
+#         self.data = dict(
+#             timestamps = state_timestamps, 
+#             positions = state_positions
+#         )
+
+#     def _load_image_data(self):
+#         # Assert our current modality type is image
+#         assert self.type == 'image', f'_load_image_data is being called eventhough modality type is {self.type}'
+
+#         file_name = PREPROCESS_MODALITY_LOAD_NAMES[self.type]
+#         file_name = f'cam_{self.camera_id}_{file_name}'
+        
+#         file_path = os.path.join(self.root, file_name)
+#         print('FILE_PATH in LOAD_IMAGE_DATA: {}'.format(file_path))
+
+#         with open(file_path, 'rb') as f:
+#             image_metadata = pickle.load(f)
+#             image_timestamps = np.asarray(image_metadata['timestamps']) / 1000.
+
+#         self.data = dict(
+#             timestamps = image_timestamps
+#         )
+
+#     def _load_hand_data(self):
+#         # Hand will use action timestamps as well
+#         assert self.type == 'arm', f'_load_hand_data is being called eventhough modality type is {self.type}'
+
+#         file_names = PREPROCESS_MODALITY_LOAD_NAMES[self.type]
+
+#         for file_name in file_names:
+#             file_name = f'{self.name}_{file_name}'
+#             file_path = os.path.join(self.root, file_name)
+#             if 'commanded' in file_name:
+#                 with open(file_path, 'rb') as f:
+#                     action_timestamps = f['timestamps'][()]
+#             else:
+#                 with open(file_path, 'rb') as f:
+#                     state_timestamps = f['timestamps'][()]
+#                     state_positions = f['positions'][()]
+
+#             self.data = dict(
+#                 timestamps = state_timestamps,
+#                 positions = state_positions,
+#                 action_timestamps = action_timestamps
+#             )
+
+
+#     def find_next_id(self, step_size):
+
+
+#     def update_indices(self, demo_id, modality_id=None): 
+#         if modality_id is None: 
+#             self.indices.append([demo_id, self.current_id])
+#         else:
+#             self.indices.append([demo_id, modality_id])
+
+#     def dump_indices(self, file_name): 
+#         with open(os.path.join(self.root, file_name), 'wb') as f:
+#             pickle.dump(self.indices, f)
+
+
+#     def _get_allegro_pos(self):
+#         pass # TODO
+
+
+
+    
+def find_next_allegro_id(kdl_solver, positions, pos_id, threshold_step_size=0.01):
+    old_allegro_pos = positions[pos_id]
+    old_allegro_fingertip_pos = kdl_solver.get_fingertip_coords(old_allegro_pos)
+    for i in range(pos_id, len(positions)):
+        curr_allegro_fingertip_pos = kdl_solver.get_fingertip_coords(positions[i])
+        step_size = np.linalg.norm(old_allegro_fingertip_pos - curr_allegro_fingertip_pos)
+        if step_size > threshold_step_size: 
+            return i
+
+    return i # This will return len(positions)-1 when there are not enough 
+
+def find_next_kinova_id(positions, pos_id, threshold_step_size=0.1):
+    old_kinova_pos = positions[pos_id]
+    for i in range(pos_id, len(positions)):
+        curr_kinova_pos = positions[i]
+        step_size = np.linalg.norm(old_kinova_pos - curr_kinova_pos)
+        if step_size > threshold_step_size:
+            return i 
+
+    return i
+
+def find_next_robot_state_timestamp(kdl_solver, allegro_positions, allegro_timestamps, allegro_id, kinova_positions, kinova_id, kinova_timestamps, threshold_step_size=0.015):
+    # Find the timestamp where allegro and kinova difference in total is larger than the given threshold
+    old_allegro_pos = allegro_positions[allegro_id]
+    old_allegro_fingertip_pos = kdl_solver.get_fingertip_coords(old_allegro_pos)
+    old_kinova_pos = kinova_positions[kinova_id]
+    for i in range(allegro_id, len(allegro_positions)):
+        curr_allegro_fingertip_pos = kdl_solver.get_fingertip_coords(allegro_positions[i])
+        curr_allegro_timestamp = allegro_timestamps[i]
+        kinova_id = get_closest_id(kinova_id, curr_allegro_timestamp, kinova_timestamps)
+        curr_kinova_pos = kinova_positions[kinova_id]
+        step_size = np.linalg.norm(old_allegro_fingertip_pos - curr_allegro_fingertip_pos) + np.linalg.norm(old_kinova_pos - curr_kinova_pos)
+        if step_size > threshold_step_size:
+            return curr_allegro_timestamp
+
+        if kinova_id >= len(kinova_positions):
+            return None
+            
+    return None
+
+def get_closest_id(curr_id, desired_timestamp, all_timestamps):
+    for i in range(curr_id, len(all_timestamps)):
+        if all_timestamps[i] >= desired_timestamp:
+            return i # Find the first timestamp that is after that
+    
+    return i
+
+
+
+# Overall class to preprocess different modalities
+# class Preprocessor:
+    # Initialize modalities to preprocess
+
+
 # Method to dump a video to images - in order to receive images for timestamps
 
 # Dumping video to images
@@ -27,8 +192,10 @@ def dump_video_to_images(root: str, video_type: str ='rgb', view_num: int=0, dum
     success, image = vidcap.read()
     frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    with open(os.path.join(root, 'image_indices.pkl'), 'rb') as f:
-        desired_indices = pickle.load(f)
+    assert os.path.exists(os.path.join(root, 'image_indices.pkl')) or dump_all, 'If not dump_all, Image Indices should have been dumped before converting video to images'
+    if not dump_all: # Otherwise we dn't need desired indices
+        with open(os.path.join(root, 'image_indices.pkl'), 'rb') as f:
+            desired_indices = pickle.load(f)
 
     frame_id = 0
     desired_img_id = 0
@@ -215,11 +382,7 @@ def dump_data_indices(
     # Shorten the demos
     if shorten_demos:
         time = shortening_times if type(shortening_times) == int else shortening_times[demo_id]
-        # print('time: {}, demo_id: {}, type(shortening_times): {}'.format(
-        #     time, demo_id, type(shortening_times)
-        # ))
         shortened_ids = get_shortened_ts_ids(root, shortening_time=time)
-        
         # allegro 
         allegro_timestamps = allegro_timestamps[:shortened_ids['allegro']]
         allegro_positions = allegro_positions[:shortened_ids['allegro']]
@@ -332,49 +495,3 @@ def dump_data_indices(
         pickle.dump(kinova_indices[:-last_stopping_index], f)
 
     
-def find_next_allegro_id(kdl_solver, positions, pos_id, threshold_step_size=0.01):
-    old_allegro_pos = positions[pos_id]
-    old_allegro_fingertip_pos = kdl_solver.get_fingertip_coords(old_allegro_pos)
-    for i in range(pos_id, len(positions)):
-        curr_allegro_fingertip_pos = kdl_solver.get_fingertip_coords(positions[i])
-        step_size = np.linalg.norm(old_allegro_fingertip_pos - curr_allegro_fingertip_pos)
-        if step_size > threshold_step_size: 
-            return i
-
-    return i # This will return len(positions)-1 when there are not enough 
-
-def find_next_kinova_id(positions, pos_id, threshold_step_size=0.1):
-    old_kinova_pos = positions[pos_id]
-    for i in range(pos_id, len(positions)):
-        curr_kinova_pos = positions[i]
-        step_size = np.linalg.norm(old_kinova_pos - curr_kinova_pos)
-        if step_size > threshold_step_size:
-            return i 
-
-    return i
-
-def find_next_robot_state_timestamp(kdl_solver, allegro_positions, allegro_timestamps, allegro_id, kinova_positions, kinova_id, kinova_timestamps, threshold_step_size=0.015):
-    # Find the timestamp where allegro and kinova difference in total is larger than the given threshold
-    old_allegro_pos = allegro_positions[allegro_id]
-    old_allegro_fingertip_pos = kdl_solver.get_fingertip_coords(old_allegro_pos)
-    old_kinova_pos = kinova_positions[kinova_id]
-    for i in range(allegro_id, len(allegro_positions)):
-        curr_allegro_fingertip_pos = kdl_solver.get_fingertip_coords(allegro_positions[i])
-        curr_allegro_timestamp = allegro_timestamps[i]
-        kinova_id = get_closest_id(kinova_id, curr_allegro_timestamp, kinova_timestamps)
-        curr_kinova_pos = kinova_positions[kinova_id]
-        step_size = np.linalg.norm(old_allegro_fingertip_pos - curr_allegro_fingertip_pos) + np.linalg.norm(old_kinova_pos - curr_kinova_pos)
-        if step_size > threshold_step_size:
-            return curr_allegro_timestamp
-
-        if kinova_id >= len(kinova_positions):
-            return None
-            
-    return None
-
-def get_closest_id(curr_id, desired_timestamp, all_timestamps):
-    for i in range(curr_id, len(all_timestamps)):
-        if all_timestamps[i] >= desired_timestamp:
-            return i # Find the first timestamp that is after that
-    
-    return i

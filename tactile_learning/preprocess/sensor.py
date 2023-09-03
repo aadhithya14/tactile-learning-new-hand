@@ -15,6 +15,10 @@ class TouchPreprocessor(PreprocessorModule):
 
         self.load_file_name = 'touch_sensor_values.h5'
         self.dump_file_name = 'tactile_indices.pkl'
+        self.indices = []
+
+    def __repr__(self):
+        return 'touch_reprocessor'
 
     def load_data(self):
         file_path = os.path.join(self.root, self.load_file_name)

@@ -7,14 +7,14 @@ from tactile_learning.datasets import *
 
 class Preprocessor:
     def __init__(self, data_path, modules, 
-                 dump_data_indices=False,
+                 dump_data_indices=False, process_single_demo=False,
                  human_data=None, shorten_demo=None, repr_preprcessor=None, 
                  **kwargs):
         
         self.data_path = data_path
         self.modules = modules
-
         self.dump_data_indices = dump_data_indices
+
         # self.human_data = human_data # TODO: Add these
         # self.shorten_demo = shorten_demo # TODO: Add these
         # self.repr_preprocess = repr_preprcessor # TODO: Add these
@@ -22,12 +22,16 @@ class Preprocessor:
     def apply(self):
 
         roots = glob.glob(f'{self.data_path}/demonstration_*')
+        roots = sorted(roots)
 
         for demo_id, root in enumerate(roots):  
-            self.modules['robot'].dump_fingertips(root=root)
+            # Update the root of the module
+            self._update_root(demo_id, root)
+
+            self.modules['robot'].dump_fingertips()
 
             if self.dump_data_indices:
-                self.dump_indices(demo_id=demo_id, root=root)
+                self.dump_indices()
 
             self.modules['image'].dump_images()
 
@@ -50,22 +54,23 @@ class Preprocessor:
 
         return module_key
 
-    def dump_indices(self, demo_id, root):
+    def dump_indices(self):
         # TODO: add shorteninig part
 
-        self._update_root(demo_id, root)
         self._reset_indices()
 
         latest_key = self._find_latest_module()
         metric_timestamp = self.modules[latest_key].current_timestamp
-    
+
         # Find the beginning ids for each module
         for module in self.modules.values():
             module.update_next_id(metric_timestamp)
             module.update_indices()
 
+            print(f'{module} - ts: {module.current_timestamp}')
+
         # Update timestamps and ids consequitively
-        # metric_timestamp = 
+        # pbar = tqdm(total=)
         while True:
 
             # Each module returns a 'metric' timestamp
@@ -75,14 +80,15 @@ class Preprocessor:
 
             module_ts_diff = 1e3
             cand_metric_ts = metric_timestamp
-            for module in self.modules.values():
+            for key, module in self.modules.items():
                 next_ts = module.get_next_timestamp()
+
                 if next_ts != -1 and next_ts - metric_timestamp < module_ts_diff:
                     module_ts_diff = next_ts - metric_timestamp 
-                    cand_metric_ts = metric_timestamp
+                    cand_metric_ts = next_ts
 
             metric_timestamp = cand_metric_ts 
-
+            # return
             # Update the ids of each module
             for module in self.modules.values():
                 module.update_next_id(metric_timestamp)
@@ -95,6 +101,8 @@ class Preprocessor:
             # If not add update the indices array of each module
             for module in self.modules.values():
                 module.update_indices()
+
+            print('--------')
 
         for module in self.modules.values():
                 module.dump_data_indices()
